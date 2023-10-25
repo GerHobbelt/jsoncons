@@ -282,50 +282,50 @@ namespace jsoncons {
         using parse_error_handler_type = default_json_parsing;
     };
 
-    template<class ImplementationPolicy, class KeyT,class Json, class Enable=void>
+    template<class Policy, class KeyT,class Json, class Enable=void>
     struct object_iterator_typedefs
     {
     };
 
-    template<class ImplementationPolicy, class KeyT,class Json>
-    struct object_iterator_typedefs<ImplementationPolicy, KeyT, Json, typename std::enable_if<
-        !traits_extension::is_detected<traits_extension::container_object_iterator_type_t, ImplementationPolicy>::value ||
-        !traits_extension::is_detected<traits_extension::container_const_object_iterator_type_t, ImplementationPolicy>::value>::type>
+    template<class Policy, class KeyT,class Json>
+    struct object_iterator_typedefs<Policy, KeyT, Json, typename std::enable_if<
+        !traits_extension::is_detected<traits_extension::container_object_iterator_type_t, Policy>::value ||
+        !traits_extension::is_detected<traits_extension::container_const_object_iterator_type_t, Policy>::value>::type>
     {
-        using object_iterator_type = jsoncons::detail::random_access_iterator_wrapper<typename ImplementationPolicy::template object<KeyT,Json>::iterator>;                    
-        using const_object_iterator_type = jsoncons::detail::random_access_iterator_wrapper<typename ImplementationPolicy::template object<KeyT,Json>::const_iterator>;
+        using object_iterator_type = jsoncons::detail::random_access_iterator_wrapper<typename Policy::template object<KeyT,Json>::iterator>;                    
+        using const_object_iterator_type = jsoncons::detail::random_access_iterator_wrapper<typename Policy::template object<KeyT,Json>::const_iterator>;
     };
 
-    template<class ImplementationPolicy,class KeyT,class Json>
-    struct object_iterator_typedefs<ImplementationPolicy, KeyT, Json, typename std::enable_if<
-        traits_extension::is_detected<traits_extension::container_object_iterator_type_t, ImplementationPolicy>::value &&
-        traits_extension::is_detected<traits_extension::container_const_object_iterator_type_t, ImplementationPolicy>::value>::type>
+    template<class Policy,class KeyT,class Json>
+    struct object_iterator_typedefs<Policy, KeyT, Json, typename std::enable_if<
+        traits_extension::is_detected<traits_extension::container_object_iterator_type_t, Policy>::value &&
+        traits_extension::is_detected<traits_extension::container_const_object_iterator_type_t, Policy>::value>::type>
     {
-        using object_iterator_type = jsoncons::detail::random_access_iterator_wrapper<typename ImplementationPolicy::template object_iterator<KeyT,Json>>;
-        using const_object_iterator_type = jsoncons::detail::random_access_iterator_wrapper<typename ImplementationPolicy::template const_object_iterator<KeyT,Json>>;
+        using object_iterator_type = jsoncons::detail::random_access_iterator_wrapper<typename Policy::template object_iterator<KeyT,Json>>;
+        using const_object_iterator_type = jsoncons::detail::random_access_iterator_wrapper<typename Policy::template const_object_iterator<KeyT,Json>>;
     };
 
-    template<class ImplementationPolicy, class KeyT,class Json, class Enable=void>
+    template<class Policy, class KeyT,class Json, class Enable=void>
     struct array_iterator_typedefs
     {
     };
 
-    template<class ImplementationPolicy, class KeyT,class Json>
-    struct array_iterator_typedefs<ImplementationPolicy, KeyT, Json, typename std::enable_if<
-        !traits_extension::is_detected<traits_extension::container_array_iterator_type_t, ImplementationPolicy>::value ||
-        !traits_extension::is_detected<traits_extension::container_const_array_iterator_type_t, ImplementationPolicy>::value>::type>
+    template<class Policy, class KeyT,class Json>
+    struct array_iterator_typedefs<Policy, KeyT, Json, typename std::enable_if<
+        !traits_extension::is_detected<traits_extension::container_array_iterator_type_t, Policy>::value ||
+        !traits_extension::is_detected<traits_extension::container_const_array_iterator_type_t, Policy>::value>::type>
     {
-        using array_iterator_type = typename ImplementationPolicy::template array<Json>::iterator;
-        using const_array_iterator_type = typename ImplementationPolicy::template array<Json>::const_iterator;
+        using array_iterator_type = typename Policy::template array<Json>::iterator;
+        using const_array_iterator_type = typename Policy::template array<Json>::const_iterator;
     };
 
-    template<class ImplementationPolicy,class KeyT,class Json>
-    struct array_iterator_typedefs<ImplementationPolicy, KeyT, Json, typename std::enable_if<
-        traits_extension::is_detected<traits_extension::container_array_iterator_type_t, ImplementationPolicy>::value &&
-        traits_extension::is_detected<traits_extension::container_const_array_iterator_type_t, ImplementationPolicy>::value>::type>
+    template<class Policy,class KeyT,class Json>
+    struct array_iterator_typedefs<Policy, KeyT, Json, typename std::enable_if<
+        traits_extension::is_detected<traits_extension::container_array_iterator_type_t, Policy>::value &&
+        traits_extension::is_detected<traits_extension::container_const_array_iterator_type_t, Policy>::value>::type>
     {
-        using array_iterator_type = typename ImplementationPolicy::template array_iterator_type<Json>;
-        using const_array_iterator_type = typename ImplementationPolicy::template const_array_iterator_type<Json>;
+        using array_iterator_type = typename Policy::template array_iterator_type<Json>;
+        using const_array_iterator_type = typename Policy::template const_array_iterator_type<Json>;
     };
 
     #if !defined(JSONCONS_NO_DEPRECATED)
@@ -403,14 +403,14 @@ namespace jsoncons {
     struct is_proxy<T,typename std::enable_if<is_proxy_of<T,typename T::proxied_type>::value>::type
     > : std::true_type {};
 
-    template <class CharT, class ImplementationPolicy, class Allocator>
+    template <class CharT, class Policy, class Allocator>
     class basic_json
     {
     public:
 
         using allocator_type = Allocator; 
 
-        using implementation_policy = ImplementationPolicy;
+        using implementation_policy = Policy;
 
         using parse_error_handler_type = typename implementation_policy::parse_error_handler_type;
 
@@ -870,12 +870,6 @@ namespace jsoncons {
                 create(val.get_allocator(), std::move(val));
             }
 
-            array_storage(const array& val, semantic_tag tag, const Allocator& alloc)
-                : storage_kind_(val.storage_kind_), length_(0), tag_(tag)
-            {
-                create(array_allocator(alloc), val);
-            }
-
             array_storage(const array_storage& other)
                 : storage_kind_(other.storage_kind_), length_(0), tag_(other.tag_)
             {
@@ -887,13 +881,42 @@ namespace jsoncons {
                   ptr_(nullptr)
             {
                 std::swap(other.ptr_, ptr_);
+
+                other.storage_kind_ = static_cast<uint8_t>(json_storage_kind::null_value);
+                other.length_ = 0;
+                other.tag_ = semantic_tag::none;
             }
 
             array_storage(const array_storage& other, const Allocator& alloc)
                 : storage_kind_(other.storage_kind_), length_(0), tag_(other.tag_)
             {
-                create(array_allocator(alloc), *(other.ptr_));
+                if (other.get_allocator() == alloc)
+                {
+                    create(array_allocator(alloc), *(other.ptr_));
+                }
+                else
+                {
+                    create(array_allocator(alloc), array(*(other.ptr_), alloc));
+                }
             }
+
+            array_storage(array_storage&& other, const Allocator& alloc)
+                : storage_kind_(other.storage_kind_), length_(0), tag_(other.tag_)
+            {
+                if (other.get_allocator() == alloc)
+                {
+                    ptr_ = other.ptr_;
+                    other.ptr_ = nullptr;
+                    other.storage_kind_ = static_cast<uint8_t>(json_storage_kind::null_value);
+                    other.length_ = 0;
+                    other.tag_ = semantic_tag::none;
+                }
+                else
+                {
+                    create(array_allocator(alloc), array(*(other.ptr_), alloc));
+                }
+            }
+
             ~array_storage() noexcept
             {
                 if (ptr_ != nullptr)
@@ -951,22 +974,16 @@ namespace jsoncons {
                 }
             }
         public:
-            explicit object_storage(const object& val, semantic_tag tag)
+            object_storage(const object& val, semantic_tag tag)
                 : storage_kind_(static_cast<uint8_t>(json_storage_kind::object_value)), length_(0), tag_(tag)
             {
                 create(val.get_allocator(), val);
             }
 
-            explicit object_storage(object&& val, semantic_tag tag)
+            object_storage(object&& val, semantic_tag tag)
                 : storage_kind_(static_cast<uint8_t>(json_storage_kind::object_value)), length_(0), tag_(tag)
             {
                 create(val.get_allocator(), std::move(val));
-            }
-
-            explicit object_storage(const object& other, semantic_tag tag, const Allocator& alloc)
-                : storage_kind_(other.storage_kind_), length_(0), tag_(tag)
-            {
-                create(object_allocator(alloc), other);
             }
 
             explicit object_storage(const object_storage& other)
@@ -975,17 +992,45 @@ namespace jsoncons {
                 create(other.ptr_->get_allocator(), *(other.ptr_));
             }
 
+            object_storage(const object_storage& other, const Allocator& alloc)
+                : storage_kind_(other.storage_kind_), length_(0), tag_(other.tag_)
+            {
+                if (other.get_allocator() == alloc)
+                {
+                    create(object_allocator(alloc), *(other.ptr_));
+                }
+                else
+                {
+                    create(object_allocator(alloc), object(*(other.ptr_), alloc));
+                }
+            }
+
             explicit object_storage(object_storage&& other) noexcept
                 : storage_kind_(other.storage_kind_), length_(0), tag_(other.tag_),
                   ptr_(nullptr)
             {
-                std::swap(other.ptr_,ptr_);
+                ptr_ = other.ptr_;
+                other.ptr_ = nullptr;
+                other.storage_kind_ = static_cast<uint8_t>(json_storage_kind::null_value);
+                other.length_ = 0;
+                other.tag_ = semantic_tag::none;
             }
 
-            explicit object_storage(const object_storage& other, const Allocator& alloc)
+            object_storage(object_storage&& other, const Allocator& alloc)
                 : storage_kind_(other.storage_kind_), length_(0), tag_(other.tag_)
             {
-                create(object_allocator(alloc), *(other.ptr_));
+                if (other.get_allocator() == alloc)
+                {
+                    ptr_ = other.ptr_;
+                    other.ptr_ = nullptr;
+                    other.storage_kind_ = static_cast<uint8_t>(json_storage_kind::null_value);
+                    other.length_ = 0;
+                    other.tag_ = semantic_tag::none;
+                }
+                else
+                {
+                    create(object_allocator(alloc), object(*(other.ptr_), alloc));
+                }
             }
 
             ~object_storage() noexcept
@@ -2346,15 +2391,15 @@ namespace jsoncons {
                 case json_storage_kind::long_string_value:
                     construct<long_string_storage>(std::move(other.cast<long_string_storage>()));
                     break;
-
                 case json_storage_kind::byte_string_value:
-                case json_storage_kind::array_value:
-                case json_storage_kind::object_value:
-                {
-                    construct<null_storage>();
-                    swap(other);
+                    construct<byte_string_storage>(std::move(other.cast<byte_string_storage>()));
                     break;
-                }
+                case json_storage_kind::array_value:
+                    construct<array_storage>(std::move(other.cast<array_storage>()));
+                    break;
+                case json_storage_kind::object_value:
+                    construct<object_storage>(std::move(other.cast<object_storage>()));
+                    break;
                 default:
                     JSONCONS_UNREACHABLE();
                     break;
@@ -2393,28 +2438,14 @@ namespace jsoncons {
                     construct<byte_string_storage>(std::move(other.cast<byte_string_storage>()), alloc);
                     break;
                 }
-                case json_storage_kind::object_value:
-                {
-                    if (alloc == other.cast<object_storage>().get_allocator())
-                    {
-                        uninitialized_move_a(std::true_type(), std::move(other), alloc);
-                    }
-                    else
-                    {
-                        uninitialized_copy_a(other,alloc);
-                    }
-                    break;
-                }
                 case json_storage_kind::array_value:
                 {
-                    if (alloc == other.cast<array_storage>().get_allocator())
-                    {
-                        uninitialized_move_a(std::true_type(), std::move(other), alloc);
-                    }
-                    else
-                    {
-                        uninitialized_copy_a(other,alloc);
-                    }
+                    construct<array_storage>(std::move(other.cast<array_storage>()), alloc);
+                    break;
+                }
+                case json_storage_kind::object_value:
+                {
+                    construct<object_storage>(std::move(other.cast<object_storage>()), alloc);
                     break;
                 }
             default:
@@ -6014,10 +6045,12 @@ namespace jsoncons {
 
     #if defined(JSONCONS_HAS_POLYMORPHIC_ALLOCATOR)
     namespace pmr {
-        using json = basic_json<char,sorted_policy,std::pmr::polymorphic_allocator<char>>;
-        using wjson = basic_json<wchar_t,sorted_policy,std::pmr::polymorphic_allocator<char>>;
-        using ojson = basic_json<char, order_preserving_policy, std::pmr::polymorphic_allocator<char>>;
-        using wojson = basic_json<wchar_t, order_preserving_policy, std::pmr::polymorphic_allocator<char>>;
+        template< class CharT, class Policy>
+        using basic_json = jsoncons::basic_json<CharT, Policy, std::pmr::polymorphic_allocator<char>>;
+        using json = basic_json<char,sorted_policy>;
+        using wjson = basic_json<wchar_t,sorted_policy>;
+        using ojson = basic_json<char, order_preserving_policy>;
+        using wojson = basic_json<wchar_t, order_preserving_policy>;
     } // namespace pmr
     #endif
 

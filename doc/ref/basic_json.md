@@ -5,9 +5,18 @@
 
 template< 
     class CharT,
-    class ImplementationPolicy = sorted_policy,
+    class Policy = sorted_policy,
     class Allocator = std::allocator<char>
 > class basic_json;
+
+namespace pmr {
+    template<class CharT, class Policy>
+    using basic_json = jsoncons::basic_json<CharT, Policy, std::pmr::polymorphic_allocator<char>>;
+    using json = basic_json<char,sorted_policy>;                                                    (since 0.171.0)
+    using wjson = basic_json<wchar_t,sorted_policy>;
+    using ojson = basic_json<char, order_preserving_policy>;
+    using wojson = basic_json<wchar_t, order_preserving_policy>;
+}
 ```
 
 The class `basic_json` resembles a union. A `basic_json` holds a data item of one of its alternative types:
@@ -17,7 +26,7 @@ null, `bool`, `int64_t`, `uint64_t`, `double`, text string, byte string, array, 
 When assigned a new `basic_json` value, the old value is overwritten. The type of the new value may be different from the old value. 
 
 The definition of the character type of text strings is supplied via the `CharT` template parameter.
-Implementation policies for arrays and objects are provided via the `ImplementationPolicy` template parameter.
+Implementation policies for arrays and objects are provided via the `Policy` template parameter.
 A custom allocator may be supplied with the `Allocator` template parameter, which a `basic_json` will
 rebind to internal data structures. 
 
@@ -25,15 +34,19 @@ Several typedefs for common character types and policies for ordering an object'
 
 Type                |Definition
 --------------------|------------------------------
-[json](json.md)     |`basic_json<char,sorted_policy,std::allocator<char>>`
-[ojson](ojson.md)   |`basic_json<char, order_preserving_policy, std::allocator<char>>`
-[wjson](wjson.md)   |`basic_json<wchar_t,sorted_policy,std::allocator<char>>`
-[wojson](wojson.md) |`basic_json<wchar_t, order_preserving_policy, std::allocator<char>>`
+[jsoncons::json](json.md)     |`jsoncons::basic_json<char,jsoncons::sorted_policy,std::allocator<char>>`
+[jsoncons::ojson](ojson.md)   |`jsoncons::basic_json<char,jsoncons::order_preserving_policy,std::allocator<char>>`
+[jsoncons::wjson](wjson.md)   |`jsoncons::basic_json<wchar_t,jsoncons::jsoncons::sorted_policy,std::allocator<char>>`
+[jsoncons::wojson](wojson.md) |`jsoncons::basic_json<wchar_t,jsoncons::order_preserving_policy,std::allocator<char>>`
+`jsoncons::pmr::json` (0.171.0) |`jsoncons::pmr::basic_json<char,jsoncons::sorted_policy>`
+`jsoncons::pmr::ojson` (0.171.0) |`jsoncons::pmr::basic_json<char,jsoncons::order_preserving_policy>`
+`jsoncons::pmr::wjson` (0.171.0) |`jsoncons::pmr::basic_json<wchar_t,jsoncons::sorted_policy>`
+`jsoncons::pmr::wojson` (0.171.0) |`jsoncons::pmr::basic_json<wchar_t,jsoncons::order_preserving_policy>`
 
 Member type                         |Definition
 ------------------------------------|------------------------------
 `char_type`|CharT
-`implementation_policy`|ImplementationPolicy
+`implementation_policy`|Policy
 `allocator_type`|Allocator
 `char_traits_type`|`std::char_traits<char_type>`
 `char_allocator_type`|`allocator_type` rebound to `char_type`
