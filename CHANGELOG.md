@@ -1,5 +1,25 @@
-master
-------
+0.171.0 preview
+-------
+
+Enhancements:
+
+- `basic_json` supports allocators that automatically propagate,  
+
+    - `std::pmr::polymorphic_allocator`
+
+    - `std::scoped_allocator_adaptor`
+
+- Defines aliases and alias templates for `basic_json` using polymorphic allocators
+in the `jsoncons::pmr` namespace.
+
+Changes:
+
+- Non-propagating stateful allocators are no longer supported.
+Attempting to use a regular stateful allocator will produce a compile error.
+Regular stateful allocators must be wrapped with [std::scoped_allocator_adaptor](https://en.cppreference.com/w/cpp/memory/scoped_allocator_adaptor)
+
+0.170.1
+-------
 
 Defect fixes:
 
@@ -17,7 +37,6 @@ in temporary allocations from `std::stable_sort`
 - Fixed issue danielaparker/jsoncons/#425 where `basic_byte_string::assign` and `basic_byte_string::append` failed to compile
 
 - Fixed issue danielaparker/jsoncons/#426 where enum keyed maps didn't serialize correctly.
-
 
 0.170.0 
 -------
