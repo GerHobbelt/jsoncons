@@ -417,6 +417,8 @@ namespace jsoncons {
 
         using char_allocator_type = typename std::allocator_traits<allocator_type>:: template rebind_alloc<char_type>;
 
+        using string_type = std::basic_string<char_type,char_traits_type,char_allocator_type>;
+
         using key_type = typename implementation_policy::template string<char_type,char_traits_type,char_allocator_type>;
 
 
@@ -429,7 +431,7 @@ namespace jsoncons {
 
     #if !defined(JSONCONS_NO_DEPRECATED)
         JSONCONS_DEPRECATED_MSG("no replacement") typedef basic_json value_type;
-        JSONCONS_DEPRECATED_MSG("no replacement") typedef std::basic_string<char_type> string_type;
+        //JSONCONS_DEPRECATED_MSG("no replacement") typedef std::basic_string<char_type> string_type;
         JSONCONS_DEPRECATED_MSG("Instead, use key_value_type") typedef key_value_type kvp_type;
         JSONCONS_DEPRECATED_MSG("Instead, use key_value_type") typedef key_value_type member_type;
     #endif
@@ -4124,7 +4126,7 @@ namespace jsoncons {
         template <class SAllocator=std::allocator<char_type>>
         std::basic_string<char_type,char_traits_type,SAllocator> as_string(const SAllocator& alloc) const 
         {
-            using string_type = std::basic_string<char_type,char_traits_type,SAllocator>;
+            using string_type2 = std::basic_string<char_type,char_traits_type,SAllocator>;
 
             std::error_code ec;
             switch (storage_kind())
@@ -4132,11 +4134,11 @@ namespace jsoncons {
                 case json_storage_kind::short_string_value:
                 case json_storage_kind::long_string_value:
                 {
-                    return string_type(as_string_view().data(),as_string_view().length(),alloc);
+                    return string_type2(as_string_view().data(),as_string_view().length(),alloc);
                 }
                 case json_storage_kind::byte_string_value:
                 {
-                    value_converter<byte_string_view,string_type> converter;
+                    value_converter<byte_string_view,string_type2> converter;
                     auto s = converter.convert(as_byte_string_view(), tag(), ec);
                     if (ec)
                     {
@@ -4146,9 +4148,9 @@ namespace jsoncons {
                 }
                 case json_storage_kind::array_value:
                 {
-                    string_type s(alloc);
+                    string_type2 s(alloc);
                     {
-                        basic_compact_json_encoder<char_type,jsoncons::string_sink<string_type>> encoder(s);
+                        basic_compact_json_encoder<char_type,jsoncons::string_sink<string_type2>> encoder(s);
                         dump(encoder);
                     }
                     return s;
@@ -4157,8 +4159,8 @@ namespace jsoncons {
                     return cast<json_const_pointer_storage>().value()->as_string(alloc);
                 default:
                 {
-                    string_type s(alloc);
-                    basic_compact_json_encoder<char_type,jsoncons::string_sink<string_type>> encoder(s);
+                    string_type2 s(alloc);
+                    basic_compact_json_encoder<char_type,jsoncons::string_sink<string_type2>> encoder(s);
                     dump(encoder);
                     return s;
                 }
@@ -4848,9 +4850,9 @@ namespace jsoncons {
 
         std::basic_string<char_type> to_string() const noexcept
         {
-            using string_type = std::basic_string<char_type>;
-            string_type s;
-            basic_compact_json_encoder<char_type, jsoncons::string_sink<string_type>> encoder(s);
+            using string_type2 = std::basic_string<char_type>;
+            string_type2 s;
+            basic_compact_json_encoder<char_type, jsoncons::string_sink<string_type2>> encoder(s);
             dump(encoder);
             return s;
         }
