@@ -1367,7 +1367,8 @@ namespace detail {
             value_type j(json_array_arg, semantic_tag::none, alloc_);
             while (rit != rend) 
             {
-                j.emplace_back(rit->str());
+                auto s = rit->str();
+                j.emplace_back(s.c_str(), semantic_tag::none, alloc_);
                 ++rit;
             }
             return j;
@@ -1957,7 +1958,7 @@ namespace detail {
                 return value_type::null();
             }
 
-            auto arg0= args[0].value();
+            auto arg0 = args[0].value();
             if (!arg0.is_object())
             {
                 ec = jsonpath_errc::invalid_type;
@@ -1969,7 +1970,8 @@ namespace detail {
 
             for (auto& item : arg0.object_range())
             {
-                result.emplace_back(item.key());
+                auto s = item.key();
+                result.emplace_back(s.c_str(), semantic_tag::none, alloc_);
             }
             return result;
         }
@@ -2170,6 +2172,7 @@ namespace detail {
     class path_value_receiver : public node_receiver<Json,JsonReference>
     {
     public:
+        using allocator_type = typename Json::allocator_type;
         using reference = JsonReference;
         using char_type = typename Json::char_type;
         using string_type = typename Json::string_type;
@@ -2177,12 +2180,18 @@ namespace detail {
         using json_location_type = json_location<string_type>;
         using path_value_pair_type = path_value_pair<Json,JsonReference>;
 
+        allocator_type alloc_;
         std::vector<path_value_pair_type> nodes;
+
+        path_value_receiver(const allocator_type& alloc)
+            : alloc_(alloc)
+        {
+        }
 
         void add(const json_location_node_type& path_tail, 
                  reference value) override
         {
-            nodes.emplace_back(json_location_type(path_tail), std::addressof(value));
+            nodes.emplace_back(json_location_type(path_tail, alloc_), std::addressof(value));
         }
     };
 
@@ -2208,15 +2217,29 @@ namespace detail {
     template <class Json, class JsonReference>
     class dynamic_resources
     {
+        using allocator_type = typename Json::allocator_type;
+        using char_type = typename Json::char_type;
         using string_type = typename Json::string_type;
         using reference = JsonReference;
         using pointer = typename std::conditional<std::is_const<typename std::remove_reference<reference>::type>::value,typename Json::const_pointer,typename Json::pointer>::type;
         using json_location_node_type = json_location_node<string_type>;
         using path_stem_value_pair_type = path_component_value_pair<Json,JsonReference>;
+
+        allocator_type alloc_;
         std::vector<std::unique_ptr<Json>> temp_json_values_;
         std::vector<std::unique_ptr<json_location_node_type>> temp_path_node_values_;
         std::unordered_map<std::size_t,pointer> cache_;
     public:
+        dynamic_resources(const allocator_type& alloc = allocator_type())
+            : alloc_(alloc)
+        {
+        }
+
+        allocator_type get_allocator() const
+        {
+            return alloc_;
+        }
+
         bool is_cached(std::size_t id) const
         {
             return cache_.find(id) != cache_.end();
@@ -2247,13 +2270,13 @@ namespace detail {
 
         const json_location_node_type& root_path_node() const
         {
-            static json_location_node_type root('$');
+            static json_location_node_type root(string_type{JSONCONS_CSTRING_CONSTANT(char_type, "$"), alloc_});
             return root;
         }
 
         const json_location_node_type& current_path_node() const
         {
-            static json_location_node_type root('@');
+            static json_location_node_type root(string_type{JSONCONS_CSTRING_CONSTANT(char_type, "@"), alloc_});
             return root;
         }
 
@@ -2358,83 +2381,53 @@ namespace detail {
         std::vector<std::unique_ptr<selector_type>> selectors_;
         std::vector<std::unique_ptr<Json>> temp_json_values_;
         std::vector<std::unique_ptr<unary_operator<Json,JsonReference>>> unary_operators_;
+
+        std::unordered_map<string_type,std::unique_ptr<function_base_type>> functions_;
         std::unordered_map<string_type,std::unique_ptr<function_base_type>> custom_functions_;
 
-        abs_function<Json> abs_func_;
-        contains_function<Json> contains_func_;
-        starts_with_function<Json> starts_with_func_;
-        ends_with_function<Json> ends_with_func_;
-        ceil_function<Json> ceil_func_;
-        floor_function<Json> floor_func_;
-        to_number_function<Json> to_number_func_;
-        sum_function<Json> sum_func_;
-        prod_function<Json> prod_func_;
-        avg_function<Json> avg_func_;
-        min_function<Json> min_func_;
-        max_function<Json> max_func_;
-        length_function<Json> length_func_;
-        keys_function<Json> keys_func_;
-#if defined(JSONCONS_HAS_STD_REGEX)
-        tokenize_function<Json> tokenize_func_;
-#endif
-        std::unordered_map<string_type,const function_base_type*> functions_;
-
         static_resources(const allocator_type& alloc = allocator_type())
-            : alloc_(alloc), keys_func_(alloc_),
-#if defined(JSONCONS_HAS_STD_REGEX)
-        tokenize_func_(alloc_),
-#endif
-            functions_{
-                {string_type{JSONCONS_CSTRING_CONSTANT(char_type, "abs"), alloc_}, &abs_func_},
-                {string_type{JSONCONS_CSTRING_CONSTANT(char_type, "contains"), alloc_}, &contains_func_},
-                {string_type{JSONCONS_CSTRING_CONSTANT(char_type, "starts_with"), alloc_}, &starts_with_func_},
-                {string_type{JSONCONS_CSTRING_CONSTANT(char_type, "ends_with"), alloc_}, &ends_with_func_},
-                {string_type{JSONCONS_CSTRING_CONSTANT(char_type, "ceil"), alloc_}, &ceil_func_},
-                {string_type{JSONCONS_CSTRING_CONSTANT(char_type, "floor"), alloc_}, &floor_func_},
-                {string_type{JSONCONS_CSTRING_CONSTANT(char_type, "to_number"), alloc_}, &to_number_func_},
-                {string_type{JSONCONS_CSTRING_CONSTANT(char_type, "sum"), alloc_}, &sum_func_},
-                {string_type{JSONCONS_CSTRING_CONSTANT(char_type, "prod"), alloc_}, &prod_func_},
-                {string_type{JSONCONS_CSTRING_CONSTANT(char_type, "avg"), alloc_}, &avg_func_},
-                {string_type{JSONCONS_CSTRING_CONSTANT(char_type, "min"), alloc_}, &min_func_},
-                {string_type{JSONCONS_CSTRING_CONSTANT(char_type, "max"), alloc_}, &max_func_},
-                {string_type{JSONCONS_CSTRING_CONSTANT(char_type, "length"), alloc_}, &length_func_},
-                {string_type{JSONCONS_CSTRING_CONSTANT(char_type, "keys"), alloc_}, &keys_func_},
-#if defined(JSONCONS_HAS_STD_REGEX)
-                {string_type{JSONCONS_CSTRING_CONSTANT(char_type, "tokenize"), alloc_}, &tokenize_func_},
-#endif
-                {string_type{JSONCONS_CSTRING_CONSTANT(char_type, "count"), alloc_}, &length_func_}
-            }
+            : alloc_(alloc)
         {
+                functions_.emplace(string_type{JSONCONS_CSTRING_CONSTANT(char_type, "abs"), alloc_}, 
+                    jsoncons::make_unique<abs_function<Json>>());
+                functions_.emplace(string_type{ JSONCONS_CSTRING_CONSTANT(char_type, "contains"), alloc_ },
+                    jsoncons::make_unique<contains_function<Json>>());
+                functions_.emplace(string_type{ JSONCONS_CSTRING_CONSTANT(char_type, "starts_with"), alloc_ },
+                    jsoncons::make_unique<starts_with_function<Json>>());
+                functions_.emplace(string_type{ JSONCONS_CSTRING_CONSTANT(char_type, "ends_with"), alloc_ },
+                    jsoncons::make_unique<ends_with_function<Json>>());
+                functions_.emplace(string_type{JSONCONS_CSTRING_CONSTANT(char_type, "ceil"), alloc_}, 
+                    jsoncons::make_unique<ceil_function<Json>>());
+                functions_.emplace(string_type{JSONCONS_CSTRING_CONSTANT(char_type, "floor"), alloc_}, 
+                    jsoncons::make_unique<floor_function<Json>>());
+                functions_.emplace(string_type{ JSONCONS_CSTRING_CONSTANT(char_type, "to_number"), alloc_ },
+                    jsoncons::make_unique<to_number_function<Json>>());
+                functions_.emplace(string_type{JSONCONS_CSTRING_CONSTANT(char_type, "sum"), alloc_}, 
+                    jsoncons::make_unique<sum_function<Json>>());
+                functions_.emplace(string_type{JSONCONS_CSTRING_CONSTANT(char_type, "prod"), alloc_}, 
+                    jsoncons::make_unique<prod_function<Json>>());
+                functions_.emplace(string_type{JSONCONS_CSTRING_CONSTANT(char_type, "avg"), alloc_}, 
+                    jsoncons::make_unique<avg_function<Json>>());
+                functions_.emplace(string_type{JSONCONS_CSTRING_CONSTANT(char_type, "min"), alloc_}, 
+                    jsoncons::make_unique<min_function<Json>>());
+                functions_.emplace(string_type{JSONCONS_CSTRING_CONSTANT(char_type, "max"), alloc_}, 
+                    jsoncons::make_unique<max_function<Json>>());
+                functions_.emplace(string_type{JSONCONS_CSTRING_CONSTANT(char_type, "length"), alloc_}, 
+                    jsoncons::make_unique<length_function<Json>>());
+                functions_.emplace(string_type{ JSONCONS_CSTRING_CONSTANT(char_type, "keys"), alloc_ },
+                    jsoncons::make_unique<keys_function<Json>>(alloc_));
+#if defined(JSONCONS_HAS_STD_REGEX)
+                functions_.emplace(string_type{ JSONCONS_CSTRING_CONSTANT(char_type, "tokenize"), alloc_ },
+                    jsoncons::make_unique<tokenize_function<Json>>(alloc_));
+#endif
+                functions_.emplace(string_type{JSONCONS_CSTRING_CONSTANT(char_type, "count"), alloc_}, 
+                    jsoncons::make_unique<length_function<Json>>());
         }
 
         static_resources(const custom_functions<Json>& functions, 
             const allocator_type& alloc = allocator_type())
-            : alloc_(alloc), keys_func_(alloc_),
-#if defined(JSONCONS_HAS_STD_REGEX)
-            tokenize_func_(alloc_),
-#endif
-            functions_{
-                {string_type{JSONCONS_CSTRING_CONSTANT(char_type, "abs"), alloc_}, &abs_func_},
-                {string_type{JSONCONS_CSTRING_CONSTANT(char_type, "contains"), alloc_}, &contains_func_},
-                {string_type{JSONCONS_CSTRING_CONSTANT(char_type, "starts_with"), alloc_}, &starts_with_func_},
-                {string_type{JSONCONS_CSTRING_CONSTANT(char_type, "ends_with"), alloc_}, &ends_with_func_},
-                {string_type{JSONCONS_CSTRING_CONSTANT(char_type, "ceil"), alloc_}, &ceil_func_},
-                {string_type{JSONCONS_CSTRING_CONSTANT(char_type, "floor"), alloc_}, &floor_func_},
-                {string_type{JSONCONS_CSTRING_CONSTANT(char_type, "to_number"), alloc_}, &to_number_func_},
-                {string_type{JSONCONS_CSTRING_CONSTANT(char_type, "sum"), alloc_}, &sum_func_},
-                {string_type{JSONCONS_CSTRING_CONSTANT(char_type, "prod"), alloc_}, &prod_func_},
-                {string_type{JSONCONS_CSTRING_CONSTANT(char_type, "avg"), alloc_}, &avg_func_},
-                {string_type{JSONCONS_CSTRING_CONSTANT(char_type, "min"), alloc_}, &min_func_},
-                {string_type{JSONCONS_CSTRING_CONSTANT(char_type, "max"), alloc_}, &max_func_},
-                {string_type{JSONCONS_CSTRING_CONSTANT(char_type, "length"), alloc_}, &length_func_},
-                {string_type{JSONCONS_CSTRING_CONSTANT(char_type, "keys"), alloc_}, &keys_func_},
-    #if defined(JSONCONS_HAS_STD_REGEX)
-                {string_type{JSONCONS_CSTRING_CONSTANT(char_type, "tokenize"), alloc_}, &tokenize_func_},
-    #endif
-                {string_type{JSONCONS_CSTRING_CONSTANT(char_type, "count"), alloc_}, &length_func_}
-            }
+            : static_resources(alloc)
         {
-
             for (const auto& item : functions)
             {
                 custom_functions_.emplace(item.name(),
@@ -2455,25 +2448,8 @@ namespace detail {
               selectors_(std::move(other.selectors_)),
               temp_json_values_(std::move(other.temp_json_values_)),
               unary_operators_(std::move(other.unary_operators_)),
-              custom_functions_(std::move(other.custom_functions_)),
-              abs_func_(std::move(other.abs_func_)),
-              contains_func_(std::move(other.contains_func_)),
-              starts_with_func_(std::move(other.starts_with_func_)),
-              ends_with_func_(std::move(other.ends_with_func_)),
-              ceil_func_(std::move(other.ceil_func_)),
-              floor_func_(std::move(other.floor_func_)),
-              to_number_func_(std::move(other.to_number_func_)),
-              sum_func_(std::move(other.sum_func_)),
-              prod_func_(std::move(other.prod_func_)),
-              avg_func_(std::move(other.avg_func_)),
-              min_func_(std::move(other.min_func_)),
-              max_func_(std::move(other.max_func_)),
-              length_func_(std::move(other.length_func_)),
-              keys_func_(std::move(other.keys_func_)),
-          #if defined(JSONCONS_HAS_STD_REGEX)
-              tokenize_func_(std::move(other.tokenize_func_)),
-          #endif
-              functions_(std::move(other.functions_))
+              functions_(std::move(other.functions_)),
+              custom_functions_(std::move(other.custom_functions_))
         {
         }
 
@@ -2495,7 +2471,7 @@ namespace detail {
             }
             else
             {
-                return it->second;
+                return it->second.get();
             }
         }
 
@@ -3001,23 +2977,27 @@ namespace detail {
     template <class Callback, class Json,class JsonReference>
     class callback_receiver : public node_receiver<Json,JsonReference>
     {
-        Callback& callback_;
     public:
+        using allocator_type = typename Json::allocator_type;
         using reference = JsonReference;
         using char_type = typename Json::char_type;
         using string_type = typename Json::string_type;
         using json_location_node_type = json_location_node<string_type>;
         using json_location_type = json_location<string_type>;
+    private:
+        allocator_type alloc_;
+        Callback& callback_;
+    public:
 
-        callback_receiver(Callback& callback)
-            : callback_(callback)
+        callback_receiver(Callback& callback, const allocator_type& alloc)
+            : alloc_(alloc), callback_(callback)
         {
         }
 
         void add(const json_location_node_type& path_tail, 
                  reference value) override
         {
-            callback_(json_location_type(path_tail), value);
+            callback_(json_location_type(path_tail, alloc_), value);
         }
     };
 
@@ -3077,7 +3057,8 @@ namespace detail {
             {
                 auto callback = [&result](const json_location_type& path, reference)
                 {
-                    result.emplace_back(path.to_string());
+                    auto s = path.to_string();
+                    result.emplace_back(s.c_str(), semantic_tag::none, s.get_allocator()); 
                 };
                 evaluate(resources, root, path, instance, callback, options);
             }
@@ -3110,7 +3091,7 @@ namespace detail {
 
             if ((options & require_more) != result_options())
             {
-                path_value_receiver<Json,JsonReference> receiver;
+                path_value_receiver<Json,JsonReference> receiver{alloc_};
                 selector_->select(resources, root, path, current, receiver, options);
 
                 if (receiver.nodes.size() > 1 && (options & result_options::sort) == result_options::sort)
@@ -3163,7 +3144,7 @@ namespace detail {
             }
             else
             {
-                callback_receiver<Callback,Json,JsonReference> receiver(callback);
+                callback_receiver<Callback,Json,JsonReference> receiver(callback, alloc_);
                 selector_->select(resources, root, path, current, receiver, options);
             }
         }
