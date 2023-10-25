@@ -212,7 +212,7 @@ namespace jsonschema {
         validator_pointer make_array_validator(const Json& schema,
                                                const compilation_context& context) override
         {
-            auto validator = jsoncons::make_unique<array_validator<Json>>(this, schema, context);
+            auto validator = array_validator<Json>::compile(schema, context, this);
             auto sch = validator.get();
             subschemas_.emplace_back(std::move(validator));
             return sch;
@@ -221,7 +221,7 @@ namespace jsonschema {
         validator_pointer make_string_validator(const Json& schema,
                                                 const compilation_context& context) override
         {
-            auto validator = jsoncons::make_unique<string_validator<Json>>(schema, context);
+            auto validator = string_validator<Json>::compile(schema, context);
             auto sch = validator.get();
             subschemas_.emplace_back(std::move(validator));
             return sch;
@@ -251,59 +251,7 @@ namespace jsonschema {
                                                  const compilation_context& context, 
                                                  std::set<std::string>& keywords) override
         {
-            std::string path1 = context.make_schema_path_with("integer");
-            auto context1 = context.update_uris(schema, path1);
-
-            using validator_pointer = typename keyword_validator<Json>::self_pointer;
-
-            std::vector<validator_pointer> validators;
-
-            auto it = schema.find("maximum");
-            if (it != schema.object_range().end()) 
-            {
-                keywords.insert("maximum");
-                auto validator = maximum_validator<Json,int64_t>::compile(it->value(), context1);
-                validators.push_back(validator.get());
-                subschemas_.emplace_back(std::move(validator));
-            }
-
-            it = schema.find("minimum");
-            if (it != schema.object_range().end()) 
-            {
-                keywords.insert("minimum");
-                auto validator = minimum_validator<Json,int64_t>::compile(it->value(), context1);
-                validators.push_back(validator.get());
-                subschemas_.emplace_back(std::move(validator));
-            }
-
-            it = schema.find("exclusiveMaximum");
-            if (it != schema.object_range().end()) 
-            {
-                keywords.insert("exclusiveMaximum");
-                auto validator = exclusive_maximum_validator<Json,int64_t>::compile(it->value(), context1);
-                validators.push_back(validator.get());
-                subschemas_.emplace_back(std::move(validator));
-            }
-
-            it = schema.find("exclusiveMinimum");
-            if (it != schema.object_range().end()) 
-            {
-                keywords.insert("exclusiveMinimum");
-                auto validator = exclusive_minimum_validator<Json,int64_t>::compile(it->value(), context1);
-                validators.push_back(validator.get());
-                subschemas_.emplace_back(std::move(validator));
-            }
-
-            it = schema.find("multipleOf");
-            if (it != schema.object_range().end()) 
-            {
-                keywords.insert("multipleOf");
-                auto validator = multiple_of_validator<Json,int64_t>::compile(it->value(), context1);
-                validators.push_back(validator.get());
-                subschemas_.emplace_back(std::move(validator));
-            }
-
-            auto validator = integer_validator<Json>::compile(context1, validators);
+            auto validator = integer_validator<Json>::compile(schema, context, keywords);
             auto sch = validator.get();
             subschemas_.emplace_back(std::move(validator));
             return sch;
@@ -313,59 +261,7 @@ namespace jsonschema {
                                                 const compilation_context& context, 
                                                 std::set<std::string>& keywords) override
         {
-            using validator_pointer = typename keyword_validator<Json>::self_pointer;
-
-            std::string keyword_path = context.make_schema_path_with("number");
-            auto context1 = context.update_uris(schema, keyword_path);
-
-            std::vector<validator_pointer> validators;
-
-            auto it = schema.find("maximum");
-            if (it != schema.object_range().end()) 
-            {
-                keywords.insert("maximum");
-                auto validator = maximum_validator<Json,double>::compile(it->value(), context1);
-                validators.push_back(validator.get());
-                subschemas_.emplace_back(std::move(validator));
-            }
-
-            it = schema.find("minimum");
-            if (it != schema.object_range().end()) 
-            {
-                keywords.insert("minimum");
-                auto validator = minimum_validator<Json,double>::compile(it->value(), context1);
-                validators.push_back(validator.get());
-                subschemas_.emplace_back(std::move(validator));
-            }
-
-            it = schema.find("exclusiveMaximum");
-            if (it != schema.object_range().end()) 
-            {
-                keywords.insert("exclusiveMaximum");
-                auto validator = exclusive_maximum_validator<Json,double>::compile(it->value(), context1);
-                validators.push_back(validator.get());
-                subschemas_.emplace_back(std::move(validator));
-            }
-
-            it = schema.find("exclusiveMinimum");
-            if (it != schema.object_range().end()) 
-            {
-                keywords.insert("exclusiveMinimum");
-                auto validator = exclusive_minimum_validator<Json,double>::compile(it->value(), context1);
-                validators.push_back(validator.get());
-                subschemas_.emplace_back(std::move(validator));
-            }
-
-            it = schema.find("multipleOf");
-            if (it != schema.object_range().end()) 
-            {
-                keywords.insert("multipleOf");
-                auto validator = multiple_of_validator<Json,double>::compile(it->value(), context1);
-                validators.push_back(validator.get());
-                subschemas_.emplace_back(std::move(validator));
-            }
-
-            auto validator = number_validator<Json>::compile(context1, validators);
+            auto validator = number_validator<Json>::compile(schema, context, keywords);
             auto sch = validator.get();
             subschemas_.emplace_back(std::move(validator));
             return sch;
@@ -467,7 +363,7 @@ namespace jsonschema {
 
             for (const auto& uri : new_context.uris()) 
             { 
-                insert(uri, sch);
+                insert_schema(uri, sch);
 
                 if (schema.type() == json_type::object_value)
                 {
@@ -545,7 +441,7 @@ namespace jsonschema {
 
     private:
 
-        void insert(const schema_location& uri, validator_pointer s)
+        void insert_schema(const schema_location& uri, validator_pointer s)
         {
             auto& file = get_or_create_file(std::string(uri.base()));
             auto schemas_it = file.schemas.find(std::string(uri.fragment()));
@@ -563,7 +459,6 @@ namespace jsonschema {
             {
                 unresolved_it->second->set_referred_schema(s);
                 file.unresolved.erase(unresolved_it);
-
             }
         }
 
