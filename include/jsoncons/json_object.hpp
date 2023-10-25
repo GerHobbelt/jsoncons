@@ -91,7 +91,7 @@ namespace jsoncons {
 
         template <typename... Args>
         key_value(key_type&& name,  Args&& ... args) noexcept
-            : key_(std::forward<key_type>(name)), value_(std::forward<Args>(args)...)
+            : key_(std::move(name)), value_(std::forward<Args>(args)...)
         {
         }
 
@@ -846,7 +846,7 @@ namespace jsoncons {
             if (it == members_.end())
             {
                 members_.emplace_back(key_type(name.begin(),name.end(), get_allocator()), 
-                                            std::forward<T>(value),get_allocator());
+                    Json(std::forward<T>(value), get_allocator()));
                 it = members_.begin() + (members_.size() - 1);
             }
             else if (it->key() == name)
@@ -855,9 +855,8 @@ namespace jsoncons {
             }
             else
             {
-                it = members_.emplace(it,
-                                            key_type(name.begin(),name.end(), get_allocator()),
-                                            std::forward<T>(value),get_allocator());
+                it = members_.emplace(it, key_type(name.begin(),name.end(), get_allocator()),
+                    Json(std::forward<T>(value), get_allocator()));
             }
             return it;
         }
@@ -1039,16 +1038,13 @@ namespace jsoncons {
         using allocator_type = typename Json::allocator_type;
         using char_type = typename Json::char_type;
         using key_type = KeyT;
-        //using mapped_type = Json;
         using string_view_type = typename Json::string_view_type;
         using key_value_type = key_value<KeyT,Json>;
-        //using implementation_policy = typename Json::implementation_policy;
     private:
 
         using key_value_allocator_type = typename std::allocator_traits<allocator_type>:: template rebind_alloc<key_value_type>;                       
         using key_value_container_type = SequenceContainer<key_value_type,key_value_allocator_type>;
-        typedef typename std::allocator_traits<allocator_type>:: template rebind_alloc<std::size_t> index_allocator_type;
-        //using index_container_type = typename implementation_policy::template sequence_container_type<std::size_t,index_allocator_type>;
+        using index_allocator_type = typename std::allocator_traits<allocator_type>:: template rebind_alloc<std::size_t>;
         using index_container_type = SequenceContainer<std::size_t,index_allocator_type>;
 
         key_value_container_type members_;
@@ -1479,7 +1475,7 @@ namespace jsoncons {
             if (result.second)
             {
                 members_.emplace_back(key_type(name.begin(),name.end(),get_allocator()), 
-                                      std::forward<T>(value),get_allocator());
+                    Json(std::forward<T>(value), get_allocator()));
                 auto it = members_.begin() + result.first;
                 return std::make_pair(it,true);
             }
@@ -1536,8 +1532,8 @@ namespace jsoncons {
                 if (result.second)
                 {
                     auto it = members_.emplace(hint, 
-                                               key_type(key.begin(),key.end(),get_allocator()), 
-                                               std::forward<T>(value),get_allocator());
+                        key_type(key.begin(),key.end(),get_allocator()), 
+                        Json(std::forward<T>(value), get_allocator()));
                     return it;
                 }
                 else
