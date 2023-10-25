@@ -37,51 +37,51 @@ TEST_CASE("cbor_event_reader reputon test")
 
     SECTION("test 1")
     {
-        cbor::cbor_bytes_cursor2 cursor(data);
+        cbor::cbor_bytes_event_reader reader(data);
 
-        CHECK(cursor.current().event_type() == item_event_type::begin_object);
-        CHECK(cursor.current().size() == 2);
-        cursor.next();
-        CHECK(cursor.current().event_type() == item_event_type::string_value);  // key
-        cursor.next();
-        CHECK(cursor.current().event_type() == item_event_type::string_value);
-        cursor.next();
-        CHECK(cursor.current().event_type() == item_event_type::string_value);  // key
-        cursor.next();
-        CHECK(cursor.current().event_type() == item_event_type::begin_array);
-        CHECK(cursor.current().size() == 1);
-        cursor.next();
-        CHECK(cursor.current().event_type() == item_event_type::begin_object);
-        cursor.next();
-        CHECK(cursor.current().event_type() == item_event_type::string_value);  // key
-        cursor.next();
-        CHECK(cursor.current().event_type() == item_event_type::string_value);
-        cursor.next();
-        CHECK(cursor.current().event_type() == item_event_type::string_value);  // key
-        cursor.next();
-        CHECK(cursor.current().event_type() == item_event_type::string_value);
-        cursor.next();
-        CHECK(cursor.current().event_type() == item_event_type::string_value);  // key
-        cursor.next();
-        CHECK(cursor.current().event_type() == item_event_type::string_value);
-        cursor.next();
-        CHECK(cursor.current().event_type() == item_event_type::string_value);  // key
-        cursor.next();
-        CHECK(cursor.current().event_type() == item_event_type::double_value);
-        cursor.next();
-        CHECK(cursor.current().event_type() == item_event_type::end_object);
-        cursor.next();
-        CHECK(cursor.current().event_type() == item_event_type::end_array);
-        cursor.next();
-        CHECK(cursor.current().event_type() == item_event_type::end_object);
-        cursor.next();
-        CHECK(cursor.done());
+        CHECK(reader.current().event_kind() == item_event_kind::begin_object);
+        CHECK(reader.current().size() == 2);
+        reader.next();
+        CHECK(reader.current().event_kind() == item_event_kind::string_value);  // key
+        reader.next();
+        CHECK(reader.current().event_kind() == item_event_kind::string_value);
+        reader.next();
+        CHECK(reader.current().event_kind() == item_event_kind::string_value);  // key
+        reader.next();
+        CHECK(reader.current().event_kind() == item_event_kind::begin_array);
+        CHECK(reader.current().size() == 1);
+        reader.next();
+        CHECK(reader.current().event_kind() == item_event_kind::begin_object);
+        reader.next();
+        CHECK(reader.current().event_kind() == item_event_kind::string_value);  // key
+        reader.next();
+        CHECK(reader.current().event_kind() == item_event_kind::string_value);
+        reader.next();
+        CHECK(reader.current().event_kind() == item_event_kind::string_value);  // key
+        reader.next();
+        CHECK(reader.current().event_kind() == item_event_kind::string_value);
+        reader.next();
+        CHECK(reader.current().event_kind() == item_event_kind::string_value);  // key
+        reader.next();
+        CHECK(reader.current().event_kind() == item_event_kind::string_value);
+        reader.next();
+        CHECK(reader.current().event_kind() == item_event_kind::string_value);  // key
+        reader.next();
+        CHECK(reader.current().event_kind() == item_event_kind::double_value);
+        reader.next();
+        CHECK(reader.current().event_kind() == item_event_kind::end_object);
+        reader.next();
+        CHECK(reader.current().event_kind() == item_event_kind::end_array);
+        reader.next();
+        CHECK(reader.current().event_kind() == item_event_kind::end_object);
+        reader.next();
+        CHECK(reader.done());
     }
 }
 
 struct cbor_bytes_cursor2_reset_test_traits
 {
-    using cursor_type = cbor::cbor_bytes_cursor2;
+    using cursor_type = cbor::cbor_bytes_event_reader;
     using input_type = std::vector<uint8_t>;
 
     static void set_input(input_type& input, input_type bytes) {input = bytes;}
@@ -89,7 +89,7 @@ struct cbor_bytes_cursor2_reset_test_traits
 
 struct cbor_stream_cursor2_reset_test_traits
 {
-    using cursor_type = cbor::cbor_stream_cursor2;
+    using cursor_type = cbor::cbor_stream_event_reader;
 
     // binary_stream_source::char_type is actually char, not uint8_t
     using input_type = std::istringstream;
@@ -110,7 +110,6 @@ TEMPLATE_TEST_CASE("cbor_event_reader reset test", "",
     using input_type = typename traits::input_type;
     using cursor_type = typename traits::cursor_type;
     using source_type = typename cursor_type::source_type;
-    using event_type = item_event_type;
 
     SECTION("keeping same source")
     {
@@ -122,33 +121,33 @@ TEMPLATE_TEST_CASE("cbor_event_reader reset test", "",
             0xf6 // null
         });
         source_type source(input);
-        cursor_type cursor(std::move(source));
+        cursor_type reader(std::move(source));
 
-        REQUIRE_FALSE(cursor.done());
-        CHECK(cursor.current().event_type() == event_type::string_value);
-        CHECK(cursor.current().tag() == semantic_tag::none);
-        CHECK(cursor.current().template get<std::string>() == std::string("Tom"));
-        CHECK(cursor.current().template get<jsoncons::string_view>() ==
+        REQUIRE_FALSE(reader.done());
+        CHECK(reader.current().event_kind() == item_event_kind::string_value);
+        CHECK(reader.current().tag() == semantic_tag::none);
+        CHECK(reader.current().template get<std::string>() == std::string("Tom"));
+        CHECK(reader.current().template get<jsoncons::string_view>() ==
               jsoncons::string_view("Tom"));
-        cursor.next();
-        CHECK(cursor.done());
+        reader.next();
+        CHECK(reader.done());
 
-        cursor.reset();
-        REQUIRE_FALSE(cursor.done());
-        CHECK(cursor.current().event_type() == event_type::int64_value);
-        CHECK(cursor.current().tag() == semantic_tag::none);
-        CHECK(cursor.current().template get<int>() == -100);
-        cursor.next();
-        CHECK(cursor.done());
+        reader.reset();
+        REQUIRE_FALSE(reader.done());
+        CHECK(reader.current().event_kind() == item_event_kind::int64_value);
+        CHECK(reader.current().tag() == semantic_tag::none);
+        CHECK(reader.current().template get<int>() == -100);
+        reader.next();
+        CHECK(reader.done());
 
-        cursor.reset(ec);
+        reader.reset(ec);
         REQUIRE_FALSE(ec);
-        REQUIRE_FALSE(cursor.done());
-        CHECK(cursor.current().event_type() == event_type::null_value);
-        CHECK(cursor.current().tag() == semantic_tag::none);
-        cursor.next(ec);
+        REQUIRE_FALSE(reader.done());
+        CHECK(reader.current().event_kind() == item_event_kind::null_value);
+        CHECK(reader.current().tag() == semantic_tag::none);
+        reader.next(ec);
         REQUIRE_FALSE(ec);
-        CHECK(cursor.done());
+        CHECK(reader.done());
     }
 
     SECTION("with another source")
@@ -163,41 +162,41 @@ TEMPLATE_TEST_CASE("cbor_event_reader reset test", "",
         traits::set_input(input2, {0xe0}); // invalid special
         traits::set_input(input3, {0x38, 0x63}); // negative(99)
 
-        // Constructing cursor with blank input results in unexpected_eof
+        // Constructing reader with blank input results in unexpected_eof
         // error because it eagerly parses the next event upon construction.
-        cursor_type cursor(input0, ec);
+        cursor_type reader(input0, ec);
         CHECK(ec == cbor::cbor_errc::unexpected_eof);
-        CHECK_FALSE(cursor.done());
+        CHECK_FALSE(reader.done());
 
         // Reset to valid input1
-        cursor.reset(input1);
-        CHECK(cursor.current().event_type() == event_type::string_value);
-        CHECK(cursor.current().tag() == semantic_tag::none);
-        CHECK(cursor.current().template get<std::string>() == std::string("Tom"));
-        CHECK(cursor.current().template get<jsoncons::string_view>() ==
+        reader.reset(input1);
+        CHECK(reader.current().event_kind() == item_event_kind::string_value);
+        CHECK(reader.current().tag() == semantic_tag::none);
+        CHECK(reader.current().template get<std::string>() == std::string("Tom"));
+        CHECK(reader.current().template get<jsoncons::string_view>() ==
               jsoncons::string_view("Tom"));
         ec = cbor::cbor_errc::success;
-        REQUIRE_FALSE(cursor.done());
-        cursor.next(ec);
+        REQUIRE_FALSE(reader.done());
+        reader.next(ec);
         CHECK_FALSE(ec);
-        CHECK(cursor.done());
+        CHECK(reader.done());
 
         // Reset to invalid input2
-        cursor.reset(input2, ec);
+        reader.reset(input2, ec);
         CHECK(ec == cbor::cbor_errc::unknown_type);
-        CHECK_FALSE(cursor.done());
+        CHECK_FALSE(reader.done());
 
         // Reset to valid input3
         ec = cbor::cbor_errc::success;
-        cursor.reset(input3, ec);
+        reader.reset(input3, ec);
         REQUIRE_FALSE(ec);
-        CHECK(cursor.current().event_type() == event_type::int64_value);
-        CHECK(cursor.current().tag() == semantic_tag::none);
-        CHECK(cursor.current().template get<int>() == -100);
-        REQUIRE_FALSE(cursor.done());
-        cursor.next(ec);
+        CHECK(reader.current().event_kind() == item_event_kind::int64_value);
+        CHECK(reader.current().tag() == semantic_tag::none);
+        CHECK(reader.current().template get<int>() == -100);
+        REQUIRE_FALSE(reader.done());
+        reader.next(ec);
         CHECK_FALSE(ec);
-        CHECK(cursor.done());
+        CHECK(reader.done());
     }
 }
 
