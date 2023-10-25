@@ -34,7 +34,7 @@ namespace cbor {
         using allocator_type = Allocator;
     private:
         basic_cbor_parser<Source,Allocator> parser_;
-        basic_staj2_visitor<char_type> cursor_visitor_;
+        basic_item_event_collector<char_type> cursor_visitor_;
         bool eof_;
 
         // Noncopyable and nonmoveable
@@ -152,7 +152,7 @@ namespace cbor {
             return cursor_visitor_.is_typed_array();
         }
 
-        const staj2_event& current() const override
+        const item_event& current() const override
         {
             return cursor_visitor_.event();
         }
@@ -213,13 +213,13 @@ namespace cbor {
 
         friend
         staj2_filter_view operator|(basic_cbor_event_reader& cursor, 
-                                   std::function<bool(const staj2_event&, const ser_context&)> pred)
+                                   std::function<bool(const item_event&, const ser_context&)> pred)
         {
             return staj2_filter_view(cursor, pred);
         }
 
     private:
-        static bool accept_all(const staj2_event&, const ser_context&) 
+        static bool accept_all(const item_event&, const ser_context&) 
         {
             return true;
         }
