@@ -96,6 +96,8 @@ namespace detail {
     template <class CharT,class TempAllocator>
     class parse_event
     {
+        using allocator_type = TempAllocator;
+
         using temp_allocator_type = TempAllocator;
         using string_view_type = typename basic_json_visitor<CharT>::string_view_type;
         using char_allocator_type = typename std::allocator_traits<temp_allocator_type>:: template rebind_alloc<CharT>;
@@ -115,6 +117,67 @@ namespace detail {
         };
         semantic_tag tag;
     public:
+        parse_event(staj_event_type event_type, semantic_tag tag)
+            : event_type(event_type), 
+              string_value(),
+              byte_string_value(),
+              tag(tag)
+        {
+        }
+
+        parse_event(const string_view_type& value, semantic_tag tag)
+            : event_type(staj_event_type::string_value), 
+              string_value(value.data(),value.length()), 
+              byte_string_value(),
+              tag(tag)
+        {
+        }
+
+        parse_event(const byte_string_view& value, semantic_tag tag)
+            : event_type(staj_event_type::byte_string_value), 
+              string_value(),
+              byte_string_value(value.data(),value.size()), 
+              tag(tag)
+        {
+        }
+
+        parse_event(bool value, semantic_tag tag)
+            : event_type(staj_event_type::bool_value), 
+              string_value(),
+              byte_string_value(),
+              bool_value(value), 
+              tag(tag)
+        {
+        }
+
+        parse_event(int64_t value, semantic_tag tag)
+            : event_type(staj_event_type::int64_value), 
+              string_value(),
+              byte_string_value(),
+              int64_value(value), 
+              tag(tag)
+        {
+        }
+
+        parse_event(uint64_t value, semantic_tag tag)
+            : event_type(staj_event_type::uint64_value), 
+              string_value(),
+              byte_string_value(),
+              uint64_value(value), 
+              tag(tag)
+        {
+        }
+
+        parse_event(double value, semantic_tag tag)
+            : event_type(staj_event_type::double_value), 
+              string_value(),
+              byte_string_value(),
+              double_value(value), 
+              tag(tag)
+        {
+        }
+
+        //
         parse_event(staj_event_type event_type, semantic_tag tag, const TempAllocator& alloc)
             : event_type(event_type), 
               string_value(alloc),
@@ -267,7 +330,7 @@ namespace detail {
             for (const auto& name : column_names)
             {
                 column_names_.push_back(name);
-                cached_events_.emplace_back(alloc_);
+                cached_events_.emplace_back();
             }
             name_index_ = 0;
             level_ = 0;
@@ -357,7 +420,7 @@ namespace detail {
         {
             if (name_index_ < column_names_.size())
             {
-                cached_events_[name_index_].emplace_back(staj_event_type::begin_array, tag, alloc_);
+                cached_events_[name_index_].emplace_back(staj_event_type::begin_array, tag);
                 
                 ++level_;
             }
@@ -368,7 +431,7 @@ namespace detail {
         {
             if (level_ > 0)
             {
-                cached_events_[name_index_].emplace_back(staj_event_type::end_array, semantic_tag::none, alloc_);
+                cached_events_[name_index_].emplace_back(staj_event_type::end_array, semantic_tag::none);
                 ++name_index_;
                 --level_;
             }
@@ -389,7 +452,7 @@ namespace detail {
         {
             if (name_index_ < column_names_.size())
             {
-                cached_events_[name_index_].emplace_back(staj_event_type::null_value, tag, alloc_);
+                cached_events_[name_index_].emplace_back(staj_event_type::null_value, tag);
                 if (level_ == 0)
                 {
                     ++name_index_;
@@ -402,7 +465,7 @@ namespace detail {
         {
             if (name_index_ < column_names_.size())
             {
-                cached_events_[name_index_].emplace_back(value, tag, alloc_);
+                cached_events_[name_index_].emplace_back(value, tag);
 
                 if (level_ == 0)
                 {
@@ -419,7 +482,7 @@ namespace detail {
         {
             if (name_index_ < column_names_.size())
             {
-                cached_events_[name_index_].emplace_back(value, tag, alloc_);
+                cached_events_[name_index_].emplace_back(value, tag);
                 if (level_ == 0)
                 {
                     ++name_index_;
@@ -435,7 +498,7 @@ namespace detail {
         {
             if (name_index_ < column_names_.size())
             {
-                cached_events_[name_index_].emplace_back(value, tag, alloc_);
+                cached_events_[name_index_].emplace_back(value, tag);
                 if (level_ == 0)
                 {
                     ++name_index_;
@@ -451,7 +514,7 @@ namespace detail {
         {
             if (name_index_ < column_names_.size())
             {
-                cached_events_[name_index_].emplace_back(value, tag, alloc_);
+                cached_events_[name_index_].emplace_back(value, tag);
                 if (level_ == 0)
                 {
                     ++name_index_;
@@ -467,7 +530,7 @@ namespace detail {
         {
             if (name_index_ < column_names_.size())
             {
-                cached_events_[name_index_].emplace_back(value, tag, alloc_);
+                cached_events_[name_index_].emplace_back(value, tag);
                 if (level_ == 0)
                 {
                     ++name_index_;
@@ -480,7 +543,7 @@ namespace detail {
         {
             if (name_index_ < column_names_.size())
             {
-                cached_events_[name_index_].emplace_back(value, tag, alloc_);
+                cached_events_[name_index_].emplace_back(value, tag);
                 if (level_ == 0)
                 {
                     ++name_index_;

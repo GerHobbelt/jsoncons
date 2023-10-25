@@ -24,14 +24,15 @@ using custom_string = std::basic_string<char, std::char_traits<char>, ScopedTest
 
 TEST_CASE("scoped allocator adaptor tests")
 {
-    ScopedTestAllocator<char> alloc1(true);
+
+    ScopedTestAllocator<char> alloc1(1);
 
     using custom_json = basic_json<char,sorted_policy,ScopedTestAllocator<char>>;
     using custom_string = std::basic_string<char,std::char_traits<char>,ScopedTestAllocator<char>>;
 
     const char* long_string = "String too long for short string";
 
-    CHECK_FALSE(traits_extension::is_stateless<ScopedTestAllocator<char>>::value);
+    CHECK_FALSE(extension_traits::is_stateless<ScopedTestAllocator<char>>::value);
 
     SECTION("construct from string")
     {
@@ -102,7 +103,7 @@ TEST_CASE("scoped allocator adaptor tests")
 
     SECTION("parse")
     {
-        ScopedTestAllocator<char> alloc2(true); 
+        ScopedTestAllocator<char> alloc2(2); 
 
         std::string s = long_string;
         std::string input = "\"" + s + "\"";

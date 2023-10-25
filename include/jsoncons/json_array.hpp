@@ -193,21 +193,21 @@ namespace jsoncons {
         // push_back
 
         template <class T, class A=allocator_type>
-        typename std::enable_if<traits_extension::is_stateless<A>::value,void>::type 
+        typename std::enable_if<extension_traits::is_stateless<A>::value,void>::type 
         push_back(T&& value)
         {
             elements_.emplace_back(std::forward<T>(value));
         }
 
         template <class T, class A=allocator_type>
-        typename std::enable_if<!traits_extension::is_stateless<A>::value,void>::type 
+        typename std::enable_if<!extension_traits::is_stateless<A>::value,void>::type 
         push_back(T&& value)
         {
-            elements_.emplace_back(Json(std::forward<T>(value), get_allocator()));
+            elements_.emplace_back(std::forward<T>(value));
         }
 
         template <class T, class A=allocator_type>
-        typename std::enable_if<traits_extension::is_stateless<A>::value,iterator>::type 
+        typename std::enable_if<extension_traits::is_stateless<A>::value,iterator>::type 
         insert(const_iterator pos, T&& value)
         {
     #if defined(JSONCONS_NO_VECTOR_ERASE_TAKES_CONST_ITERATOR)
@@ -218,14 +218,14 @@ namespace jsoncons {
     #endif
         }
         template <class T, class A=allocator_type>
-        typename std::enable_if<!traits_extension::is_stateless<A>::value,iterator>::type 
+        typename std::enable_if<!extension_traits::is_stateless<A>::value,iterator>::type 
         insert(const_iterator pos, T&& value)
         {
     #if defined(JSONCONS_NO_VECTOR_ERASE_TAKES_CONST_ITERATOR)
             iterator it = elements_.begin() + (pos - elements_.begin());
-            return elements_.emplace(it, Json(std::forward<T>(value), get_allocator()));
+            return elements_.emplace(it, std::forward<T>(value));
     #else
-            return elements_.emplace(pos, Json(std::forward<T>(value), get_allocator()));
+            return elements_.emplace(pos, std::forward<T>(value));
     #endif
         }
 
@@ -242,7 +242,7 @@ namespace jsoncons {
         }
 
         template <class A=allocator_type, class... Args>
-        typename std::enable_if<traits_extension::is_stateless<A>::value,iterator>::type 
+        typename std::enable_if<extension_traits::is_stateless<A>::value,iterator>::type 
         emplace(const_iterator pos, Args&&... args)
         {
     #if defined(JSONCONS_NO_VECTOR_ERASE_TAKES_CONST_ITERATOR)
