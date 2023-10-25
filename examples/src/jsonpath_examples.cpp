@@ -7,6 +7,7 @@
 #include <cassert>
 #include <jsoncons/json.hpp>
 #include <jsoncons_ext/jsonpath/jsonpath.hpp>
+#include "sample_allocators.hpp"
 
 // for brevity
 using jsoncons::json; 
@@ -801,6 +802,59 @@ namespace {
         std::cout << pretty_print(result) << "\n\n";
     }
 
+    void make_expression_with_stateful_allocator()
+    {
+        using my_alloc = FreelistAllocator<char>; // an allocator with a single-argument constructor
+        using my_json = jsoncons::basic_json<char,jsoncons::sorted_policy,my_alloc>;
+
+        std::string json_string = R"(
+{
+    "books":
+    [
+        {
+            "category": "fiction",
+            "title" : "A Wild Sheep Chase",
+            "author" : "Haruki Murakami",
+            "price" : 22.72
+        },
+        {
+            "category": "fiction",
+            "title" : "The Night Watch",
+            "author" : "Sergei Lukyanenko",
+            "price" : 23.58
+        },
+        {
+            "category": "fiction",
+            "title" : "The Comedians",
+            "author" : "Graham Greene",
+            "price" : 21.99
+        },
+        {
+            "category": "memoir",
+            "title" : "The Night Watch",
+            "author" : "Phillips, David Atlee"
+        }
+    ]
+}
+    )";
+
+        auto alloc = my_alloc(1);        
+
+        jsoncons::json_decoder<my_json,my_alloc> decoder(jsoncons::result_allocator_arg, alloc, alloc);
+
+        jsoncons::basic_json_reader<char,jsoncons::string_source<char>,my_alloc> reader(json_string, decoder, alloc);
+        reader.read();
+
+        my_json doc = decoder.get_result();
+        std::cout << pretty_print(doc) << "\n\n";
+
+        jsoncons::string_view p{"$.books[?(@.category == 'fiction')].title"};
+        auto expr = jsoncons::jsonpath::make_expression<my_json>(std::allocator_arg, alloc, p);  
+        auto result = expr.evaluate(doc);
+
+        std::cout << pretty_print(result) << "\n\n";
+    }
+
 } // namespace
 
 void jsonpath_examples()
@@ -837,6 +891,8 @@ void jsonpath_examples()
 
     union_example();
     parent_operator_example();
+
+    make_expression_with_stateful_allocator();
     std::cout << "\n";
 }
 
