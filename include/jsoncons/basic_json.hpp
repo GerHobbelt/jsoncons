@@ -38,7 +38,7 @@
 #include <jsoncons/byte_string.hpp>
 #include <jsoncons/json_error.hpp>
 #include <jsoncons/detail/string_wrapper.hpp>
-#if defined(JSONCONS_HAS_2017)
+#if defined(JSONCONS_HAS_POLYMORPHIC_ALLOCATOR)
 #include <memory_resource> // std::poymorphic_allocator
 #endif
 
@@ -1566,14 +1566,10 @@ namespace jsoncons {
                 return evaluate_with_default().emplace_back(std::forward<Args>(args)...);
             }
 
-            void push_back(const basic_json& val)
+            template <class T>
+            void push_back(T&& val)
             {
-                evaluate_with_default().push_back(val);
-            }
-
-            void push_back(basic_json&& val)
-            {
-                evaluate_with_default().push_back(std::move(val));
+                evaluate_with_default().push_back(std::forward<T>(val));
             }
 
             template <class T>
@@ -2979,7 +2975,7 @@ namespace jsoncons {
         }
 
         explicit basic_json(json_object_arg_t, 
-                            semantic_tag tag = semantic_tag::none,
+                            semantic_tag tag,
                             const Allocator& alloc = Allocator()) 
         {
             construct<object_storage>(object(alloc), tag);
@@ -3013,7 +3009,7 @@ namespace jsoncons {
         }
 
         explicit basic_json(json_array_arg_t, 
-                            semantic_tag tag = semantic_tag::none, 
+                            semantic_tag tag, 
                             const Allocator& alloc = Allocator()) 
         {
             construct<array_storage>(array(alloc), tag);
@@ -4793,12 +4789,13 @@ namespace jsoncons {
             a.swap(b);
         }
 
-        void push_back(const basic_json& val)
+        template <class T>
+        void push_back(T&& val)
         {
             switch (storage_kind())
             {
             case json_storage_kind::array_value:
-                array_value().push_back(val);
+                array_value().push_back(std::forward<T>(val));
                 break;
             default:
                 {
@@ -5937,7 +5934,7 @@ namespace jsoncons {
 
     } // inline namespace literals
 
-    #if defined(JSONCONS_HAS_2017)
+    #if defined(JSONCONS_HAS_POLYMORPHIC_ALLOCATOR)
     namespace pmr {
         using json = basic_json<char,sorted_policy,std::pmr::polymorphic_allocator<char>>;
         using wjson = basic_json<wchar_t,sorted_policy,std::pmr::polymorphic_allocator<char>>;
