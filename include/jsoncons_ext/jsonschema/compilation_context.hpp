@@ -21,16 +21,36 @@ namespace jsonschema {
     {
         std::vector<schema_location> uris_;
     public:
+        compilation_context(const schema_location& location)
+            : uris_(std::vector<schema_location>{{location}})
+        {
+        }
+
+        compilation_context(schema_location&& location)
+            : uris_(std::vector<schema_location>{{std::move(location)}})
+        {
+        }
+
         explicit compilation_context(const std::vector<schema_location>& uris)
             : uris_(uris)
+        {
+        }
+        explicit compilation_context(std::vector<schema_location>&& uris)
+            : uris_(std::move(uris))
         {
         }
 
         const std::vector<schema_location>& uris() const {return uris_;}
 
-        std::string get_absolute_keyword_location() const
+        std::string get_schema_path() const
         {
             return (!uris_.empty() && uris_.back().is_absolute()) ? uris_.back().string() : "";
+        }
+
+        template <class Json>
+        compilation_context update_uris(const Json& schema, const std::string& key) const
+        {
+            return update_uris(schema, std::vector<std::string>{{key}});
         }
 
         template <class Json>
@@ -72,7 +92,12 @@ namespace jsonschema {
             return compilation_context(new_uris);
         }
 
-        std::string make_absolute_keyword_location(const std::string& keyword) const
+        schema_location resolve_back(const schema_location& relative)
+        {
+            return relative.resolve(uris_.back());
+        }
+
+        std::string make_schema_path_with(const std::string& keyword) const
         {
             for (auto it = uris_.rbegin(); it != uris_.rend(); ++it)
             {
