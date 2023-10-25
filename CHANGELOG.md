@@ -1,13 +1,21 @@
 0.170.0 (next release)
 -------
 
+Changed:
+
+- Removed static functions `jsonpath_expression::compile`. These have long been
+superceded with function `make_expression`.
+
 Defect fixes:
 
-- Fixed issue danielaparker/jsoncons/#416 where test with jsonpath `length` operator failed
-for length of zero.
+- Fixed issue danielaparker/jsoncons/#416 where `length` operator failed
+for array of length zero.
  
 - Fixed issue danielaparker/jsoncons/#411 where an overeager g++ 12.2.0 compiler reported a
 spurious `stringop-overflow` warning.
+
+- Fixed issue danielaparker/jsoncons/#410 where `jsoncons::jsonpath::json_location::to_string`
+escaped only single quotes.
 
 - Merged PR danielaparker/jsoncons/#406 that fixed multiple float parsing and boolean pretty print 
 issues with wjson. This included reverting a change to use `std::from_chars`
@@ -15,7 +23,9 @@ in 0.169.0.
 
 Enhancements:
 
-- The jsonpath library now works with stateful allocators.
+- The jsonpath library now works with stateful allocators. In particular, the `json_query` and
+`make_expression` functions now accept an allocator argument for use in allocating memory
+during expression compilation and evaluation.
 
 - Merged PR danielaparker/jsoncons/#395 that added a `ser_context::end_position()` function.
 
