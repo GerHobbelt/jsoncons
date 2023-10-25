@@ -11,7 +11,7 @@
 #include <jsoncons/uri.hpp>
 #include <jsoncons/json.hpp>
 #include <jsoncons_ext/jsonpointer/jsonpointer.hpp>
-#include <jsoncons_ext/jsonschema/subschema.hpp>
+#include <jsoncons_ext/jsonschema/schema.hpp>
 #include <cassert>
 #include <set>
 #include <sstream>
@@ -965,4 +965,4 @@ namespace jsonschema {
 } // namespace jsonschema
 } // namespace jsoncons
 
-#endif // JSONCONS_JSONSCHEMA_FORMAT_CHECKERS_HPP
+#endif // JSONCONS_JSONSCHEMA_FORMAT_VALIDATOR_HPP

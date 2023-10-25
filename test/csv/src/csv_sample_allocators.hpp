@@ -17,9 +17,10 @@ namespace csv_test {
 
     template <typename T>
     class FreelistAllocator {
+
         union node {
             node* next;
-            typename std::aligned_storage<sizeof(T), alignof(T)>::type storage;
+            alignas(alignof(T)) unsigned char storage[sizeof(T)];
         };
 
         node* list = nullptr;
