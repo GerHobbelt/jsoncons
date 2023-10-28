@@ -35,8 +35,8 @@ jsonpath_expression<Json> make_expression(const allocator_set<Json::allocator_ty
     Json::string_view_type& expr, std::error_code& ec);                
 ```
 ```cpp
-template <class Json, class Allocator, class TempAllocator>                                              (6) (since 0.170.0)
-jsonpath_expression<Json> make_expression(const allocator_set<Allocator,TempAllocator>& alloc_set, 
+template <class Json, class TempAllocator>                                              (6) (since 0.170.0)
+jsonpath_expression<Json> make_expression(const allocator_set<Json::allocator_type,TempAllocator>& alloc_set, 
     Json::string_view_type& expr,
     const custom_functions<Json>& funcs, std::error_code& ec);                
 ```
@@ -229,7 +229,7 @@ int main()
     my_json doc = decoder.get_result();
 
     std::string_view p{"$.books[?(@.category == 'fiction')].title"};
-    auto expr = jsoncons::jsonpath::make_expression<my_json>(make_allocator_set(alloc), p);  
+    auto expr = jsoncons::jsonpath::make_expression<my_json>(combine_allocators(alloc), p);  
     auto result = expr.evaluate(doc);
 
     std::cout << pretty_print(result) << "\n\n";
