@@ -25,7 +25,7 @@ inf_to_num| |Sets a number replacement for `Infinity` when writing JSON
 neginf_to_num| |Sets a number replacement for `Negative Infinity` when writing JSON
 max_nesting_depth|Maximum nesting depth allowed when parsing JSON|Maximum nesting depth allowed when serializing JSON
 lossless_number|If `true`, parse numbers with exponents and fractional parts as strings with semantic tagging `semantic_tag::bigdec`. Defaults to `false`.|
-err_handler (since 0.171.0)|Defines an error handling policy for parsing JSON. Defaults to [default_json_parsing](JSONParsingErrorHandling.md).|
+err_handler (since 0.171.0)|Defines an [error handler](err_handler.md) for parsing JSON. Defaults to `default_json_parsing`.|
 indent_size| |The indent size, the default is 4
 spaces_around_colon| |Indicates [space option](spaces_option.md) for name separator (`:`). Default is space after.
 spaces_around_comma| |Indicates [space option](spaces_option.md) for array value and object name/value pair separators (`,`). Default is space after.
@@ -33,7 +33,7 @@ pad_inside_object_braces| |Default is `false`
 pad_inside_array_brackets| |Default is `false`
 bigint_format| |Overrides [bignum format](bigint_chars_format.md) when serializing json. The default is [bigint_chars_format::base10](bigint_chars_format.md). 
 byte_string_format| |Overrides [byte string format](byte_string_chars_format.md) when serializing json. The default is [byte_string_chars_format::base64url](byte_string_chars_format.md). 
-float_format| |Overrides [floating point format](../float_chars_format.md) when serializing to JSON. The default is [float_chars_format::general](float_chars_format.md).
+float_format| |Overrides [floating point format](float_chars_format.md) when serializing to JSON. The default is [float_chars_format::general](float_chars_format.md).
 precision| |Overrides floating point precision when serializing json. The default is shortest representation.
 escape_all_non_ascii| |Escape all non-ascii characters. The default is `false`.
 escape_solidus| |Escape the solidus ('/') character. The default is `false`.
@@ -84,7 +84,7 @@ Move constructor.
     void max_nesting_depth(int depth)
 The maximum nesting depth allowed when decoding and encoding JSON. 
 Default is 1024. Parsing can have an arbitrarily large depth
-limited only by available memory. Serializing a [basic_json](../basic_json.md) to
+limited only by available memory. Serializing a [basic_json](basic_json.md) to
 JSON is limited by stack size.
 
     basic_json_options& decode_escaped_unicode(bool value); 
@@ -141,7 +141,7 @@ Overrides [byte string format](byte_string_chars_format.md) when serializing jso
 The default is [byte_string_chars_format::base64url](byte_string_chars_format.md). 
 
     basic_json_options& float_format(float_chars_format value);
-Overrides [floating point format](../float_chars_format.md) when serializing to JSON. The default is [float_chars_format::general](float_chars_format.md).
+Overrides [floating point format](float_chars_format.md) when serializing to JSON. The default is [float_chars_format::general](float_chars_format.md).
 
     basic_json_options& precision(int8_t value)
 Overrides floating point precision when serializing json. 
@@ -434,4 +434,46 @@ Multi line
     }
 }
 ```
+
+#### Allow trailing commas
+
+```cpp
+int main()
+{
+    std::string s = R"(
+    {
+        "first" : 1,
+        "second" : 2,
+    }
+    )";
+
+    // Default
+    try
+    {
+        auto j = json::parse(s);
+    }
+    catch (const ser_error& e)
+    {
+        std::cout << "(1) " << e.what() << "\n\n";
+    }
+
+    // Allow trailing commas
+
+    // until 0.170.0
+    // auto j = json::parse(s, allow_trailing_commas());
+
+    // since 0.171.0
+    json_options options;
+    options.err_handler(allow_trailing_commas());
+    auto j = json::parse(s, options);
+    std::cout << "(2) " << j << "\n\n";
+}
+```
+Output:
+```
+(1) Extra comma at line 5 and column 5
+
+(2) {"first":1,"second":2}
+```
+
 
