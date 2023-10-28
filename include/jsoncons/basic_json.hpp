@@ -709,23 +709,50 @@ namespace jsoncons {
                 }
             }
 
-            long_string_storage& operator=(const long_string_storage& other)
+            void assign(const long_string_storage& other)
             {
-                storage_kind_ = other.storage_kind_;
-                tag_ = other.tag_;
-                ptr_ = heap_string_factory_type::create(other.data(), other.length(), null_type(), other.get_allocator());
-                return *this;
+                assign(std::integral_constant<bool,std::allocator_traits<Allocator>::propagate_on_container_copy_assignment::value>(), other);
             }
 
-            long_string_storage& operator=(long_string_storage&& other)
+            void assign(std::true_type, const  long_string_storage& other)
             {
-                storage_kind_ = other.storage_kind_;
                 tag_ = other.tag_;
+                heap_string_factory_type::destroy(ptr_);
+                ptr_ = heap_string_factory_type::create(other.data(), other.length(), null_type(), other.get_allocator());
+            }
 
-                ptr_ = other.ptr_;
-                other.ptr_ = nullptr;
+            void assign(std::false_type, const long_string_storage& other)
+            {
+                auto alloc = get_allocator();
+                tag_ = other.tag_;
+                heap_string_factory_type::destroy(ptr_);
+                ptr_ = heap_string_factory_type::create(other.data(), other.length(), null_type(), alloc);
+            }
 
-                return *this;
+            void assign(long_string_storage&& other)
+            {
+                assign(std::integral_constant<bool,std::allocator_traits<Allocator>::propagate_on_container_move_assignment::value>(),
+                    std::move(other));
+            }
+
+            void assign(std::true_type, long_string_storage&& other)
+            {
+                swap(other);
+            }
+
+            void assign(std::false_type, long_string_storage&& other)
+            {
+                if (other.get_allocator() == get_allocator())
+                {
+                    swap(other);
+                }
+                else
+                {
+                    auto alloc = get_allocator();
+                    tag_ = other.tag_;
+                    heap_string_factory_type::destroy(ptr_);
+                    ptr_ = heap_string_factory_type::create(other.data(), other.length(), null_type(), alloc);
+                }
             }
 
             ~long_string_storage() noexcept
@@ -737,16 +764,6 @@ namespace jsoncons {
             {
                 std::swap(ptr_, other.ptr_);
                 std::swap(tag_, other.tag_);
-            }
-
-            pointer get()
-            {
-                return ptr_;
-            }
-
-            void set(pointer ptr)
-            {
-                ptr_ = ptr;
             }
 
             semantic_tag tag() const
@@ -813,21 +830,75 @@ namespace jsoncons {
                 ptr_ = heap_string_factory_type::create(other.data(), other.length(), other.ext_tag(), alloc);
             }
 
-            byte_string_storage& operator=(const byte_string_storage& other)
+            byte_string_storage(byte_string_storage&& other)
+                : storage_kind_(other.storage_kind_), small_string_length_(0), tag_(other.tag_)
             {
-                storage_kind_ = other.storage_kind_;
-                tag_ = other.tag_;
-                ptr_ = heap_string_factory_type::create(other.data(), other.length(), other.ext_tag(), other.get_allocator());
-                return *this;
-            }
-
-            byte_string_storage& operator=(byte_string_storage&& other)
-            {
-                storage_kind_ = other.storage_kind_;
-                tag_ = other.tag_;
                 ptr_ = other.ptr_;
                 other.ptr_ = nullptr;
-                return *this;
+                other.tag_ = semantic_tag::none;
+                other.storage_kind_ = static_cast<uint8_t>(json_storage_kind::null_value);
+            }
+
+            byte_string_storage(byte_string_storage&& other, const Allocator& alloc)
+                : storage_kind_(other.storage_kind_), small_string_length_(0), tag_(other.tag_)
+            {
+                if (other.get_allocator() == alloc)
+                {
+                    ptr_ = other.ptr_;
+                    other.ptr_ = nullptr;
+                    other.tag_ = semantic_tag::none;
+                    other.storage_kind_ = static_cast<uint8_t>(json_storage_kind::null_value);
+                }
+                else
+                {
+                    ptr_ = heap_string_factory_type::create(other.data(), other.length(), other.ext_tag(), alloc);
+                }
+            }
+
+            void assign(const byte_string_storage& other)
+            {
+                assign(std::integral_constant<bool,std::allocator_traits<Allocator>::propagate_on_container_copy_assignment::value>(), other);
+            }
+
+            void assign(std::true_type, const byte_string_storage& other)
+            {
+                tag_ = other.tag_;
+                heap_string_factory_type::destroy(ptr_);
+                ptr_ = heap_string_factory_type::create(other.data(), other.length(), null_type(), other.get_allocator());
+            }
+
+            void assign(std::false_type, const byte_string_storage& other)
+            {
+                auto alloc = get_allocator();
+                tag_ = other.tag_;
+                heap_string_factory_type::destroy(ptr_);
+                ptr_ = heap_string_factory_type::create(other.data(), other.length(), other.ext_tag(), alloc);
+            }
+
+            void assign(byte_string_storage&& other)
+            {
+                assign(std::integral_constant<bool,std::allocator_traits<Allocator>::propagate_on_container_move_assignment::value>(),
+                    std::move(other));
+            }
+
+            void assign(std::true_type, byte_string_storage&& other)
+            {
+                swap(other);
+            }
+
+            void assign(std::false_type, byte_string_storage&& other)
+            {
+                if (other.get_allocator() == get_allocator())
+                {
+                    swap(other);
+                }
+                else
+                {
+                    auto alloc = get_allocator();
+                    tag_ = other.tag_;
+                    heap_string_factory_type::destroy(ptr_);
+                    ptr_ = heap_string_factory_type::create(other.data(), other.length(), other.ext_tag(), alloc);
+                }
             }
 
             ~byte_string_storage() noexcept
@@ -839,16 +910,6 @@ namespace jsoncons {
             {
                 std::swap(ptr_, other.ptr_);
                 std::swap(tag_, other.tag_);
-            }
-
-            pointer get()
-            {
-                return ptr_;
-            }
-
-            void set(pointer ptr)
-            {
-                ptr_ = ptr;
             }
 
             semantic_tag tag() const
@@ -957,7 +1018,7 @@ namespace jsoncons {
                 }
                 else
                 {
-                    create(array_allocator(alloc), array(*(other.ptr_), alloc));
+                    create(array_allocator(alloc), *(other.ptr_));
                 }
             }
 
@@ -975,7 +1036,7 @@ namespace jsoncons {
                 }
                 else
                 {
-                    create(array_allocator(alloc), array(*(other.ptr_), alloc));
+                    create(array_allocator(alloc), *(other.ptr_));
                 }
             }
 
@@ -987,20 +1048,56 @@ namespace jsoncons {
                 }
             }
 
+            void assign(const array_storage& other)
+            {
+                assign(std::integral_constant<bool,std::allocator_traits<Allocator>::propagate_on_container_copy_assignment::value>(), other);
+            }
+
+            void assign(std::true_type, const array_storage& other)
+            {
+                tag_ = other.tag_;
+                destroy();
+                create(array_allocator(other.get_allocator()), *(other.ptr_));
+            }
+
+            void assign(std::false_type, const array_storage& other)
+            {
+                auto alloc = get_allocator();
+                tag_ = other.tag_;
+                destroy();
+                create(array_allocator(alloc), *(other.ptr_));
+            }
+
+            void assign(array_storage&& other)
+            {
+                assign(std::integral_constant<bool,std::allocator_traits<Allocator>::propagate_on_container_move_assignment::value>(),
+                    std::move(other));
+            }
+
+            void assign(std::true_type, array_storage&& other)
+            {
+                swap(other);
+            }
+
+            void assign(std::false_type, array_storage&& other)
+            {
+                if (other.get_allocator() == get_allocator())
+                {
+                    swap(other);
+                }
+                else
+                {
+                    auto alloc = get_allocator();
+                    tag_ = other.tag_;
+                    destroy();
+                    create(alloc, *(other.ptr_));
+                }
+            }
+
             void swap(array_storage& other)
             {
                 std::swap(ptr_, other.ptr_);
                 std::swap(tag_, other.tag_);
-            }
-
-            pointer get()
-            {
-                return ptr_;
-            }
-
-            void set(pointer ptr)
-            {
-                ptr_ = ptr;
             }
 
             semantic_tag tag() const
@@ -1085,7 +1182,7 @@ namespace jsoncons {
                 }
                 else
                 {
-                    create(object_allocator(alloc), object(*(other.ptr_), alloc));
+                    create(object_allocator(alloc), *(other.ptr_));
                 }
             }
 
@@ -1113,7 +1210,7 @@ namespace jsoncons {
                 }
                 else
                 {
-                    create(object_allocator(alloc), object(*(other.ptr_), alloc));
+                    create(object_allocator(alloc), *(other.ptr_));
                 }
             }
 
@@ -1125,20 +1222,56 @@ namespace jsoncons {
                 }
             }
 
+            void assign(const object_storage& other)
+            {
+                assign(std::integral_constant<bool,std::allocator_traits<Allocator>::propagate_on_container_copy_assignment::value>(), other);
+            }
+
+            void assign(std::true_type, const object_storage& other)
+            {
+                tag_ = other.tag_;
+                destroy();
+                create(object_allocator(other.get_allocator()), *(other.ptr_));
+            }
+
+            void assign(std::false_type, const object_storage& other)
+            {
+                auto alloc = get_allocator();
+                tag_ = other.tag_;
+                destroy();
+                create(object_allocator(alloc), *(other.ptr_));
+            }
+
+            void assign(object_storage&& other)
+            {
+                assign(std::integral_constant<bool,std::allocator_traits<Allocator>::propagate_on_container_move_assignment::value>(),
+                    std::move(other));
+            }
+
+            void assign(std::true_type, object_storage&& other)
+            {
+                swap(other);
+            }
+
+            void assign(std::false_type, object_storage&& other)
+            {
+                if (other.get_allocator() == get_allocator())
+                {
+                    swap(other);
+                }
+                else
+                {
+                    auto alloc = get_allocator();
+                    tag_ = other.tag_;
+                    destroy();
+                    create(object_allocator(alloc), *(other.ptr_));
+                }
+            }
+
             void swap(object_storage& other)
             {
                 std::swap(ptr_, other.ptr_);
                 std::swap(tag_, other.tag_);
-            }
-
-            pointer get()
-            {
-                return ptr_;
-            }
-
-            void set(pointer ptr)
-            {
-                ptr_ = ptr;
             }
 
             semantic_tag tag() const
@@ -2368,11 +2501,9 @@ namespace jsoncons {
         template <class TypeL, class TypeR>
         void swap_l_r(identity<TypeL>,identity<TypeR>,basic_json& other)
         {
-            TypeL& curA = cast<TypeL>();
-            TypeR& curB = other.cast<TypeR>();
-            TypeR tmpB(std::move(curB));
-            other.construct<TypeL>(std::move(curA));
-            construct<TypeR>(std::move(tmpB));
+            TypeR tmpR(std::move(other.cast<TypeR>())); 
+            other.construct<TypeL>(cast<TypeL>());
+            construct<TypeR>(std::move(tmpR));
         }
 
         void swap_l_r(identity<long_string_storage>,identity<long_string_storage>,basic_json& other)
@@ -2518,28 +2649,15 @@ namespace jsoncons {
                     break;
                 case json_storage_kind::long_string_value:
                     construct<long_string_storage>(std::move(other.cast<long_string_storage>()));
-                    //construct<long_string_storage>(other.cast<long_string_storage>().tag(),
-                    //    other.cast<long_string_storage>().get());
-                    //other.cast<long_string_storage>().set(nullptr);
-                    //other = basic_json(null_type());
                     break;
                 case json_storage_kind::byte_string_value:
-                    construct<byte_string_storage>(other.cast<byte_string_storage>().tag(),
-                        other.cast<byte_string_storage>().get());
-                    other.cast<byte_string_storage>().set(nullptr);
-                    other = basic_json(null_type());
+                    construct<byte_string_storage>(std::move(other.cast<byte_string_storage>()));
                     break;
                 case json_storage_kind::array_value:
-                    construct<array_storage>(other.cast<array_storage>().tag(),
-                        other.cast<array_storage>().get());
-                    other.cast<array_storage>().set(nullptr);
-                    other = basic_json(null_type());
+                    construct<array_storage>(std::move(other.cast<array_storage>()));
                     break;
                 case json_storage_kind::object_value:
-                    construct<object_storage>(other.cast<object_storage>().tag(),
-                        other.cast<object_storage>().get());
-                    other.cast<object_storage>().set(nullptr);
-                    other = basic_json(null_type());
+                    construct<object_storage>(std::move(other.cast<object_storage>()));
                     break;
                 default:
                     JSONCONS_UNREACHABLE();
@@ -2571,44 +2689,15 @@ namespace jsoncons {
                     break;
                 case json_storage_kind::long_string_value:
                     construct<long_string_storage>(std::move(other.cast<long_string_storage>()), alloc);
-                    /* if (other.cast<long_string_storage>().get_allocator() == alloc)
-                    {
-                        uninitialized_move(std::move(other));
-                    }
-                    else
-                    {
-                        construct<long_string_storage>(other.cast<long_string_storage>(), alloc);
-                    }*/
                     break;
                 case json_storage_kind::byte_string_value:
-                    if (other.cast<byte_string_storage>().get_allocator() == alloc)
-                    {
-                        uninitialized_move(std::move(other));
-                    }
-                    else
-                    {
-                        construct<byte_string_storage>(other.cast<byte_string_storage>(), alloc);
-                    }
+                    construct<byte_string_storage>(std::move(other.cast<byte_string_storage>()), alloc);
                     break;
                 case json_storage_kind::array_value:
-                    if (other.cast<array_storage>().get_allocator() == alloc)
-                    {
-                        uninitialized_move(std::move(other));
-                    }
-                    else
-                    {
-                        construct<array_storage>(other.cast<array_storage>(), alloc);
-                    }
+                    construct<array_storage>(std::move(other.cast<array_storage>()), alloc);
                     break;
                 case json_storage_kind::object_value:
-                    if (other.cast<object_storage>().get_allocator() == alloc)
-                    {
-                        uninitialized_move(std::move(other));
-                    }
-                    else
-                    {
-                        construct<object_storage>(other.cast<object_storage>(), alloc);
-                    }
+                    construct<object_storage>(std::move(other.cast<object_storage>()), alloc);
                     break;
                 default:
                     JSONCONS_UNREACHABLE();
@@ -2631,34 +2720,22 @@ namespace jsoncons {
 
         void move_assignment_l_r(identity<long_string_storage>,identity<long_string_storage>,basic_json&& other)
         {
-            cast<long_string_storage>().swap(other.cast<long_string_storage>());
-            //auto ptr = cast<long_string_storage>().get();
-            //cast<long_string_storage>().set(other.cast<long_string_storage>().get());
-            //other.cast<long_string_storage>().set(ptr);
+            cast<long_string_storage>().assign(std::move(other.cast<long_string_storage>()));
         }
 
         void move_assignment_l_r(identity<byte_string_storage>,identity<byte_string_storage>,basic_json&& other)
         {
-            cast<byte_string_storage>().swap(other.cast<byte_string_storage>());
-            //auto ptr = cast<byte_string_storage>().get();
-            //cast<byte_string_storage>().set(other.cast<byte_string_storage>().get());
-            //other.cast<byte_string_storage>().set(ptr);
+            cast<byte_string_storage>().assign(std::move(other.cast<byte_string_storage>()));
         }
 
         void move_assignment_l_r(identity<array_storage>,identity<array_storage>,basic_json&& other)
         {
-            cast<array_storage>().swap(other.cast<array_storage>());
-            //auto ptr = cast<array_storage>().get();
-            //cast<array_storage>().set(other.cast<array_storage>().get());
-            //other.cast<array_storage>().set(ptr);
+            cast<array_storage>().assign(std::move(other.cast<array_storage>()));
         }
 
         void move_assignment_l_r(identity<object_storage>,identity<object_storage>,basic_json&& other)
         {
-            cast<object_storage>().swap(other.cast<object_storage>());
-            //auto ptr = cast<object_storage>().get();
-            //cast<object_storage>().set(other.cast<object_storage>().get());
-            //other.cast<object_storage>().set(ptr);
+            cast<object_storage>().assign(std::move(other.cast<object_storage>()));
         }
 
         template <class TypeR>
