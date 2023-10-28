@@ -23,10 +23,10 @@ namespace jsonpath {
     template <class StringT>
     class json_location; 
 
-    enum class json_location_node_kind { root, index, name };
+    enum class path_node_kind { root, index, name };
 
     template <class StringT>
-    class json_location_node 
+    class path_node 
     {
         friend class json_location<StringT>;
     public:
@@ -34,31 +34,31 @@ namespace jsonpath {
         using char_type = typename StringT::value_type;
     private:
 
-        const json_location_node* parent_;
-        json_location_node_kind node_kind_;
+        const path_node* parent_;
+        path_node_kind node_kind_;
         jsoncons::optional<string_type> name_;
         std::size_t index_;
     public:
-        json_location_node(string_type&& name)
+        path_node(string_type&& name)
             : parent_(nullptr), 
-              node_kind_(json_location_node_kind::root), 
+              node_kind_(path_node_kind::root), 
               name_(std::move(name)), index_(0)
         {
         }
 
-        json_location_node(const json_location_node* parent, const string_type& name)
-            : parent_(parent), node_kind_(json_location_node_kind::name), name_(name), index_(0)
+        path_node(const path_node* parent, const string_type& name)
+            : parent_(parent), node_kind_(path_node_kind::name), name_(name), index_(0)
         {
         }
 
-        json_location_node(const json_location_node* parent, std::size_t index)
-            : parent_(parent), node_kind_(json_location_node_kind::index), index_(index)
+        path_node(const path_node* parent, std::size_t index)
+            : parent_(parent), node_kind_(path_node_kind::index), index_(index)
         {
         }
 
-        const json_location_node* parent() const { return parent_;}
+        const path_node* parent() const { return parent_;}
 
-        json_location_node_kind node_kind() const
+        path_node_kind node_kind() const
         {
             return node_kind_;
         }
@@ -73,7 +73,7 @@ namespace jsonpath {
             return index_;
         }
 
-        void swap(json_location_node& node)
+        void swap(path_node& node)
         {
             std::swap(parent_, node.parent_);
             std::swap(node_kind_, node.node_kind_);
@@ -85,12 +85,12 @@ namespace jsonpath {
 
         std::size_t node_hash() const
         {
-            std::size_t h = node_kind_ == json_location_node_kind::index ? std::hash<std::size_t>{}(index_) : std::hash<string_type>{}(*name_);
+            std::size_t h = node_kind_ == path_node_kind::index ? std::hash<std::size_t>{}(index_) : std::hash<string_type>{}(*name_);
 
             return h;
         }
 
-        int compare_node(const json_location_node& other) const
+        int compare_node(const path_node& other) const
         {
             int diff = 0;
             if (node_kind_ != other.node_kind_)
@@ -101,11 +101,11 @@ namespace jsonpath {
             {
                 switch (node_kind_)
                 {
-                    case json_location_node_kind::root:
-                    case json_location_node_kind::name:
+                    case path_node_kind::root:
+                    case path_node_kind::name:
                         diff = (*name_).compare(*(other.name_));
                         break;
-                    case json_location_node_kind::index:
+                    case path_node_kind::index:
                         diff = index_ < other.index_ ? -1 : index_ > other.index_ ? 1 : 0;
                         break;
                     default:
@@ -271,18 +271,18 @@ namespace jsonpath {
     public:
         using allocator_type = typename StringT::allocator_type;
         using string_type = StringT;
-        using json_location_node_type = json_location_node<StringT>;
+        using path_node_type = path_node<StringT>;
     private:
         allocator_type alloc_;
-        std::vector<const json_location_node_type*> nodes_;
+        std::vector<const path_node_type*> nodes_;
     public:
-        using iterator = typename detail::json_location_iterator<typename std::vector<const json_location_node_type*>::iterator>;
-        using const_iterator = typename detail::json_location_iterator<typename std::vector<const json_location_node_type*>::const_iterator>;
+        using iterator = typename detail::json_location_iterator<typename std::vector<const path_node_type*>::iterator>;
+        using const_iterator = typename detail::json_location_iterator<typename std::vector<const path_node_type*>::const_iterator>;
 
-        json_location(const json_location_node_type& node, const allocator_type& alloc = allocator_type())
+        json_location(const path_node_type& node, const allocator_type& alloc = allocator_type())
             : alloc_(alloc)
         {
-            const json_location_node_type* p = std::addressof(node);
+            const path_node_type* p = std::addressof(node);
             do
             {
                 nodes_.push_back(p);
@@ -313,7 +313,7 @@ namespace jsonpath {
             return const_iterator(nodes_.end());
         }
 
-        const json_location_node_type& last() const
+        const path_node_type& last() const
         {
             return *nodes_.back();
         }
@@ -326,17 +326,17 @@ namespace jsonpath {
             {
                 switch (node->node_kind())
                 {
-                    case json_location_node_kind::root:
+                    case path_node_kind::root:
                         buffer.append(node->name());
                         break;
-                    case json_location_node_kind::name:
+                    case path_node_kind::name:
                         buffer.push_back('[');
                         buffer.push_back('\'');
                         jsoncons::jsonpath::escape_string(node->name().data(), node->name().size(), buffer);
                         buffer.push_back('\'');
                         buffer.push_back(']');
                         break;
-                    case json_location_node_kind::index:
+                    case path_node_kind::index:
                         buffer.push_back('[');
                         jsoncons::detail::from_integer(node->index(), buffer);
                         buffer.push_back(']');
@@ -405,23 +405,23 @@ namespace jsonpath {
     Json* select(Json& root, const json_location<typename Json::string_type>& path)
     {
         Json* current = std::addressof(root);
-        for (const auto& json_location_node : path)
+        for (const auto& path_node : path)
         {
-            if (json_location_node.node_kind() == json_location_node_kind::index)
+            if (path_node.node_kind() == path_node_kind::index)
             {
-                if (current->type() != json_type::array_value || json_location_node.index() >= current->size())
+                if (current->type() != json_type::array_value || path_node.index() >= current->size())
                 {
                     return nullptr; 
                 }
-                current = std::addressof(current->at(json_location_node.index()));
+                current = std::addressof(current->at(path_node.index()));
             }
-            else if (json_location_node.node_kind() == json_location_node_kind::name)
+            else if (path_node.node_kind() == path_node_kind::name)
             {
                 if (current->type() != json_type::object_value)
                 {
                     return nullptr;
                 }
-                auto it = current->find(json_location_node.name());
+                auto it = current->find(path_node.name());
                 if (it == current->object_range().end())
                 {
                     return nullptr;

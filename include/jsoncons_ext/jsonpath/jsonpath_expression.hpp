@@ -112,7 +112,7 @@ namespace detail {
         using path_expression_type = path_expression<Json,JsonReference>;
         using expression_type = expression<Json,JsonReference>;
         using json_location_type = json_location<string_type>;
-        using json_location_node_type = json_location_node<string_type>;
+        using path_node_type = path_node<string_type>;
         using selector_type = jsonpath_selector<Json,JsonReference>;
 
     private:
@@ -2487,16 +2487,16 @@ namespace detail {
         using char_type = typename Json::char_type;
         using string_type = typename Json::string_type;
         using string_view_type = typename Json::string_view_type;
-        using value_type = Json;
+        using value_type = typename std::remove_volatile<typename std::remove_const<Json>::type>::type;
         using reference = JsonReference;
-        using const_reference = const Json&;
-        using pointer = typename std::conditional<std::is_const<typename std::remove_reference<JsonReference>::type>::value, typename Json::const_pointer, typename Json::pointer>::type;
-        using allocator_type = typename Json::allocator_type;
-        using evaluator_type = typename jsoncons::jsonpath::detail::jsonpath_evaluator<Json, JsonReference>;
-        using json_location_node_type = json_location_node<string_type>;
+        using const_reference = const value_type&;
+        using pointer = typename std::conditional<std::is_const<typename std::remove_reference<reference>::type>::value, typename Json::const_pointer, typename Json::pointer>::type;
+        using allocator_type = typename value_type::allocator_type;
+        using evaluator_type = typename jsoncons::jsonpath::detail::jsonpath_evaluator<value_type, reference>;
+        using path_node_type = path_node<string_type>;
         using json_location_type = json_location<string_type>;
-        using path_expression_type = path_expression<Json,JsonReference>;
-        using path_pointer = const json_location_node_type*;
+        using path_expression_type = path_expression<value_type,reference>;
+        using path_pointer = const path_node_type*;
     };
 
     } // namespace detail
@@ -2652,11 +2652,11 @@ namespace detail {
         return jsonpath_expression<Json>(alloc_set, std::move(resources), std::move(expr));
     }
 
-    template <class Json,class JsonReference=const Json&>
+    template <class Json>
     auto make_expression_for_update(const typename Json::string_view_type& path,
         const jsoncons::jsonpath::custom_functions<Json>& funcs = jsoncons::jsonpath::custom_functions<Json>())
     {
-        using jsonpath_traits_type = jsoncons::jsonpath::detail::jsonpath_traits<Json, JsonReference>;
+        using jsonpath_traits_type = jsoncons::jsonpath::detail::jsonpath_traits<Json, Json&>;
 
         using value_type = typename jsonpath_traits_type::value_type;
         using reference = typename jsonpath_traits_type::reference;
