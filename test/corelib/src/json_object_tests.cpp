@@ -51,26 +51,6 @@ TEST_CASE("json insert(first,last) test")
         CHECK(it++->key() == "e");
         CHECK(it++->key() == "f");
     }
-    SECTION("copy map into ojson")
-    {
-        std::map<std::string,double> m1 = {{"f",4},{"e",5},{"d",6}};
-        std::map<std::string,double> m2 = {{"c",1},{"b",2},{"a",3}};
-
-        ojson j;
-        j.insert(m1.begin(),m1.end());
-        j.insert(m2.begin(),m2.end());
-
-        //std::cout << j << "\n";
-
-        REQUIRE(j.size() == 6);
-        auto it = j.object_range().begin();
-        CHECK(it++->key() == "d");
-        CHECK(it++->key() == "e");
-        CHECK(it++->key() == "f");
-        CHECK(it++->key() == "a");
-        CHECK(it++->key() == "b");
-        CHECK(it++->key() == "c");
-    }
 
     // Fails with xenial-armhf
 
@@ -936,7 +916,7 @@ TEST_CASE("try_emplace tests")
     {
         j.try_emplace("c",3);
 
-        CHECK(j == expected);
+        CHECK(expected == j);
     }
 
     SECTION("try_emplace(iterator hint, const string_view_type& name, Args&&... args)")
@@ -945,22 +925,8 @@ TEST_CASE("try_emplace tests")
 
         j.try_emplace(it,"c",3);
 
-        CHECK(j == expected);
+        CHECK(expected == j);
     }
-}
-
-TEST_CASE("ojson parse_duplicate_names")
-{
-    ojson oj1 = ojson::parse(R"({"first":1,"second":2,"third":3})");
-    CHECK(3 == oj1.size());
-    CHECK(1 == oj1["first"].as<int>());
-    CHECK(2 == oj1["second"].as<int>());
-    CHECK(3 == oj1["third"].as<int>());
-
-    ojson oj2 = ojson::parse(R"({"first":1,"second":2,"first":3})");
-    CHECK(2 == oj2.size());
-    CHECK(1 == oj2["first"].as<int>());
-    CHECK(2 == oj2["second"].as<int>());
 }
 
 TEST_CASE("test json_object erase with iterator")
@@ -1015,83 +981,6 @@ TEST_CASE("test json_object erase with iterator")
         CHECK(j.at("c") == 3);
         CHECK(j["c"] == 3);
     }
-    SECTION("ojson erase with iterator")
-    {
-        ojson j(jsoncons::json_object_arg);
-
-        j.try_emplace("a", 1);
-        j.try_emplace("b", 2);
-        j.try_emplace("c", 3);
-
-        auto it = j.object_range().begin();
-        while (it != j.object_range().end())
-        {
-            if (it->key() == "a" || it->key() == "c")
-            {
-                it = j.erase(it);
-            }
-            else
-            {
-                it++;
-            }
-        }
-
-        CHECK(j.size() == 1);
-        CHECK(j.at("b") == 2);
-        CHECK(j["b"] == 2);
-    }
-
-    SECTION("ojson erase with iterator 2")
-    {
-        ojson j(jsoncons::json_object_arg);
-
-        j.try_emplace("a", 1);
-        j.try_emplace("b", 2);
-        j.try_emplace("c", 3);
-
-        auto it = j.object_range().begin();
-        while (it != j.object_range().end())
-        {
-            if (it->key() == "a")
-            {
-                it = j.erase(it, it+2);
-            }
-            else
-            {
-                it++;
-            }
-        }
-
-        CHECK(j.size() == 1);
-        CHECK(j.at("c") == 3);
-        CHECK(j["c"] == 3);
-    }
-
-    SECTION("ojson erase with iterator 3")
-    {
-        ojson j(jsoncons::json_object_arg);
-
-        j.try_emplace("c", 1);
-        j.try_emplace("b", 2);
-        j.try_emplace("a", 3);
-
-        auto it = j.object_range().begin();
-        while (it != j.object_range().end())
-        {
-            if (it->key() == "c")
-            {
-                it = j.erase(it, it+2);
-            }
-            else
-            {
-                it++;
-            }
-        }
-
-        CHECK(j.size() == 1);
-        CHECK(j.at("a") == 3);
-        CHECK(j["a"] == 3);
-    }
 }
 
 TEST_CASE("test empty json_object iterator")
@@ -1112,3 +1001,167 @@ TEST_CASE("test empty json_object iterator")
         CHECK ((bool)(it == j.object_range().end()));
     }
 }
+
+// merge tests
+
+TEST_CASE("test_json_merge")
+{
+    json j = json::parse(R"(
+    {
+        "a" : 1,
+        "b" : 2
+    }
+    )");
+    json j2 = j;
+
+    const json source = json::parse(R"(
+    {
+        "a" : 2,
+        "c" : 3
+    }
+    )");
+
+    const json expected = json::parse(R"(
+    {
+        "a" : 1,
+        "b" : 2,
+        "c" : 3
+    }
+    )");
+
+    SECTION("test 1")
+    {
+        j.merge(source);
+        CHECK(expected == j);
+
+        j2.merge(j2.object_range().begin()+1,source);
+        CHECK(j2 == expected);
+    }
+
+    SECTION("test 2")
+    {
+        json empty_object;
+        json original = j;
+
+        j.merge(empty_object);
+
+        CHECK(j == original);
+
+        j2.merge(j2.object_range().begin()+1,empty_object);
+        CHECK(j2 == original);
+    }
+
+    //std::cout << j << std::endl;
+}
+
+TEST_CASE("test_json_merge_move")
+{
+    json j = json::parse(R"(
+    {
+        "a" : "1",
+        "b" : [1,2,3]
+    }
+    )");
+        json j2 = j;
+
+    json source = json::parse(R"(
+    {
+        "a" : "2",
+        "c" : [4,5,6]
+    }
+    )");
+
+    json expected = json::parse(R"(
+    {
+        "a" : "1",
+        "b" : [1,2,3],
+        "c" : [4,5,6]
+    }
+    )");
+
+    SECTION("test 1")
+    {
+        json source2 = source;
+
+        j.merge(std::move(source));
+        CHECK(expected == j);
+
+        j2.merge(std::move(source2));
+        CHECK(j2 == expected);
+    }
+}
+
+// merge_or_update tests
+
+TEST_CASE("test_json_merge_or_update")
+{
+    json j = json::parse(R"(
+    {
+        "a" : 1,
+        "b" : 2
+    }
+    )");
+    json j2 = j;
+
+    const json source = json::parse(R"(
+    {
+        "a" : 2,
+        "c" : 3
+    }
+    )");
+
+    const json expected = json::parse(R"(
+    {
+        "a" : 2,
+        "b" : 2,
+        "c" : 3
+    }
+    )");
+
+    SECTION("test 1")
+    {
+        j.merge_or_update(source);
+        CHECK(expected == j);
+
+        j2.merge_or_update(j2.object_range().begin()+1,source);
+        CHECK(j2 == expected);
+    }
+}
+
+TEST_CASE("test_json_merge_or_update_move")
+{
+    json j = json::parse(R"(
+    {
+        "a" : "1",
+        "b" : [1,2,3]
+    }
+    )");
+        json j2 = j;
+
+    json source = json::parse(R"(
+    {
+        "a" : "2",
+        "c" : [4,5,6]
+    }
+    )");
+
+    json expected = json::parse(R"(
+    {
+        "a" : "2",
+        "b" : [1,2,3],
+        "c" : [4,5,6]
+    }
+    )");
+
+    SECTION("test 1")
+    {
+        json source2 = source;
+
+        j.merge_or_update(std::move(source));
+        CHECK(expected == j);
+
+        j2.merge_or_update(std::move(source2));
+        CHECK(j2 == expected);
+    }
+}
+

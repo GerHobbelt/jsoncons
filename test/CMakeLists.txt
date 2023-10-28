@@ -140,7 +140,7 @@ add_executable(unit_tests
                corelib/src/json_line_split_tests.cpp
                corelib/src/json_literal_operator_tests.cpp
                corelib/src/json_object_tests.cpp
-               corelib/src/json_object_merge_tests.cpp
+               corelib/src/ojson_object_tests.cpp
                corelib/src/json_options_tests.cpp
                corelib/src/json_parse_error_tests.cpp
                corelib/src/json_parser_position_tests.cpp
@@ -162,7 +162,6 @@ add_executable(unit_tests
                corelib/src/jsoncons_tests.cpp
                corelib/src/JSONTestSuite_tests.cpp
                corelib/src/ojson_tests.cpp
-               corelib/src/order_preserving_json_object_tests.cpp
                corelib/src/parse_string_tests.cpp
                corelib/src/short_string_tests.cpp
                corelib/src/source_tests.cpp
