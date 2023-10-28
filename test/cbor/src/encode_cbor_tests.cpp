@@ -184,11 +184,11 @@ TEST_CASE("encode_cbor overloads")
 #if defined(JSONCONS_HAS_STATEFUL_ALLOCATOR)
 
 template<typename T>
-using ScopedTestAllocator = std::scoped_allocator_adaptor<FreeListAllocator<T>>;
+using MyScopedAllocator = std::scoped_allocator_adaptor<FreeListAllocator<T>>;
 
 TEST_CASE("encode_cbor allocator_set overloads")
 {
-    ScopedTestAllocator<char> temp_alloc(1);
+    MyScopedAllocator<char> temp_alloc(1);
 
     auto alloc_set = temp_allocator_only(temp_alloc);
 
@@ -200,7 +200,7 @@ TEST_CASE("encode_cbor allocator_set overloads")
         std::string s;
         std::stringstream ss(s);
         cbor::encode_cbor(person, ss);
-        json other = cbor::decode_cbor<json>(ss);
+        json other = cbor::decode_cbor<json>(alloc_set,ss);
         CHECK(other == person);
     }
     SECTION("custom, stream")
@@ -210,7 +210,7 @@ TEST_CASE("encode_cbor allocator_set overloads")
         std::string s;
         std::stringstream ss(s);
         cbor::encode_cbor(person, ss);
-        ns::Person other = cbor::decode_cbor<ns::Person>(ss);
+        ns::Person other = cbor::decode_cbor<ns::Person>(alloc_set,ss);
         CHECK(other.name == person.name);
     }
 }
