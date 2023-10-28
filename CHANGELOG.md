@@ -3,13 +3,25 @@
 
 Defect fixes:
 
-- Fixed issue danielaparker/jsoncons/#441 concerning misaligned allocation for string data. 
+- Fixed issue #441 concerning misaligned allocation for string data. 
 
-- Fixed issue danielaparker/jsoncons/#436 concerning overflow warning. 
+- Fixed issue #436 concerning overflow warning. 
+
+- Changed internal variable names to avoid shadow warnings
+
+- Fixed signature of `dump_pretty` #438
+
+- Fixed `basic_json_decode_options` constructor #437
 
 Enhancements:
 
-- Improved error messages (with field names) for invalid type mappings when using the `json_type_traits` convenience macros.
+- Improved error messages (with field names) for invalid type mappings when using the
+`json_type_traits` convenience macros.
+
+- Support char8_t and u8string for C++ 20
+
+- Added compare for bigint/bigdec/bigfloat as double or exact text match. This makes 
+JSON Query work if you use `options.lossless_number(true)` for parsing JSON.
 
 0.171.0
 -------
