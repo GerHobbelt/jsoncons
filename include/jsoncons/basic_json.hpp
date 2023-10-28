@@ -684,6 +684,31 @@ namespace jsoncons {
                 ptr_ = heap_string_factory_type::create(other.data(), other.length(), null_type(), alloc);
             }
 
+            long_string_storage(long_string_storage&& other)
+                : storage_kind_(other.storage_kind_), small_string_length_(0), tag_(other.tag_)
+            {
+                ptr_ = other.ptr_;
+                other.ptr_ = nullptr;
+                other.tag_ = semantic_tag::none;
+                other.storage_kind_ = static_cast<uint8_t>(json_storage_kind::null_value);
+            }
+
+            long_string_storage(long_string_storage&& other, const Allocator& alloc)
+                : storage_kind_(other.storage_kind_), small_string_length_(0), tag_(other.tag_)
+            {
+                if (other.get_allocator() == alloc)
+                {
+                    ptr_ = other.ptr_;
+                    other.ptr_ = nullptr;
+                    other.tag_ = semantic_tag::none;
+                    other.storage_kind_ = static_cast<uint8_t>(json_storage_kind::null_value);
+                }
+                else
+                {
+                    ptr_ = heap_string_factory_type::create(other.data(), other.length(), null_type(), alloc);
+                }
+            }
+
             long_string_storage& operator=(const long_string_storage& other)
             {
                 storage_kind_ = other.storage_kind_;
@@ -708,6 +733,12 @@ namespace jsoncons {
                 heap_string_factory_type::destroy(ptr_);
             }
 
+            void swap(long_string_storage& other)
+            {
+                std::swap(ptr_, other.ptr_);
+                std::swap(tag_, other.tag_);
+            }
+
             pointer get()
             {
                 return ptr_;
@@ -721,11 +752,6 @@ namespace jsoncons {
             semantic_tag tag() const
             {
                 return tag_;
-            }
-
-            void swap(long_string_storage& other) noexcept
-            {
-                std::swap(ptr_, other.ptr_);
             }
 
             const char_type* data() const
@@ -806,6 +832,13 @@ namespace jsoncons {
 
             ~byte_string_storage() noexcept
             {
+                heap_string_factory_type::destroy(ptr_);
+            }
+
+            void swap(byte_string_storage& other)
+            {
+                std::swap(ptr_, other.ptr_);
+                std::swap(tag_, other.tag_);
             }
 
             pointer get()
@@ -821,11 +854,6 @@ namespace jsoncons {
             semantic_tag tag() const
             {
                 return tag_;
-            }
-
-            void swap(byte_string_storage& other) noexcept
-            {
-                std::swap(ptr_, other.ptr_);
             }
 
             const uint8_t* data() const
@@ -938,10 +966,11 @@ namespace jsoncons {
             {
                 if (other.get_allocator() == alloc)
                 {
+                    // Transfer resources 
                     ptr_ = other.ptr_;
                     other.ptr_ = nullptr;
+
                     other.storage_kind_ = static_cast<uint8_t>(json_storage_kind::null_value);
-                    other.small_string_length_ = 0;
                     other.tag_ = semantic_tag::none;
                 }
                 else
@@ -956,6 +985,12 @@ namespace jsoncons {
                 {
                     destroy();
                 }
+            }
+
+            void swap(array_storage& other)
+            {
+                std::swap(ptr_, other.ptr_);
+                std::swap(tag_, other.tag_);
             }
 
             pointer get()
@@ -976,11 +1011,6 @@ namespace jsoncons {
             allocator_type get_allocator() const
             {
                 return ptr_->get_allocator();
-            }
-
-            void swap(array_storage& other) noexcept
-            {
-                std::swap(other.ptr_,ptr_);
             }
 
             array& value()
@@ -1095,6 +1125,12 @@ namespace jsoncons {
                 }
             }
 
+            void swap(object_storage& other)
+            {
+                std::swap(ptr_, other.ptr_);
+                std::swap(tag_, other.tag_);
+            }
+
             pointer get()
             {
                 return ptr_;
@@ -1108,11 +1144,6 @@ namespace jsoncons {
             semantic_tag tag() const
             {
                 return tag_;
-            }
-
-            void swap(object_storage& other) noexcept
-            {
-                std::swap(other.ptr_,ptr_);
             }
 
             object& value()
@@ -2328,34 +2359,60 @@ namespace jsoncons {
             return json_const_pointer_stor_;
         }
     private:
-        template <class TypeA, class TypeB>
-        void swap_a_b(basic_json& other)
+        template <class TypeL, class TypeR>
+        void swap_l_r(basic_json& other)
         {
-            TypeA& curA = cast<TypeA>();
-            TypeB& curB = other.cast<TypeB>();
-            TypeB tmpB(std::move(curB));
-            other.construct<TypeA>(std::move(curA));
-            construct<TypeB>(std::move(tmpB));
+            swap_l_r(identity<TypeL>(), identity<TypeR>(), other);
         }
 
-        template <class TypeA>
-        void swap_a(basic_json& other)
+        template <class TypeL, class TypeR>
+        void swap_l_r(identity<TypeL>,identity<TypeR>,basic_json& other)
+        {
+            TypeL& curA = cast<TypeL>();
+            TypeR& curB = other.cast<TypeR>();
+            TypeR tmpB(std::move(curB));
+            other.construct<TypeL>(std::move(curA));
+            construct<TypeR>(std::move(tmpB));
+        }
+
+        void swap_l_r(identity<long_string_storage>,identity<long_string_storage>,basic_json& other)
+        {
+            cast<long_string_storage>().swap(other.cast<long_string_storage>());
+        }
+
+        void swap_l_r(identity<byte_string_storage>,identity<byte_string_storage>,basic_json& other)
+        {
+            cast<byte_string_storage>().swap(other.cast<byte_string_storage>());
+        }
+
+        void swap_l_r(identity<array_storage>,identity<array_storage>,basic_json& other)
+        {
+            cast<array_storage>().swap(other.cast<array_storage>());
+        }
+
+        void swap_l_r(identity<object_storage>,identity<object_storage>,basic_json& other)
+        {
+            cast<object_storage>().swap(other.cast<object_storage>());
+        }
+
+        template <class TypeL>
+        void swap_l(basic_json& other)
         {
             switch (other.storage_kind())
             {
-                case json_storage_kind::null_value         : swap_a_b<TypeA, null_storage>(other); break;
-                case json_storage_kind::empty_object_value : swap_a_b<TypeA, empty_object_storage>(other); break;
-                case json_storage_kind::bool_value         : swap_a_b<TypeA, bool_storage>(other); break;
-                case json_storage_kind::int64_value      : swap_a_b<TypeA, int64_storage>(other); break;
-                case json_storage_kind::uint64_value     : swap_a_b<TypeA, uint64_storage>(other); break;
-                case json_storage_kind::half_value       : swap_a_b<TypeA, half_storage>(other); break;
-                case json_storage_kind::double_value       : swap_a_b<TypeA, double_storage>(other); break;
-                case json_storage_kind::short_string_value : swap_a_b<TypeA, short_string_storage>(other); break;
-                case json_storage_kind::long_string_value       : swap_a_b<TypeA, long_string_storage>(other); break;
-                case json_storage_kind::byte_string_value  : swap_a_b<TypeA, byte_string_storage>(other); break;
-                case json_storage_kind::array_value        : swap_a_b<TypeA, array_storage>(other); break;
-                case json_storage_kind::object_value       : swap_a_b<TypeA, object_storage>(other); break;
-                case json_storage_kind::json_const_pointer : swap_a_b<TypeA, json_const_pointer_storage>(other); break;
+                case json_storage_kind::null_value         : swap_l_r<TypeL, null_storage>(other); break;
+                case json_storage_kind::empty_object_value : swap_l_r<TypeL, empty_object_storage>(other); break;
+                case json_storage_kind::bool_value         : swap_l_r<TypeL, bool_storage>(other); break;
+                case json_storage_kind::int64_value        : swap_l_r<TypeL, int64_storage>(other); break;
+                case json_storage_kind::uint64_value       : swap_l_r<TypeL, uint64_storage>(other); break;
+                case json_storage_kind::half_value         : swap_l_r<TypeL, half_storage>(other); break;
+                case json_storage_kind::double_value       : swap_l_r<TypeL, double_storage>(other); break;
+                case json_storage_kind::short_string_value : swap_l_r<TypeL, short_string_storage>(other); break;
+                case json_storage_kind::long_string_value  : swap_l_r<TypeL, long_string_storage>(other); break;
+                case json_storage_kind::byte_string_value  : swap_l_r<TypeL, byte_string_storage>(other); break;
+                case json_storage_kind::array_value        : swap_l_r<TypeL, array_storage>(other); break;
+                case json_storage_kind::object_value       : swap_l_r<TypeL, object_storage>(other); break;
+                case json_storage_kind::json_const_pointer : swap_l_r<TypeL, json_const_pointer_storage>(other); break;
                 default:
                     JSONCONS_UNREACHABLE();
                     break;
@@ -2460,10 +2517,11 @@ namespace jsoncons {
                     uninitialized_copy(other);
                     break;
                 case json_storage_kind::long_string_value:
-                    construct<long_string_storage>(other.cast<long_string_storage>().tag(),
-                        other.cast<long_string_storage>().get());
-                    other.cast<long_string_storage>().set(nullptr);
-                    other = basic_json(null_type());
+                    construct<long_string_storage>(std::move(other.cast<long_string_storage>()));
+                    //construct<long_string_storage>(other.cast<long_string_storage>().tag(),
+                    //    other.cast<long_string_storage>().get());
+                    //other.cast<long_string_storage>().set(nullptr);
+                    //other = basic_json(null_type());
                     break;
                 case json_storage_kind::byte_string_value:
                     construct<byte_string_storage>(other.cast<byte_string_storage>().tag(),
@@ -2512,14 +2570,15 @@ namespace jsoncons {
                     uninitialized_copy(other);
                     break;
                 case json_storage_kind::long_string_value:
-                    if (other.cast<long_string_storage>().get_allocator() == alloc)
+                    construct<long_string_storage>(std::move(other.cast<long_string_storage>()), alloc);
+                    /* if (other.cast<long_string_storage>().get_allocator() == alloc)
                     {
                         uninitialized_move(std::move(other));
                     }
                     else
                     {
                         construct<long_string_storage>(other.cast<long_string_storage>(), alloc);
-                    }
+                    }*/
                     break;
                 case json_storage_kind::byte_string_value:
                     if (other.cast<byte_string_storage>().get_allocator() == alloc)
@@ -2557,52 +2616,6 @@ namespace jsoncons {
             }
         }
 
-        basic_json& evaluate_with_default() 
-        {
-            return *this;
-        }
-
-        basic_json& evaluate(const string_view_type& name) 
-        {
-            return at(name);
-        }
-
-        const basic_json& evaluate(const string_view_type& name) const
-        {
-            return at(name);
-        }
-
-    public:
-
-        basic_json& evaluate() 
-        {
-            return *this;
-        }
-
-        const basic_json& evaluate() const
-        {
-            return *this;
-        }
-
-        basic_json& operator=(const basic_json& other)
-        {
-            if (this != &other)
-            {
-                Destroy_();
-                uninitialized_copy(other);
-            }
-            return *this;
-        }
-
-        basic_json& operator=(basic_json&& other)
-        {
-            if (this != &other)
-            {
-                move_assignment(std::move(other));
-            }
-            return *this;
-        }
-
         template <class TypeL, class TypeR>
         void move_assignment_l_r(basic_json&& other)
         {
@@ -2618,30 +2631,34 @@ namespace jsoncons {
 
         void move_assignment_l_r(identity<long_string_storage>,identity<long_string_storage>,basic_json&& other)
         {
-            auto ptr = cast<long_string_storage>().get();
-            cast<long_string_storage>().set(other.cast<long_string_storage>().get());
-            other.cast<long_string_storage>().set(ptr);
+            cast<long_string_storage>().swap(other.cast<long_string_storage>());
+            //auto ptr = cast<long_string_storage>().get();
+            //cast<long_string_storage>().set(other.cast<long_string_storage>().get());
+            //other.cast<long_string_storage>().set(ptr);
         }
 
         void move_assignment_l_r(identity<byte_string_storage>,identity<byte_string_storage>,basic_json&& other)
         {
-            auto ptr = cast<byte_string_storage>().get();
-            cast<byte_string_storage>().set(other.cast<byte_string_storage>().get());
-            other.cast<byte_string_storage>().set(ptr);
+            cast<byte_string_storage>().swap(other.cast<byte_string_storage>());
+            //auto ptr = cast<byte_string_storage>().get();
+            //cast<byte_string_storage>().set(other.cast<byte_string_storage>().get());
+            //other.cast<byte_string_storage>().set(ptr);
         }
 
         void move_assignment_l_r(identity<array_storage>,identity<array_storage>,basic_json&& other)
         {
-            auto ptr = cast<array_storage>().get();
-            cast<array_storage>().set(other.cast<array_storage>().get());
-            other.cast<array_storage>().set(ptr);
+            cast<array_storage>().swap(other.cast<array_storage>());
+            //auto ptr = cast<array_storage>().get();
+            //cast<array_storage>().set(other.cast<array_storage>().get());
+            //other.cast<array_storage>().set(ptr);
         }
 
         void move_assignment_l_r(identity<object_storage>,identity<object_storage>,basic_json&& other)
         {
-            auto ptr = cast<object_storage>().get();
-            cast<object_storage>().set(other.cast<object_storage>().get());
-            other.cast<object_storage>().set(ptr);
+            cast<object_storage>().swap(other.cast<object_storage>());
+            //auto ptr = cast<object_storage>().get();
+            //cast<object_storage>().set(other.cast<object_storage>().get());
+            //other.cast<object_storage>().set(ptr);
         }
 
         template <class TypeR>
@@ -2700,6 +2717,52 @@ namespace jsoncons {
                     JSONCONS_UNREACHABLE();
                     break;
             }
+        }
+
+        basic_json& evaluate_with_default() 
+        {
+            return *this;
+        }
+
+        basic_json& evaluate(const string_view_type& name) 
+        {
+            return at(name);
+        }
+
+        const basic_json& evaluate(const string_view_type& name) const
+        {
+            return at(name);
+        }
+
+    public:
+
+        basic_json& evaluate() 
+        {
+            return *this;
+        }
+
+        const basic_json& evaluate() const
+        {
+            return *this;
+        }
+
+        basic_json& operator=(const basic_json& other)
+        {
+            if (this != &other)
+            {
+                Destroy_();
+                uninitialized_copy(other);
+            }
+            return *this;
+        }
+
+        basic_json& operator=(basic_json&& other)
+        {
+            if (this != &other)
+            {
+                move_assignment(std::move(other));
+            }
+            return *this;
         }
 
         json_storage_kind storage_kind() const
@@ -3029,19 +3092,19 @@ namespace jsoncons {
 
             switch (storage_kind())
             {
-                case json_storage_kind::null_value: swap_a<null_storage>(other); break;
-                case json_storage_kind::empty_object_value : swap_a<empty_object_storage>(other); break;
-                case json_storage_kind::bool_value: swap_a<bool_storage>(other); break;
-                case json_storage_kind::int64_value: swap_a<int64_storage>(other); break;
-                case json_storage_kind::uint64_value: swap_a<uint64_storage>(other); break;
-                case json_storage_kind::half_value: swap_a<half_storage>(other); break;
-                case json_storage_kind::double_value: swap_a<double_storage>(other); break;
-                case json_storage_kind::short_string_value: swap_a<short_string_storage>(other); break;
-                case json_storage_kind::long_string_value: swap_a<long_string_storage>(other); break;
-                case json_storage_kind::byte_string_value: swap_a<byte_string_storage>(other); break;
-                case json_storage_kind::array_value: swap_a<array_storage>(other); break;
-                case json_storage_kind::object_value: swap_a<object_storage>(other); break;
-                case json_storage_kind::json_const_pointer: swap_a<json_const_pointer_storage>(other); break;
+                case json_storage_kind::null_value: swap_l<null_storage>(other); break;
+                case json_storage_kind::empty_object_value : swap_l<empty_object_storage>(other); break;
+                case json_storage_kind::bool_value: swap_l<bool_storage>(other); break;
+                case json_storage_kind::int64_value: swap_l<int64_storage>(other); break;
+                case json_storage_kind::uint64_value: swap_l<uint64_storage>(other); break;
+                case json_storage_kind::half_value: swap_l<half_storage>(other); break;
+                case json_storage_kind::double_value: swap_l<double_storage>(other); break;
+                case json_storage_kind::short_string_value: swap_l<short_string_storage>(other); break;
+                case json_storage_kind::long_string_value: swap_l<long_string_storage>(other); break;
+                case json_storage_kind::byte_string_value: swap_l<byte_string_storage>(other); break;
+                case json_storage_kind::array_value: swap_l<array_storage>(other); break;
+                case json_storage_kind::object_value: swap_l<object_storage>(other); break;
+                case json_storage_kind::json_const_pointer: swap_l<json_const_pointer_storage>(other); break;
                 default:
                     JSONCONS_UNREACHABLE();
                     break;
