@@ -60,7 +60,6 @@ namespace jsonpath {
     template<class Json, class T>
     typename std::enable_if<is_json_type_traits_specialized<Json,T>::value,void>::type
         json_replace(Json& instance, const typename Json::string_view_type& path, T&& new_value,
-                     result_options options = result_options::nodups,
                      const custom_functions<Json>& funcs = custom_functions<Json>())
     {
         using jsonpath_traits_type = jsoncons::jsonpath::detail::jsonpath_traits<Json, Json&>;
@@ -80,14 +79,13 @@ namespace jsonpath {
         {
             v = std::forward<T>(new_value);
         };
-        expr.evaluate(resources, instance, resources.root_path_node(), instance, callback, options);
+        expr.evaluate_with_replacement(resources, instance, resources.root_path_node(), instance, callback);
     }
 
     template<class Json, class T, class TempAllocator>
     typename std::enable_if<is_json_type_traits_specialized<Json,T>::value,void>::type
         json_replace(const allocator_set<typename Json::allocator_type,TempAllocator>& alloc_set, 
             Json& instance, const typename Json::string_view_type& path, T&& new_value,
-            result_options options = result_options::nodups,
             const custom_functions<Json>& funcs = custom_functions<Json>())
     {
         using jsonpath_traits_type = jsoncons::jsonpath::detail::jsonpath_traits<Json, Json&>;
@@ -107,13 +105,12 @@ namespace jsonpath {
         {
             v = Json(std::forward<T>(new_value), semantic_tag::none);
         };
-        expr.evaluate(resources, instance, resources.root_path_node(), instance, callback, options);
+        expr.evaluate_with_replacement(resources, instance, resources.root_path_node(), instance, callback);
     }
 
     template<class Json, class BinaryCallback>
     typename std::enable_if<extension_traits::is_binary_function_object<BinaryCallback,const typename Json::string_type&,Json&>::value,void>::type
     json_replace(Json& instance, const typename Json::string_view_type& path , BinaryCallback callback, 
-                 result_options options = result_options::nodups,
                  const custom_functions<Json>& funcs = custom_functions<Json>())
     {
         using jsonpath_traits_type = jsoncons::jsonpath::detail::jsonpath_traits<Json, Json&>;
@@ -134,14 +131,13 @@ namespace jsonpath {
         {
             callback(path.to_string(), val);
         };
-        expr.evaluate(resources, instance, resources.root_path_node(), instance, f, options);
+        expr.evaluate_with_replacement(resources, instance, resources.root_path_node(), instance, f);
     }
 
     template<class Json, class BinaryCallback, class TempAllocator>
     typename std::enable_if<extension_traits::is_binary_function_object<BinaryCallback,const typename Json::string_type&,Json&>::value,void>::type
     json_replace(const allocator_set<typename Json::allocator_type,TempAllocator>& alloc_set, 
         Json& instance, const typename Json::string_view_type& path , BinaryCallback callback, 
-        result_options options = result_options::nodups,
         const custom_functions<Json>& funcs = custom_functions<Json>())
     {
         using jsonpath_traits_type = jsoncons::jsonpath::detail::jsonpath_traits<Json, Json&>;
@@ -162,7 +158,7 @@ namespace jsonpath {
         {
             callback(path.to_string(), val);
         };
-        expr.evaluate(resources, instance, resources.root_path_node(), instance, f, options);
+        expr.evaluate_with_replacement(resources, instance, resources.root_path_node(), instance, f);
     }
 
     // Legacy replace function
@@ -187,7 +183,7 @@ namespace jsonpath {
         {
             v = callback(v);
         };
-        expr.evaluate(resources, instance, resources.root_path_node(), instance, f, result_options::nodups);
+        expr.evaluate_with_replacement(resources, instance, resources.root_path_node(), instance, f);
     }
 
 } // namespace jsonpath
