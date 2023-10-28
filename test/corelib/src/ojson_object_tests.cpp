@@ -39,16 +39,32 @@ TEST_CASE("ojson insert(first,last) test")
 
 TEST_CASE("ojson parse_duplicate_names")
 {
-    ojson oj1 = ojson::parse(R"({"first":1,"second":2,"third":3})");
-    CHECK(3 == oj1.size());
-    CHECK(1 == oj1["first"].as<int>());
-    CHECK(2 == oj1["second"].as<int>());
-    CHECK(3 == oj1["third"].as<int>());
+    SECTION("duplicates at front")
+    {
+        ojson doc = ojson::parse(R"({"first":1,"first":2,"second":2,"third":3})");
+        REQUIRE(3 == doc.size());
+        CHECK(1 == doc["first"].as<int>());
+        CHECK(2 == doc["second"].as<int>());
+        CHECK(3 == doc["third"].as<int>());
+    }
 
-    ojson oj2 = ojson::parse(R"({"first":1,"second":2,"first":3})");
-    CHECK(2 == oj2.size());
-    CHECK(1 == oj2["first"].as<int>());
-    CHECK(2 == oj2["second"].as<int>());
+    SECTION("duplicates at back")
+    {
+        ojson doc = ojson::parse(R"({"first":1,"second":2,"third":3,"third":4})");
+        REQUIRE(3 == doc.size());
+        CHECK(1 == doc["first"].as<int>());
+        CHECK(2 == doc["second"].as<int>());
+        CHECK(3 == doc["third"].as<int>());
+    }
+
+    SECTION("duplicates at endpoints")
+    {
+        ojson doc = ojson::parse(R"({"first":1,"second":2,"third":3,"first":4})");
+        REQUIRE(3 == doc.size());
+        CHECK(1 == doc["first"].as<int>());
+        CHECK(2 == doc["second"].as<int>());
+        CHECK(3 == doc["third"].as<int>());
+    }
 }
 
 TEST_CASE("ojson object erase with iterator")
@@ -312,13 +328,110 @@ TEST_CASE("test_ojson_merge_or_update_move")
         )");
 
         doc.merge_or_update(doc.object_range().begin(),std::move(source));
-        CHECK(doc.size() == 3);
+        CHECK(expected == doc);
+    }
+}
+
+#if defined(JSONCONS_HAS_STATEFUL_ALLOCATOR)
+
+#include <common/FreeListAllocator.hpp>
+#include <scoped_allocator>
+
+template<typename T>
+using MyScopedAllocator = std::scoped_allocator_adaptor<FreeListAllocator<T>>;
+
+using custom_json = jsoncons::basic_json<char, jsoncons::order_preserving_policy, MyScopedAllocator<char>>;
+
+TEST_CASE("custom_json.merge test with order_preserving_policy and statefule allocator")
+{
+    MyScopedAllocator<char> alloc(1);
+
+    custom_json doc = custom_json::parse(combine_allocators(alloc), R"(
+    {
+        "a" : 1,
+        "b" : 2
+    }
+    )");
+
+    const custom_json source = custom_json::parse(combine_allocators(alloc), R"(
+    {
+        "a" : 2,
+        "c" : 3,
+        "d" : 4,
+        "b" : 5,
+        "e" : 6
+    }
+    )");
+
+    SECTION("merge doc with source")
+    {
+        const custom_json expected = custom_json::parse(combine_allocators(alloc), R"(
+        {
+            "a" : 1,
+            "b" : 2,
+            "c" : 3,
+            "d" : 4,
+            "e" : 6
+        }
+        )");
+        doc.merge(source);
         CHECK(expected == doc);
     }
 
-    //std::cout << "(1)\n" << doc << std::endl;
-    //std::cout << "(2)\n" << source << std::endl;
+    SECTION("merge doc")
+    {
+        const custom_json expected = custom_json::parse(combine_allocators(alloc), R"(
+{"a":1,"b":2,"c":3,"d":4,"e":6}
+        )");
+        doc.merge(doc.object_range().begin()+1,source);
+        CHECK(expected == doc);
+    }
+
 }
 
+TEST_CASE("custom_json merge_or_update test")
+{
+    MyScopedAllocator<char> alloc(1);
 
+    custom_json doc = custom_json::parse(combine_allocators(alloc), R"(
+    {
+        "a" : 1,
+        "b" : 2
+    }
+    )");
 
+    const custom_json source = custom_json::parse(combine_allocators(alloc), R"(
+    {
+        "a" : 2,
+        "c" : 3
+    }
+    )");
+
+    SECTION("merge_or_update source into doc")
+    {
+        const custom_json expected = custom_json::parse(combine_allocators(alloc), R"(
+        {
+            "a" : 2,
+            "b" : 2,
+            "c" : 3
+        }
+        )");
+        doc.merge_or_update(source);
+        CHECK(expected == doc);
+    }
+
+    SECTION("merge_or_update source into doc at pos 1")
+    {
+        const custom_json expected = custom_json::parse(combine_allocators(alloc), R"(
+        {
+            "a" : 2,
+            "b" : 2,
+            "c" : 3
+        }
+        )");
+        doc.merge_or_update(doc.object_range().begin()+1,source);
+        CHECK(expected == doc);
+    }
+}
+
+#endif

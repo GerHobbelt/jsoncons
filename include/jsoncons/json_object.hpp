@@ -1298,8 +1298,6 @@ namespace jsoncons {
             auto pos = find(name);
             if (pos != members_.end())
             {
-                std::size_t pos1 = pos - members_.begin();
-
     #if defined(JSONCONS_NO_VECTOR_ERASE_TAKES_CONST_ITERATOR)
                 iterator it = members_.begin() + (pos - members_.begin());
                 members_.erase(it);
@@ -1308,7 +1306,7 @@ namespace jsoncons {
     #endif
             }
         }
-
+/*
         void uninitialized_init(key_index_value<Json>* items, std::size_t length)
         {
             for (std::size_t i = 0; i < length; ++i)
@@ -1326,6 +1324,56 @@ namespace jsoncons {
                 }
             }
         }
+*/
+
+        static bool compare1(const key_index_value<Json>& item1, const key_index_value<Json>& item2)
+        {
+            int comp = item1.name.compare(item2.name); 
+            if (comp < 0) return true;
+            if (comp == 0) return item1.index < item2.index;
+
+            return false;
+        }
+
+        static bool compare2(const key_index_value<Json>& item1, const key_index_value<Json>& item2)
+        {
+            return item1.index < item2.index;
+        }
+
+        void uninitialized_init(key_index_value<Json>* items, std::size_t length)
+        {
+            if (length > 0)
+            {
+                auto first = items;
+                auto last = first + length;
+
+                std::sort(first, last, compare1);
+
+                std::size_t count = 1;
+                for (std::size_t i = 1; i < length; ++i)
+                {
+                    while (i < length && items[i-1].name == items[i].name)
+                    {
+                        ++i;
+                    }
+                    if (i < length)
+                    {
+                        items[count] = items[i];
+                        ++count;
+                    }
+                }
+
+                last = first+count;
+                std::sort(first, last, compare2);
+
+                members_.reserve(count);
+                for (auto it = first; it != last; ++it)
+                {
+                    members_.emplace_back(std::move(it->name), std::move(it->value));
+                }
+            }
+        }
+
 
         void remove_duplicates(key_value_container_type& members)
         {
