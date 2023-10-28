@@ -21,7 +21,8 @@ public:
     using allocator_type = Allocator;
     using temp_allocator_type = TempAllocator;
 
-    allocator_set(const Allocator& alloc, const TempAllocator& temp_alloc)
+    allocator_set(const Allocator& alloc=Allocator(), 
+        const TempAllocator& temp_alloc=TempAllocator())
         : result_alloc_(alloc), temp_alloc_(temp_alloc)
     {
     }
@@ -36,9 +37,14 @@ public:
     TempAllocator get_temp_allocator() const {return temp_alloc_;}
 };
 
+template <class Allocator>
+allocator_set<Allocator,std::allocator<char>> make_allocator_set(const Allocator& alloc)
+{
+    return allocator_set<Allocator,std::allocator<char>>(alloc, std::allocator<char>());
+}
+
 template <class Allocator,class TempAllocator>
-allocator_set<Allocator,TempAllocator> make_allocator_set(const Allocator& alloc = std::allocator<char>(), 
-    const TempAllocator& temp_alloc = std::allocator<char>())
+allocator_set<Allocator,TempAllocator> make_allocator_set(const Allocator& alloc, const TempAllocator& temp_alloc)
 {
     return allocator_set<Allocator,TempAllocator>(alloc, temp_alloc);
 }
