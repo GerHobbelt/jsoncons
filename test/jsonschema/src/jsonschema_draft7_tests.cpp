@@ -87,20 +87,17 @@ TEST_CASE("jsonschema draft7 tests")
 {
     SECTION("issues")
     {
-        //jsonschema_tests("./jsonschema/issues/draft7/issue-ref.json");
-        jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft7/contains.json");
-        jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft7/maxItems.json");
-        jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft7/minItems.json");
-        jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft7/uniqueItems.json");
-        jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft7/items.json");
+        jsonschema_tests("./jsonschema/issues/draft7/issue-ref.json");
+        //jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft7/ref.json"); // *
     }
+//#if 0
     SECTION("tests")
     {
-        //jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft7/additionalItems.json");
+        jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft7/additionalItems.json");
 #ifdef JSONCONS_HAS_STD_REGEX
-        //jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft7/additionalProperties.json");
+        jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft7/additionalProperties.json");
 #endif
-        /*jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft7/allOf.json");
+        jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft7/allOf.json");
         jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft7/anyOf.json");
         jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft7/boolean_schema.json");
         jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft7/const.json");
@@ -169,9 +166,7 @@ TEST_CASE("jsonschema draft7 tests")
         //jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft7/optional/format/uri-template.json");
 
         jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft7/optional/content.json");
-        */
     }
-
     SECTION("#417")
     {
         jsoncons::json schema = jsoncons::json::parse(R"(
@@ -209,9 +204,10 @@ TEST_CASE("jsonschema draft7 tests")
     ]
  )");
 
-            auto sch = jsoncons::jsonschema::make_schema(schema);
-            jsoncons::jsonschema::json_validator<jsoncons::json> validator(sch);
+        auto sch = jsoncons::jsonschema::make_schema(schema);
+        jsoncons::jsonschema::json_validator<jsoncons::json> validator(sch);
 
-            CHECK_FALSE(validator.is_valid(instance));
+        CHECK_FALSE(validator.is_valid(instance));
     }
+//#endif
 }

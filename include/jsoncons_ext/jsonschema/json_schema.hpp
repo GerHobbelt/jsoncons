@@ -21,14 +21,13 @@ namespace jsonschema {
     template <class Json>
     class json_schema
     {
-        using validator_type = std::unique_ptr<validator_base<Json>>;
         using keyword_validator_type = std::unique_ptr<keyword_validator<Json>>;
         using schema_validator_type = std::unique_ptr<schema_validator<Json>>;
 
-        std::vector<validator_type> subschemas_;
+        std::vector<schema_validator_type> subschemas_;
         schema_validator_type root_;
     public:
-        json_schema(std::vector<validator_type>&& subschemas, schema_validator_type&& root)
+        json_schema(std::vector<schema_validator_type>&& subschemas, schema_validator_type&& root)
             : subschemas_(std::move(subschemas)), root_(std::move(root))
         {
             if (root_ == nullptr)
@@ -47,7 +46,7 @@ namespace jsonschema {
             Json& patch) const 
         {
             JSONCONS_ASSERT(root_ != nullptr);
-            root_->validate(instance, instance_location, evaluated_properties, reporter, patch);
+            root_->validate(evaluation_context<Json>{}, instance, instance_location, evaluated_properties, reporter, patch);
         }
     };
 
