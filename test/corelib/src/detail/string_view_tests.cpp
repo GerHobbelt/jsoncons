@@ -1,28 +1,41 @@
 // Copyright 2013-2023 Daniel Parker
 // Distributed under Boost license
 
-#include <jsoncons/json.hpp>
+#include <unordered_map>
+#include <jsoncons/detail/string_view.hpp>
 #include <catch/catch.hpp>
-
-#if defined(JSONCONS_HAS_STD_STRING_VIEW)
-
-#include <string_view>
-
-using namespace jsoncons;
 
 TEST_CASE("string_view tests")
 {
-    std::cout << "string_view tests\n";
-    json j = json::parse(R"(
+    SECTION("test 1")
     {
-        "a" : "2",
-        "c" : [4,5,6]
+        std::unordered_map<jsoncons::detail::string_view,int> map;
+
+        std::string key1{"Foo"};
+        std::string key2{"Bar"};
+
+        map.emplace(key1, 1);
+        map.emplace(key2, 2);
+
+        CHECK(map.find(key1) != map.end());
+        CHECK(map[key1] == 1);
+        CHECK(map.find(key2) != map.end());
+        CHECK(map[key2] == 2);
     }
-    )");
+    SECTION("test 2")
+    {
+        std::unordered_map<jsoncons::detail::wstring_view,int> map;
 
-    auto s = j["a"].as<std::string_view>();
-    CHECK(bool(s == "2"));
+        std::wstring key1{L"Foo"};
+        std::wstring key2{L"Bar"};
+
+        map.emplace(key1, 1);
+        map.emplace(key2, 2);
+
+        CHECK(map.find(key1) != map.end());
+        CHECK(map[key1] == 1);
+        CHECK(map.find(key2) != map.end());
+        CHECK(map[key2] == 2);
+    }
 }
-
-#endif
 

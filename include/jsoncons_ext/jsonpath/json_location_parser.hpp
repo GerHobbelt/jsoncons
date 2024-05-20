@@ -4,11 +4,19 @@
 
 // See https://github.com/danielaparker/jsoncons for latest version
 
-#ifndef JSONCONS_JSONPATH_JSONPATH_HPP
-#define JSONCONS_JSONPATH_JSONPATH_HPP
+#ifndef JSONCONS_JSONPATH_JSON_LOCATION_PARSER_HPP
+#define JSONCONS_JSONPATH_JSON_LOCATION_PARSER_HPP
 
-#include <jsoncons_ext/jsonpath/json_query.hpp>
-#include <jsoncons_ext/jsonpath/flatten.hpp>
-#include <jsoncons_ext/jsonpath/json_location.hpp>
+#include <string>
+#include <vector>
+
+namespace jsoncons { 
+namespace jsonpath {
+
+
+
+
+} // namespace jsonpath
+} // namespace jsoncons
 
 #endif

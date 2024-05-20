@@ -9,6 +9,14 @@ It provides functions for search and "search and replace" using JSONPath express
     <td><a href="jsonpath_expression.md">jsonpath_expression</a></td>
     <td>Represents the compiled form of a JSONPath string. (since 0.161.0)</td> 
   </tr>
+  <tr>
+    <td><a href="basic_json_location.md">basic_json_location</a></td>
+    <td>Represents a location of a specific value in a JSON document. (since 0.172.0)</td> 
+  </tr>
+  <tr>
+    <td><a href="basic_path_node.md">basic_path_node</a></td>
+    <td>Represents a normalized path as a singly linked list where each node has a pointer to its (shared) parent node. (since 0.172.0)</td> 
+  </tr>
 </table>
 
 ### Functions
@@ -171,7 +179,7 @@ int main()
     std::ifstream is("./input/books.json");
     json data = json::parse(is);
 
-    auto f = [](const std::string& /*path*/, json& price) 
+    auto f = [](const std::string& /*location*/, json& price) 
     {
         price = std::round(price.as<double>() - 1.0);
     };

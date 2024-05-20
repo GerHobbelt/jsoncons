@@ -114,7 +114,7 @@ namespace detail {
         using reference = JsonReference;
         using char_type = typename Json::char_type;
         using string_type = typename Json::string_type;
-        using path_node_type = path_node<string_type>;
+        using path_node_type = basic_path_node<typename Json::char_type>;
 
         Json* val;
 
@@ -135,12 +135,12 @@ namespace detail {
         using char_type = typename Json::char_type;
         using string_view_type = typename Json::string_view_type;
         using string_type = typename Json::string_type;
-        using path_node_type = path_node<string_type>;
+        using path_node_type = basic_path_node<typename Json::char_type>;
 
         static const path_node_type& generate(dynamic_resources<Json,JsonReference>& resources,
-                                                       const path_node_type& last, 
-                                                       std::size_t index, 
-                                                       result_options options) 
+            const path_node_type& last, 
+            std::size_t index, 
+            result_options options) 
         {
             const result_options require_path = result_options::path | result_options::nodups | result_options::sort;
             if ((options & require_path) != result_options())
@@ -154,9 +154,9 @@ namespace detail {
         }
 
         static const path_node_type& generate(dynamic_resources<Json,JsonReference>& resources,
-                                                       const path_node_type& last, 
-                                                       const string_type& identifier, 
-                                                       result_options options) 
+            const path_node_type& last, 
+            const string_view_type& identifier, 
+            result_options options) 
         {
             const result_options require_path = result_options::path | result_options::nodups | result_options::sort;
             if ((options & require_path) != result_options())
@@ -177,13 +177,13 @@ namespace detail {
 
         supertype* tail_;
     public:
+        using char_type = typename Json::char_type;
         using string_type = typename Json::string_type;
         using value_type = typename supertype::value_type;
         using reference = typename supertype::reference;
         using pointer = typename supertype::pointer;
         using path_value_pair_type = typename supertype::path_value_pair_type;
         using path_node_type = typename supertype::path_node_type;
-        using json_location_type = typename supertype::json_location_type;
         using node_receiver_type = typename supertype::node_receiver_type;
         using selector_type = typename supertype::selector_type;
 
@@ -552,12 +552,12 @@ namespace detail {
         int ancestor_depth_;
 
     public:
+        using char_type = typename Json::char_type;
         using value_type = typename supertype::value_type;
         using reference = typename supertype::reference;
         using pointer = typename supertype::pointer;
         using path_value_pair_type = typename supertype::path_value_pair_type;
         using path_node_type = typename supertype::path_node_type;
-        using json_location_type = typename supertype::json_location_type;
         using path_generator_type = path_generator<Json,JsonReference>;
         using node_receiver_type = typename supertype::node_receiver_type;
 
@@ -583,11 +583,10 @@ namespace detail {
 
             if (ancestor != nullptr)
             {
-                json_location_type path(*ancestor, resources.get_allocator());
-                pointer ptr = jsoncons::jsonpath::select(root,path);
+                pointer ptr = jsoncons::jsonpath::select(root,*ancestor);
                 if (ptr != nullptr)
                 {
-                    this->tail_select(resources, root, path.last(), *ptr, receiver, options);        
+                    this->tail_select(resources, root, *ancestor, *ptr, receiver, options);
                 }
             }
         }
@@ -609,11 +608,10 @@ namespace detail {
 
             if (ancestor != nullptr)
             {
-                json_location_type path(*ancestor, resources.get_allocator());
-                pointer ptr = jsoncons::jsonpath::select(root,path);
+                pointer ptr = jsoncons::jsonpath::select(root, *ancestor);
                 if (ptr != nullptr)
                 {
-                    return this->evaluate_tail(resources, root, path.last(), *ptr, options, ec);        
+                    return this->evaluate_tail(resources, root, *ancestor, *ptr, options, ec);
                 }
                 else
                 {
@@ -887,12 +885,12 @@ namespace detail {
     {
         using supertype = jsonpath_selector<Json,JsonReference>;
     public:
+        using char_type = typename Json::char_type;
         using value_type = typename supertype::value_type;
         using reference = typename supertype::reference;
         using pointer = typename supertype::pointer;
         using path_value_pair_type = typename supertype::path_value_pair_type;
         using path_node_type = typename supertype::path_node_type;
-        using json_location_type = typename supertype::json_location_type;
         using path_expression_type = path_expression<Json, JsonReference>;
         using path_generator_type = path_generator<Json,JsonReference>;
         using node_receiver_type = typename supertype::node_receiver_type;
@@ -1101,7 +1099,7 @@ namespace detail {
                 {
                     auto sv = j.as_string_view();
                     this->tail_select(resources, root, 
-                                      path_generator_type::generate(resources, last, string_type(sv.begin(),sv.end(), resources.get_allocator()), options),
+                                      path_generator_type::generate(resources, last, sv, options),
                                       current.at(j.as_string_view()), receiver, options);
                 }
             }
