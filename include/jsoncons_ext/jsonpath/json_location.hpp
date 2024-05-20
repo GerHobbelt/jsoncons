@@ -43,12 +43,12 @@ namespace jsonpath {
         {
         }
 
-        basic_path_element(const string_type& name)
+        explicit basic_path_element(const string_type& name)
             : has_name_(true), name_(name), index_(0)
         {
         }
 
-        basic_path_element(string_type&& name)
+        explicit basic_path_element(string_type&& name)
             : has_name_(true), name_(std::move(name)), index_(0)
         {
         }
@@ -546,17 +546,14 @@ namespace jsonpath {
     public:
         using char_type = CharT;
         using allocator_type = Allocator;
-        using char_allocator_type = typename std::allocator_traits<allocator_type>:: template rebind_alloc<char_type>;
-        using string_type = std::basic_string<char_type,std::char_traits<char_type>,char_allocator_type>;
         using string_view_type = jsoncons::basic_string_view<char_type, std::char_traits<char_type>>;
-        using path_element_type = basic_path_element<CharT,Allocator>;
-        using path_node_type = basic_path_node<CharT>;
-        using path_element_allocator_type = typename std::allocator_traits<allocator_type>:: template rebind_alloc<path_element_type>;
-    private:
-        std::vector<path_element_type,path_element_allocator_type> elements_;
-    public:
-        using const_iterator = typename std::vector<path_element_type>::const_iterator;
+        using value_type = basic_path_element<CharT,Allocator>;
+        using const_iterator = typename std::vector<value_type>::const_iterator;
         using iterator = const_iterator;
+    private:
+        using path_element_allocator_type = typename std::allocator_traits<allocator_type>:: template rebind_alloc<value_type>;
+        std::vector<value_type,path_element_allocator_type> elements_;
+    public:
 
         basic_json_location(const allocator_type& alloc=Allocator())
             : elements_(alloc)
@@ -566,7 +563,7 @@ namespace jsonpath {
         explicit basic_json_location(const basic_path_node<char_type>& path, const allocator_type& alloc=Allocator())
             : elements_(alloc)
         {
-            const path_node_type* p_node = std::addressof(path);
+            auto p_node = std::addressof(path);
             while (p_node != nullptr)
             {
                 switch (p_node->node_kind())
@@ -589,7 +586,7 @@ namespace jsonpath {
 
         basic_json_location(basic_json_location&&) = default;
 
-        explicit basic_json_location(std::vector<path_element_type,path_element_allocator_type>&& elements)
+        explicit basic_json_location(std::vector<value_type,path_element_allocator_type>&& elements)
             : elements_(std::move(elements))
         {
         }
@@ -622,7 +619,7 @@ namespace jsonpath {
             return elements_.size();
         }
 
-        const path_element_type& operator[](std::size_t index) const
+        const value_type& operator[](std::size_t index) const
         {
             return elements_[index];
         }
@@ -705,7 +702,7 @@ namespace jsonpath {
         {
             jsonpath::detail::json_location_parser<char,std::allocator<char>> parser;
 
-            std::vector<path_element_type> location = parser.parse(normalized_path);
+            std::vector<value_type> location = parser.parse(normalized_path);
             return basic_json_location(std::move(location));
         }
 
@@ -714,7 +711,7 @@ namespace jsonpath {
         {
             jsonpath::detail::json_location_parser<char,std::allocator<char>> parser;
 
-            std::vector<path_element_type> location = parser.parse(normalized_path, ec);
+            std::vector<value_type> location = parser.parse(normalized_path, ec);
             if (ec)
             {
                 return basic_json_location();

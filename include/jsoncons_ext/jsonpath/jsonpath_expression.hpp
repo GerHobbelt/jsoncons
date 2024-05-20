@@ -149,7 +149,9 @@ namespace jsonpath {
         update(reference root_value, BinaryCallback callback) const
         {
             jsoncons::jsonpath::detail::dynamic_resources<value_type,reference> resources{alloc_};
-            expr_.evaluate_with_replacement(resources, root_value, path_node_type{}, root_value, callback);
+
+            result_options options = result_options::nodups | result_options::path | result_options::sort_descending;
+            expr_.evaluate(resources, root_value, path_node_type{}, root_value, callback, options);
         }
 
         std::vector<basic_json_location<char_type>> select_paths(const_reference root_value, 
@@ -172,7 +174,7 @@ namespace jsonpath {
     };
 
     template <class Json>
-    auto make_expression(const typename Json::string_view_type& path,
+    jsonpath_expression<Json> make_expression(const typename Json::string_view_type& path,
         const jsoncons::jsonpath::custom_functions<typename jsonpath_traits<Json>::value_type>& funcs = jsoncons::jsonpath::custom_functions<typename jsonpath_traits<Json>::value_type>())
     {
         using jsonpath_traits_type = jsoncons::jsonpath::jsonpath_traits<Json>;
@@ -185,14 +187,20 @@ namespace jsonpath {
         evaluator_type evaluator;
         auto expr = evaluator.compile(*static_resources, path);
 
-        return jsoncons::jsonpath::jsonpath_expression<Json>(jsoncons::combine_allocators(), std::move(static_resources), std::move(expr));
+        return jsonpath_expression<Json>(jsoncons::combine_allocators(), std::move(static_resources), std::move(expr));
+    }
+
+    template <class Json>
+    jsonpath_expression<Json> make_expression(const typename Json::string_view_type& expr, std::error_code& ec)
+    {
+        return make_expression<Json>(jsoncons::combine_allocators(), expr, custom_functions<Json>(), ec);
     }
 
     template <class Json, class TempAllocator>
     jsonpath_expression<Json> make_expression(const allocator_set<typename Json::allocator_type,TempAllocator>& alloc_set, 
         const typename Json::string_view_type& expr, std::error_code& ec)
     {
-        return make_expression(alloc_set, expr, custom_functions<Json>(), ec);
+        return make_expression<Json>(alloc_set, expr, custom_functions<Json>(), ec);
     }
 
     template <class Json, class TempAllocator>
@@ -217,7 +225,7 @@ namespace jsonpath {
     }
 
     template <class Json, class TempAllocator>
-    auto make_expression(const allocator_set<typename Json::allocator_type,TempAllocator>& alloc_set,
+    jsonpath_expression<Json> make_expression(const allocator_set<typename Json::allocator_type,TempAllocator>& alloc_set,
         const typename Json::string_view_type& path,
         const jsoncons::jsonpath::custom_functions<typename jsonpath_traits<Json>::value_type>& funcs, std::error_code& ec)
     {
@@ -226,13 +234,31 @@ namespace jsonpath {
         using value_type = typename jsonpath_traits_type::value_type;
         using reference = typename jsonpath_traits_type::reference;
         using evaluator_type = typename jsonpath_traits_type::evaluator_type;
+        using path_expression_type = typename jsonpath_traits_type::path_expression_type;
 
-        auto static_resources = jsoncons::make_unique<jsoncons::jsonpath::detail::static_resources<value_type,reference>>(funcs, 
+        auto resources = jsoncons::make_unique<jsoncons::jsonpath::detail::static_resources<value_type,reference>>(funcs, 
             alloc_set.get_allocator());
         evaluator_type evaluator{alloc_set.get_allocator()};
-        auto expr = evaluator.compile(*static_resources, path, ec);
+        path_expression_type expr = evaluator.compile(*resources, path, ec);
 
-        return jsoncons::jsonpath::jsonpath_expression<value_type>(alloc_set, std::move(static_resources), std::move(expr));
+        return jsonpath_expression<Json>(alloc_set, std::move(resources), std::move(expr));
+    }
+
+    template<class Json>
+    std::size_t remove(Json& root_value, const jsoncons::basic_string_view<typename Json::char_type>& path_string)
+    {
+        std::size_t count = 0;
+
+        auto expr = jsonpath::make_expression<json>(path_string);
+        std::vector<jsonpath::json_location> locations = expr.select_paths(root_value,
+            jsonpath::result_options::nodups | jsonpath::result_options::sort_descending);
+
+        for (const auto& location : locations)
+        {
+            std::size_t n = jsonpath::remove(root_value, location);
+            count += n;
+        }
+        return count;
     }
 
 } // namespace jsonpath

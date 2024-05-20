@@ -15,6 +15,8 @@ normalized path expressions.
 (2) Evaluates the root value against the compiled JSONPath expression and calls a provided
 callback repeatedly with the results.
 
+Note: This function is kept for backwards compatability. New code should use the [select](select.md) function. 
+
 #### Parameters
 
 <table>
@@ -82,7 +84,7 @@ int main()
 {
     auto expr = jsonpath::make_expression<json>("$.books[?(@.price > avg($.books[*].price))].title");
 
-    std::ifstream is("./input/books.json");
+    std::ifstream is(/*path_to_books_file*/);
     json root_value = json::parse(is);
 
     json result = expr.evaluate(root_value);
@@ -109,7 +111,7 @@ int main()
 {
     auto expr = jsonpath::make_expression<json>("$.books[?(@.price >= 22.0)]");
 
-    std::ifstream is("./input/books.json");
+    std::ifstream is(/*path_to_books_file*/);
     json root_value = json::parse(is);
 
     auto callback = [](const std::string& path, const json& val)

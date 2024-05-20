@@ -11,7 +11,7 @@ It provides functions for search and "search and replace" using JSONPath express
   </tr>
   <tr>
     <td><a href="basic_json_location.md">basic_json_location</a></td>
-    <td>Represents a location of a specific value in a JSON document. (since 0.172.0)</td> 
+    <td>Represents the location of a specific value in a JSON document. (since 0.172.0)</td> 
   </tr>
   <tr>
     <td><a href="basic_path_node.md">basic_path_node</a></td>
@@ -108,7 +108,7 @@ namespace jsonpath = jsoncons::jsonpath;
 
 int main()
 {
-    std::ifstream is("./input/books.json");
+    std::ifstream is(/*path_to_books_file*/);
     json data = json::parse(is);
 
     auto result1 = jsonpath::json_query(data, "$.books[1,1,3].title");
@@ -176,7 +176,7 @@ namespace jsonpath = jsoncons::jsonpath;
 
 int main()
 {
-    std::ifstream is("./input/books.json");
+    std::ifstream is(/*path_to_books_file*/);
     json data = json::parse(is);
 
     auto f = [](const std::string& /*location*/, json& price) 
@@ -240,7 +240,7 @@ int main()
 {
     auto expr = jsonpath::make_expression<json>("$.books[1,1,3].title");
 
-    std::ifstream is("./input/books.json");
+    std::ifstream is(/*path_to_books_file*/);
     json data = json::parse(is);
 
     json result1 = expr.evaluate(data);
