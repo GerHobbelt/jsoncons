@@ -90,25 +90,20 @@ using the dot notation.
 
 #### Non-member functions
 
-    template<class Json>
-    Json* get(Json& root_value, const basic_json_location<Json::char_type>& location)
-Returns a pointer to a JSON value at the specified `location` in the `root_value`.
-
-    template<class Json>
-    std::size_t remove(Json& root_value, const basic_json_location<Json::char_type>& location);
-Removes a single node at the specified location. Returns the number of nodes removed (0 or 1).
-
-    template<class Json>
-    std::size_t remove(Json& root_value, const jsoncons::basic_string_view<Json::char_type>& path_string);
-Removes the nodes matched by the specified JSONPath expression. Returns the number of nodes removed.
-
-    template<class Json>
-    std::pair<Json*,bool> assign(Json& root_value, const basic_json_location<Json::char_type>& location, 
-        Json&& value, bool create_if_missing = false);   (since 0.174.0)
-Attempts to assign a value at the specified location. If `create_if_missing` is true, creates key-object pairs 
-when an object key is missing. Returns a `std::pair<Json*,bool>`, the bool component is `true`
-if the assignment took place and `false` if not, if `true`, the `Json*` component points to the value that
-was assigned or inserted. 
+<table border="0">
+  <tr>
+    <td><a href="replace.md">replace</a></td>
+    <td>Replace a value in a JSON document at a specified location with a new value</td> 
+  </tr>
+  <tr>
+    <td><a href="get.md">get</a></td>
+    <td>Returns a pointer to a JSON value in a JSON document at a specified location</td> 
+  </tr>
+  <tr>
+    <td><a href="remove.md">remove</a></td>
+    <td>Remove a JSON node from a JSON document at a specified location</td> 
+  </tr>
+</table>
 
     template <class CharT, class Allocator = std::allocator<CharT>>
     std::basic_string<CharT, std::char_traits<CharT>, Allocator> to_basic_string(const basic_json_location<CharT,Allocator>& location, 
@@ -149,96 +144,6 @@ The examples below uses the sample data file `books.json`,
             "category": "memoir",
             "title" : "The Night Watch",
             "author" : "Phillips, David Atlee"
-        }
-    ]
-}
-```
-
-#### Remove some book nodes one-by-one
- 
-```cpp
-#include <jsoncons/json.hpp>
-#include <jsoncons_ext/jsonpath/jsonpath.hpp>
-#include <fstream>
-
-using jsoncons::json; 
-namespace jsonpath = jsoncons::jsonpath;
-
-int main()
-{
-    std::ifstream is(/*path_to_books_file*/);
-    json doc = json::parse(is);
-
-    auto expr = jsonpath::make_expression<json>("$.books[?(@.category == 'fiction')]");
-    std::vector<jsonpath::json_location> locations = expr.select_paths(doc, 
-        jsonpath::result_options::nodups | jsonpath::result_options::sort_descending);
-
-    for (const auto& location : locations)
-    {
-        std::cout << jsonpath::to_string(location) << "\n";
-    }
-    std::cout << "\n";
-
-    for (const auto& location : locations)
-    {
-        jsonpath::remove(doc, location);
-    }
-
-    std::cout << jsoncons::pretty_print(doc) << "\n\n";
-} 
-```
-
-Output:
-
-```
-$['books'][2]
-$['books'][1]
-$['books'][0]
-
-{
-    "books": [
-        {
-            "author": "Phillips, David Atlee",
-            "category": "memoir",
-            "title": "The Night Watch"
-        }
-    ]
-}
-```
-
-#### Remove some book nodes in one step
- 
-```cpp
-#include <jsoncons/json.hpp>
-#include <jsoncons_ext/jsonpath/jsonpath.hpp>
-#include <fstream>
-#include <cassert>
-
-using jsoncons::json; 
-namespace jsonpath = jsoncons::jsonpath;
-
-int main()
-{
-    std::ifstream is(/*path_to_books_file*/);
-    json doc = json::parse(is);
-
-    std::size_t n = jsoncons::jsonpath::remove(doc, "$.books[1,1,3,3,0,0]");
-
-    assert(n == 3);
-
-    std::cout << jsoncons::pretty_print(doc) << "\n\n";
-```
-
-Output:
-
-```
-{
-    "books": [
-        {
-            "author": "Graham Greene",
-            "category": "fiction",
-            "price": 21.99,
-            "title": "The Comedians"
         }
     ]
 }

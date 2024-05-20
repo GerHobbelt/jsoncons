@@ -42,8 +42,6 @@ namespace draft202012 {
         using keyword_factory_type = std::function<keyword_validator_type(const compilation_context& context, 
             const Json& sch, const Json& parent, anchor_uri_map_type&)>;
 
-        std::unordered_map<std::string,keyword_factory_type> applicator_factory_map_;
-
         std::unordered_map<std::string,keyword_factory_type> validation_factory_map_;
         
         static const std::string& core_id()
@@ -85,15 +83,16 @@ namespace draft202012 {
         bool include_applicator_;
         bool include_unevaluated_;
         bool include_validation_;
+        bool include_format_;
 
     public:
         schema_builder_202012(const schema_builder_factory_type& builder_factory, 
             evaluation_options options, schema_store_type* schema_store_ptr,
-            const std::vector<schema_resolver<json>>& resolvers,
+            const std::vector<schema_resolver<Json>>& resolvers,
             const std::unordered_map<std::string,bool>& vocabulary) 
             : schema_builder<Json>(schema_version::draft202012(), 
                 builder_factory, options, schema_store_ptr, resolvers, vocabulary),
-                include_applicator_(true), include_unevaluated_(true), include_validation_(true)
+                include_applicator_(true), include_unevaluated_(true), include_validation_(true), include_format_(true)
         {
             if (!vocabulary.empty())
             {
@@ -112,6 +111,11 @@ namespace draft202012 {
                 {
                     include_validation_ = false;
                 }
+                it = vocabulary.find(format_annotation_id());
+                if (it == vocabulary.end() || !(it->second))
+                {
+                    include_format_ = false;
+                }
             }
             init();
         }
@@ -123,25 +127,15 @@ namespace draft202012 {
 
         void init()
         {
-            applicator_factory_map_.emplace("propertyNames", 
-                [&](const compilation_context& context, const Json& sch, const Json&, anchor_uri_map_type& anchor_dict){return this->make_property_names_validator(context, sch, anchor_dict);});
-            applicator_factory_map_.emplace("dependentSchemas", 
-                [&](const compilation_context& context, const Json& sch, const Json&, anchor_uri_map_type& anchor_dict){return this->make_dependent_schemas_validator(context, sch, anchor_dict);});
-
             // validation
             validation_factory_map_.emplace("type", 
                 [&](const compilation_context& context, const Json& sch, const Json&, anchor_uri_map_type&){return this->make_type_validator(context, sch);});
-            
+/*            
             validation_factory_map_.emplace("contentEncoding", 
                 [&](const compilation_context& context, const Json& sch, const Json&, anchor_uri_map_type&){return this->make_content_encoding_validator(context, sch);});
             validation_factory_map_.emplace("contentMediaType", 
                 [&](const compilation_context& context, const Json& sch, const Json& parent, anchor_uri_map_type&){return this->make_content_media_type_validator(context, sch, parent);});
-                
-            if (this->options().require_format_validation())
-            {
-                validation_factory_map_.emplace("format", 
-                    [&](const compilation_context& context, const Json& sch, const Json&, anchor_uri_map_type&){return this->make_format_validator(context, sch);});
-            }
+*/                
 #if defined(JSONCONS_HAS_STD_REGEX)
             validation_factory_map_.emplace("pattern", 
                 [&](const compilation_context& context, const Json& sch, const Json&, anchor_uri_map_type&){return this->make_pattern_validator(context, sch);});
@@ -200,7 +194,7 @@ namespace draft202012 {
             const Json& sch, jsoncons::span<const std::string> keys, anchor_uri_map_type& anchor_dict) override
         {
             auto new_context = make_compilation_context(context, sch, keys);
-            //std::cout << "this->make_cross_draft_schema_validator " << context.get_absolute_uri().string() << ", " << new_context.get_absolute_uri().string() << "\n\n";
+            //std::cout << "this->make_cross_draft_schema_validator " << context.get_base_uri().string() << ", " << new_context.get_base_uri().string() << "\n\n";
 
             schema_validator_type schema_validator_ptr;
 
@@ -208,9 +202,7 @@ namespace draft202012 {
             {
                 case json_type::bool_value:
                 {
-                    uri schema_location = new_context.get_absolute_uri();
-                    schema_validator_ptr = jsoncons::make_unique<boolean_schema_validator<Json>>( 
-                        schema_location, sch.template as<bool>());
+                    schema_validator_ptr = this->make_boolean_schema(new_context, sch);
                     schema_validator<Json>* p = schema_validator_ptr.get();
                     for (const auto& uri : new_context.uris()) 
                     { 
@@ -237,7 +229,7 @@ namespace draft202012 {
                     break;
                 }
                 default:
-                    JSONCONS_THROW(schema_error("invalid JSON-type for a schema for " + new_context.get_absolute_uri().string() + ", expected: boolean or object"));
+                    JSONCONS_THROW(schema_error("invalid JSON-type for a schema for " + new_context.get_base_uri().string() + ", expected: boolean or object"));
                     break;
             }
             
@@ -262,7 +254,7 @@ namespace draft202012 {
                 std::string value = it->value().template as<std::string>();
                 jsoncons::uri new_uri(context.get_base_uri(), uri_fragment_part, value);
                 dynamic_anchor = jsoncons::optional<jsoncons::uri>(new_uri);
-                local_anchor_dict.emplace(value, context.get_absolute_uri2());
+                local_anchor_dict.emplace(value, context.get_base_uri());
             }
 
             if (this->options().compatibility_mode())
@@ -314,17 +306,16 @@ namespace draft202012 {
 
             if (include_applicator_)
             {
-                for (const auto& key_value : sch.object_range())
+                it = sch.find("propertyNames");
+                if (it != sch.object_range().end()) 
                 {
-                    auto factory_it = applicator_factory_map_.find(key_value.key());
-                    if (factory_it != applicator_factory_map_.end())
-                    {
-                        auto validator = factory_it->second(context, key_value.value(), sch, local_anchor_dict);
-                        if (validator)
-                        {   
-                            validators.emplace_back(std::move(validator));
-                        }
-                    }
+                    validators.emplace_back(this->make_property_names_validator(context, it->value(), local_anchor_dict));
+                }
+
+                it = sch.find("dependentSchemas");
+                if (it != sch.object_range().end()) 
+                {
+                    validators.emplace_back(this->make_dependent_schemas_validator(context, it->value(), local_anchor_dict));
                 }
 
                 schema_validator_type if_validator;
@@ -354,7 +345,7 @@ namespace draft202012 {
                 if (if_validator || then_validator || else_validator)
                 {
                     validators.emplace_back(jsoncons::make_unique<conditional_validator<Json>>(
-                        context.get_absolute_uri().string(),
+                        context.get_base_uri().string(),
                         std::move(if_validator), std::move(then_validator), std::move(else_validator)));
                 }
                 // Object validators
@@ -411,7 +402,7 @@ namespace draft202012 {
                     {
                         if (it->value().type() == json_type::object_value || it->value().type() == json_type::bool_value)
                         {
-                            validators.emplace_back(this->make_items_validator(context, it->value(), local_anchor_dict));
+                            validators.emplace_back(this->make_items_validator("items", context, it->value(), local_anchor_dict));
                         }
                     }
                 }
@@ -429,6 +420,18 @@ namespace draft202012 {
                         {   
                             validators.emplace_back(std::move(validator));
                         }
+                    }
+                }
+            }
+
+            if (include_format_)
+            {
+                if (this->options().require_format_validation())
+                {
+                    it = sch.find("format");
+                    if (it != sch.object_range().end()) 
+                    {
+                        validators.emplace_back(this->make_format_validator(context, it->value()));
                     }
                 }
             }
@@ -460,7 +463,7 @@ namespace draft202012 {
             {
                 anchor_schema_map.emplace(member.first, this->get_or_create_reference(member.second));
             }
-            return jsoncons::make_unique<object_schema_validator<Json>>(context.get_absolute_uri(), std::move(id),
+            return jsoncons::make_unique<object_schema_validator<Json>>(context.get_base_uri(), std::move(id),
                 std::move(validators), std::move(unevaluated_properties_val), std::move(unevaluated_items_val), 
                 std::move(defs), std::move(default_value), std::move(dynamic_anchor), std::move(anchor_schema_map));
         }
@@ -469,7 +472,7 @@ namespace draft202012 {
             const Json& sch, const Json& parent, anchor_uri_map_type& anchor_dict)
         {
             std::vector<schema_validator_type> prefix_item_validators;
-            schema_validator_type items_validator;
+            keyword_validator_type items_validator;
 
             uri schema_location{context.make_schema_path_with("prefixItems")};
 
@@ -487,7 +490,8 @@ namespace draft202012 {
                 if (it != parent.object_range().end()) 
                 {
                     std::string sub_keys[] = {"items"};
-                    items_validator = this->make_cross_draft_schema_validator(context, it->value(), sub_keys, anchor_dict);
+                    items_validator = this->make_schema_keyword_validator("items", context,
+                        this->make_cross_draft_schema_validator(context, it->value(), sub_keys, anchor_dict));
                 }
             }
 
@@ -500,7 +504,7 @@ namespace draft202012 {
         std::unique_ptr<pattern_properties_validator<Json>> make_pattern_properties_validator( const compilation_context& context, 
             const Json& sch, anchor_uri_map_type& anchor_dict)
         {
-            uri schema_location = context.get_absolute_uri();
+            uri schema_location = context.get_base_uri();
             std::vector<std::pair<std::regex, schema_validator_type>> pattern_properties;
             
             for (const auto& prop : sch.object_range())
@@ -562,10 +566,6 @@ namespace draft202012 {
                         new_uris.emplace_back(new_uri); 
                     }
                 }
-                if (new_uris.empty())
-                {
-                    new_uris.emplace_back("#");
-                }
                 it = sch.find("$anchor"); 
                 if (it != sch.object_range().end()) 
                 {
@@ -600,7 +600,7 @@ namespace draft202012 {
                 }
             }
 
-            //std::cout << "Absolute URI: " << parent.get_absolute_uri().string() << "\n";
+            //std::cout << "Absolute URI: " << parent.get_base_uri().string() << "\n";
             //for (const auto& uri : new_uris)
             //{
             //    std::cout << "    " << uri.string() << "\n";

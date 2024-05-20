@@ -306,6 +306,8 @@ namespace jsoncons {
 
         string_view scheme() const noexcept { return string_view(uri_string_.data()+scheme_.first,(scheme_.second-scheme_.first)); }
 
+        string_view encoded_scheme() const noexcept { return string_view(uri_string_.data()+scheme_.first,(scheme_.second-scheme_.first)); }
+
         std::string userinfo() const 
         {
             return decode_part(encoded_userinfo());
@@ -315,7 +317,11 @@ namespace jsoncons {
 
         string_view host() const noexcept { return string_view(uri_string_.data()+host_.first,(host_.second-host_.first)); }
 
+        string_view encoded_host() const noexcept { return string_view(uri_string_.data()+host_.first,(host_.second-host_.first)); }
+
         string_view port() const noexcept { return string_view(uri_string_.data()+port_.first,(port_.second-port_.first)); }
+
+        string_view encoded_port() const noexcept { return string_view(uri_string_.data()+port_.first,(port_.second-port_.first)); }
 
         string_view encoded_authority() const noexcept { return string_view(uri_string_.data()+userinfo_.first,(port_.second-userinfo_.first)); }
 
@@ -679,6 +685,11 @@ namespace jsoncons {
                                 start = i+1;
                                 break;
                             default:
+                                if (!(is_pchar(c,s.data()+i, s.size() - i) || c == '/'))
+                                {
+                                    ec = uri_errc::invalid_uri;
+                                    return uri{};
+                                }
                                 break;
                         }
                         break;
@@ -710,9 +721,9 @@ namespace jsoncons {
                     break;
                 case parse_state::expect_userinfo:
                     userinfo = std::make_pair(start,start);
-                    host = std::make_pair(start,start);
-                    port = std::make_pair(start,start);
-                    path = std::make_pair(start,s.size());
+                    host = std::make_pair(start,s.size());
+                    port = std::make_pair(s.size(), s.size());
+                    path = std::make_pair(s.size(), s.size());
                     query = std::make_pair(s.size(), s.size());
                     fragment = std::make_pair(s.size(), s.size());
                     break;
@@ -903,9 +914,41 @@ namespace jsoncons {
             }
         }
 
-        static bool is_escaped(const char* s, std::size_t length)
+        static bool is_pct_encoded(const char* s, std::size_t length)
         {
             return length < 3 ? false : s[0] == '%' && is_hex(s[1]) && is_hex(s[2]);
+        }
+        
+        // sub-delims    = "!" / "$" / "&" / "'" / "(" / ")" / "*" / "+" / "," / ";" / "="
+        static bool is_sub_delim(char c)
+        {
+            switch (c)
+            {
+                case '!':
+                    return true;
+                case '$':
+                    return true;
+                case '&':
+                    return true;
+                case '\'':
+                    return true;
+                case '(':
+                    return true;
+                case ')':
+                    return true;
+                case '*':
+                    return true;
+                case '+':
+                    return true;
+                case ',':
+                    return true;
+                case ';':
+                    return true;
+                case '=':
+                    return true;
+                default:
+                    return false;
+            }
         }
 
     public:
@@ -930,7 +973,7 @@ namespace jsoncons {
                         break;
                     default:
                     {
-                        bool escaped = is_escaped(sv.data()+i,3);
+                        bool escaped = is_pct_encoded(sv.data()+i,3);
                         if (!is_unreserved(ch) && !is_punct(ch) && !escaped)
                         {
                             encoded.push_back('%');
@@ -995,7 +1038,7 @@ namespace jsoncons {
             {
                 char ch = sv[i];
 
-                bool escaped = is_escaped(sv.data()+i,3);
+                bool escaped = is_pct_encoded(sv.data()+i,3);
                 if (!is_unreserved(ch) && !is_punct(ch) && !escaped)
                 {
                     encoded.push_back('%');
@@ -1045,7 +1088,7 @@ namespace jsoncons {
             {
                 char ch = sv[i];
 
-                bool escaped = is_escaped(sv.data()+i,3);
+                bool escaped = is_pct_encoded(sv.data()+i,3);
                 if (!is_unreserved(ch) && !is_reserved(ch) && !escaped)
                 {
                     encoded.push_back('%');
@@ -1082,6 +1125,24 @@ namespace jsoncons {
                     encoded.push_back(ch);
                 }
             }
+        }
+
+        // rel_segment   = 1*( unreserved | escaped | ";" | "@" | "&" | "=" | "+" | "$" | "," )
+        static bool is_rel_segment(char c, const char* s, std::size_t length)
+        {
+            return is_unreserved(c) || is_pct_encoded(s,length) || c == ';' || c == '@' || c == '&' || c == '=' || c == '+' || c == '$' || c == ',';
+        }
+
+        // userinfo      = *( unreserved | escaped | ";" | ":" | "&" | "=" | "+" | "$" | "," )
+
+        static bool is_userinfo(char c, const char* s, std::size_t length)
+        {
+            return is_unreserved(c) || is_pct_encoded(s,length) || c == ';' || c == ':' || c == '&' || c == '=' || c == '+' || c == '$' || c == ',';
+        }
+
+        static bool is_pchar(char c, const char* s, std::size_t length)
+        {
+            return is_unreserved(c) || is_pct_encoded(s,length) || is_sub_delim(c) || c == ':' || c == '@';
         }
     };
 

@@ -721,11 +721,11 @@ namespace jsonpath {
     };
 
     template<class Json>
-    std::size_t remove(Json& root_value, const basic_json_location<typename Json::char_type>& location)
+    std::size_t remove(Json& root, const basic_json_location<typename Json::char_type>& location)
     {
         std::size_t count = 0;
 
-        Json* p_current = std::addressof(root_value);
+        Json* p_current = std::addressof(root);
 
         std::size_t last = location.size() == 0 ? 0 : location.size() - 1;
         for (std::size_t i = 0; i < location.size(); ++i)
@@ -782,9 +782,9 @@ namespace jsonpath {
     }
 
     template<class Json>
-    Json* get(Json& root_value, const basic_json_location<typename Json::char_type>& location)
+    Json* get(Json& root, const basic_json_location<typename Json::char_type>& location)
     {
-        Json* p_current = std::addressof(root_value);
+        Json* p_current = std::addressof(root);
         bool found = false;
 
         std::size_t last = location.size() == 0 ? 0 : location.size() - 1;
@@ -862,60 +862,54 @@ namespace jsonpath {
     }
 
     template<class Json>
-    std::pair<Json*,bool> assign(Json& root_value, const basic_json_location<typename Json::char_type>& location, Json&& value,
+    std::pair<Json*,bool> replace(Json& root, const basic_json_location<typename Json::char_type>& location, const Json& value,
         bool create_if_missing=false)
     {
-        Json* p_current = std::addressof(root_value);
+        Json* p_current = std::addressof(root);
         bool found = false;
 
         std::size_t last = location.size() == 0 ? 0 : location.size() - 1;
         for (std::size_t i = 0; i < location.size(); ++i)
         {
             const auto& element = location[i];
-            if (element.has_name())
+            if (element.has_name() && p_current->is_object())
             {
-                if (p_current->is_object())
+                auto it = p_current->find(element.name());
+                if (it != p_current->object_range().end())
                 {
-                    auto it = p_current->find(element.name());
-                    if (it != p_current->object_range().end())
+                    p_current = std::addressof(it->value());
+                    if (i == last)
                     {
-                        p_current = std::addressof(it->value());
-                        if (i == last)
-                        {
-                            found = true;
-                        }
-                    }
-                    else
-                    {
-                        if (create_if_missing)
-                        {
-                            if (i == last)
-                            {
-                                auto result = p_current->try_emplace(element.name(), std::forward<Json>(value));
-                                p_current = std::addressof(result.first->value());
-                                found = true;
-                            }
-                            else
-                            {
-                                auto result = p_current->try_emplace(element.name(), Json{});
-                                p_current = std::addressof(result.first->value());
-                            }
-                        }
+                        *p_current = std::move(value);
+                        found = true;
                     }
                 }
                 else
                 {
-                    break;
+                    if (create_if_missing)
+                    {
+                        if (i == last)
+                        {
+                            auto result = p_current->try_emplace(element.name(), value);
+                            p_current = std::addressof(result.first->value());
+                            found = true;
+                        }
+                        else
+                        {
+                            auto result = p_current->try_emplace(element.name(), Json{});
+                            p_current = std::addressof(result.first->value());
+                        }
+                    }
                 }
             }
-            else // if (element.has_index())
+            else if (element.has_index() && p_current->is_array())
             {
-                if (p_current->is_array() && element.index() < p_current->size())
+                if (element.index() < p_current->size())
                 {
                     p_current = std::addressof(p_current->at(element.index()));
                     if (i == last)
                     {
-                        *p_current = std::forward<Json>(value);
+                        *p_current = value;
                         found = true;
                     }
                 }
@@ -923,6 +917,10 @@ namespace jsonpath {
                 {
                     break;
                 }
+            }
+            else
+            {
+                break;
             }
         }
         if (found)

@@ -13,13 +13,14 @@
 #include <jsoncons_ext/jsonpointer/jsonpointer.hpp>
 #include <jsoncons_ext/jsonschema/jsonschema_error.hpp>
 #include <jsoncons_ext/jsonschema/common/uri_wrapper.hpp>
+#include <random>
 
 namespace jsoncons {
 namespace jsonschema {
 
     class compilation_context
     {
-        uri_wrapper absolute_uri_;
+        uri_wrapper base_uri_;
         std::vector<uri_wrapper> uris_;
         jsoncons::optional<uri> id_;
     public:
@@ -29,7 +30,7 @@ namespace jsonschema {
         }
 
         explicit compilation_context(const uri_wrapper& retrieval_uri)
-            : absolute_uri_(retrieval_uri), 
+            : base_uri_(retrieval_uri), 
               uris_(std::vector<uri_wrapper>{{retrieval_uri}})
         {
         }
@@ -37,13 +38,21 @@ namespace jsonschema {
         explicit compilation_context(const std::vector<uri_wrapper>& uris)
             : uris_(uris)
         {
-            absolute_uri_ = !uris.empty() ? uris.back() : uri_wrapper{ "#" };
+            if (uris_.empty())
+            {
+                uris_.push_back(uri_wrapper{"#"});
+            }
+            base_uri_ = uris_.back();
         }
 
         explicit compilation_context(const std::vector<uri_wrapper>& uris, const jsoncons::optional<uri>& id)
             : uris_(uris), id_(id)
         {
-            absolute_uri_ = !uris.empty() ? uris.back() : uri_wrapper{ "#" };
+            if (uris_.empty())
+            {
+                uris_.push_back(uri_wrapper{"#"});
+            }
+            base_uri_ = uris_.back();
         }
 
         const std::vector<uri_wrapper>& uris() const {return uris_;}
@@ -53,19 +62,9 @@ namespace jsonschema {
             return id_;
         }
 
-        const uri& get_absolute_uri() const
-        {
-            return absolute_uri_.uri();
-        }
-
-        const uri_wrapper& get_absolute_uri2() const
-        {
-            return absolute_uri_;
-        }
-
         uri get_base_uri() const
         {
-            return absolute_uri_.uri();
+            return base_uri_.uri();
         }
 
         std::string make_schema_path_with(const std::string& keyword) const
@@ -78,6 +77,17 @@ namespace jsonschema {
                 }
             }
             return "#";
+        }
+        
+        static jsoncons::uri make_random_uri()
+        {
+            std::random_device dev;
+            std::mt19937 gen{ dev() };
+            std::uniform_int_distribution<std::mt19937::result_type> dist(1, 10000);
+
+            std::string str = "https:://jsoncons.com/" + std::to_string(dist(gen));
+            jsoncons::uri uri{str};
+            return uri;
         }
     };
 

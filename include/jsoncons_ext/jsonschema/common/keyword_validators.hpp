@@ -28,6 +28,45 @@
 namespace jsoncons {
 namespace jsonschema {
 
+    template <class Json>
+    class schema_keyword_validator : public keyword_validator_base<Json>
+    {
+    public:
+        using schema_validator_type = typename std::unique_ptr<schema_validator<Json>>;
+        using keyword_validator_type = typename std::unique_ptr<keyword_validator<Json>>;
+
+        schema_validator_type schema_val_;
+    public:
+        schema_keyword_validator(const std::string& keyword_name, const uri& schema_location,
+            schema_validator_type&& schema_val)
+            : keyword_validator_base<Json>(keyword_name, schema_location), schema_val_(std::move(schema_val))
+        {}
+
+        bool always_fails() const final
+        {
+            return schema_val_ ? schema_val_->always_fails() : false;;
+        }          
+
+        bool always_succeeds() const final
+        {
+            return schema_val_ ? schema_val_->always_succeeds() : false;;
+        }
+
+    private:
+
+        void do_validate(const evaluation_context<Json>& context, const Json& instance, 
+            const jsonpointer::json_pointer& instance_location,
+            evaluation_results& results, 
+            error_reporter& reporter, 
+            Json& patch) const override
+        {
+            if (schema_val_)
+            {
+                schema_val_->validate(context, instance, instance_location, results, reporter, patch);
+            }
+        }
+    };
+    
     template<class Json>
     class recursive_ref_validator : public keyword_validator_base<Json>, public virtual ref<Json>
     {
@@ -454,8 +493,7 @@ namespace jsonschema {
                         this_context.eval_path(), 
                         this->schema_location(), 
                         instance_location, 
-                        std::string("Expected maxLength: ") + std::to_string(max_length_)
-                    + ", actual: " + std::to_string(length)));
+                        std::string("Number of characters must be at most ") + std::to_string(max_length_)));
                 if (reporter.fail_early())
                 {
                     return;
@@ -496,7 +534,7 @@ namespace jsonschema {
             if (instance.size() > max_items_)
             {
                 std::string message("Maximum number of items is " + std::to_string(max_items_));
-                message.append(" but found: " + std::to_string(instance.size()));
+                message.append(" but found " + std::to_string(instance.size()));
                 reporter.error(validation_message(this->keyword_name(),
                         this_context.eval_path(), 
                         this->schema_location(),
@@ -542,7 +580,7 @@ namespace jsonschema {
             if (instance.size() < min_items_)
             {
                 std::string message("Minimum number of items is " + std::to_string(min_items_));
-                message.append(" but found: " + std::to_string(instance.size()));
+                message.append(" but found " + std::to_string(instance.size()));
                 reporter.error(validation_message(this->keyword_name(),
                         this_context.eval_path(), 
                         this->schema_location(),
@@ -564,12 +602,12 @@ namespace jsonschema {
         using keyword_validator_type = typename keyword_validator<Json>::keyword_validator_type;
         using schema_validator_type = typename schema_validator<Json>::schema_validator_type;
 
-        schema_validator_type items_val_;
+        schema_validator_type schema_val_;
     public:
-        items_validator(const uri& schema_location, 
-            schema_validator_type&& items_val)
-            : keyword_validator_base<Json>("items", schema_location), 
-              items_val_(std::move(items_val))
+        items_validator(const std::string& keyword_name, const uri& schema_location, 
+            schema_validator_type&& schema_val)
+            : keyword_validator_base<Json>(keyword_name, schema_location), 
+              schema_val_(std::move(schema_val))
         {
         }
 
@@ -588,49 +626,60 @@ namespace jsonschema {
 
             evaluation_context<Json> this_context(context, this->keyword_name());
 
-            if (instance.size() > 0 && items_val_)
+            if (instance.size() > 0 && schema_val_)
             {
-                if (items_val_->always_fails())
+                if (schema_val_->always_fails())
                 {
-                    evaluation_context<Json> item_context{this_context, std::size_t(0), evaluation_flags{}};
                     jsonpointer::json_pointer item_location = instance_location / 0;
                     reporter.error(validation_message(this->keyword_name(),
-                        item_context.eval_path(), 
+                        this_context.eval_path(), 
                         this->schema_location(), 
                         item_location,
                         "Item at index '0' but the schema does not allow any items."));
-                    if (reporter.fail_early())
-                    {
-                        return;
-                    }
+                    return;
                 }
-                else if (items_val_->always_succeeds())
+                else if (schema_val_->always_succeeds())
                 {
                     if (context.require_evaluated_items())
                     {
-                        for (std::size_t index = 0; index < instance.size(); ++ index)
-                        {
-                            results.evaluated_items.insert(index);
-                        }
+                        results.evaluated_items.insert(range{0,instance.size()});
                     }
                 }
                 else
                 {
                     size_t index = 0;
+                    size_t start = 0;
+                    size_t end = 0;
                     for (const auto& item : instance.array_range()) 
                     {
-                        evaluation_context<Json> item_context{this_context, index, evaluation_flags{}};
                         jsonpointer::json_pointer item_location = instance_location / index;
                         std::size_t errors = reporter.error_count();
-                        items_val_->validate(item_context, item, item_location, results, reporter, patch);
+                        schema_val_->validate(this_context, item, item_location, results, reporter, patch);
                         if (errors == reporter.error_count())
                         {
                             if (context.require_evaluated_items())
                             {
-                                results.evaluated_items.insert(index);
+                                if (end == start)
+                                {
+                                    start = end = index;
+                                }
+                                ++end;
+                            }
+                        }
+                        else
+                        {
+                            if (start < end)
+                            {
+                                results.evaluated_items.insert(range{start, end});
+                                start = end;
                             }
                         }
                         ++index;
+                    }
+                    if (start < end)
+                    {
+                        results.evaluated_items.insert(range{start, end});
+                        start = end;
                     }
                 }
             }
@@ -736,8 +785,7 @@ namespace jsonschema {
                     this_context.eval_path(), 
                     this->schema_location(), 
                     instance_location, 
-                    std::string("Expected minLength: ") + std::to_string(min_length_)
-                                          + ", actual: " + std::to_string(length)));
+                    std::string("Number of characters must be at least ") + std::to_string(min_length_)));
                 if (reporter.fail_early())
                 {
                     return;
@@ -754,14 +802,24 @@ namespace jsonschema {
         using keyword_validator_type = typename keyword_validator<Json>::keyword_validator_type;
         using schema_validator_type = typename schema_validator<Json>::schema_validator_type;
 
-        schema_validator_type rule_;
+        schema_validator_type schema_val_;
 
     public:
         not_validator(const uri& schema_location,
-            schema_validator_type&& rule)
+            schema_validator_type&& schema_val)
             : keyword_validator_base<Json>("not", schema_location), 
-              rule_(std::move(rule))
+              schema_val_(std::move(schema_val))
         {
+        }
+
+        bool always_fails() const final
+        {
+            return schema_val_ ? schema_val_->always_succeeds() : false;;
+        }          
+
+        bool always_succeeds() const final
+        {
+            return schema_val_ ? schema_val_->always_fails() : false;;
         }
 
     private:
@@ -776,7 +834,7 @@ namespace jsonschema {
 
             evaluation_results local_results;
             collecting_error_reporter local_reporter;
-            rule_->validate(this_context, instance, instance_location, local_results, local_reporter, patch);
+            schema_val_->validate(this_context, instance, instance_location, local_results, local_reporter, patch);
 
             if (local_reporter.errors.empty())
             {
@@ -1004,7 +1062,7 @@ namespace jsonschema {
     public:
         maximum_validator(const uri& schema_location, const Json& value)
             : keyword_validator_base<Json>("maximum", schema_location), value_(value),
-              message_{" is greater than maximum " + value.template as<std::string>()}
+              message_{"Maximum value is " + value.template as<std::string>() + " but found"}
         {
         }
 
@@ -1029,7 +1087,7 @@ namespace jsonschema {
                             this_context.eval_path(), 
                             this->schema_location(), 
                             instance_location, 
-                            instance.template as<std::string>() + message_));
+                            message_ + instance.template as<std::string>()));
                     }
                     break;
                 }
@@ -1041,7 +1099,7 @@ namespace jsonschema {
                             this_context.eval_path(), 
                             this->schema_location(), 
                             instance_location, 
-                            instance.template as<std::string>() + message_));
+                            message_ + instance.template as<std::string>()));
                     }
                     break;
                 }
@@ -1062,7 +1120,7 @@ namespace jsonschema {
     public:
         exclusive_maximum_validator(const uri& schema_location, const Json& value)
             : keyword_validator_base<Json>("exclusiveMaximum", schema_location), value_(value),
-              message_{" is no less than exclusiveMaximum " + value.template as<std::string>()}
+              message_{"Exclusive maximum value is " + value.template as<std::string>() + " but found "}
         {
         }
 
@@ -1087,7 +1145,7 @@ namespace jsonschema {
                             this_context.eval_path(), 
                             this->schema_location(), 
                             instance_location, 
-                            instance.template as<std::string>() + message_));
+                            message_ + instance.template as<std::string>()));
                     }
                     break;
                 }
@@ -1099,7 +1157,7 @@ namespace jsonschema {
                             this_context.eval_path(), 
                             this->schema_location(), 
                             instance_location, 
-                            instance.template as<std::string>() + message_));
+                            message_ + instance.template as<std::string>()));
                     }
                     break;
                 }
@@ -1120,7 +1178,7 @@ namespace jsonschema {
     public:
         minimum_validator(const uri& schema_location, const Json& value)
             : keyword_validator_base<Json>("minimum", schema_location), value_(value),
-              message_{" is less than minimum " + value.template as<std::string>()}
+              message_{"Minimum value is " + value.template as<std::string>() + " but found "}
         {
         }
 
@@ -1145,7 +1203,7 @@ namespace jsonschema {
                             this_context.eval_path(), 
                             this->schema_location(), 
                             instance_location, 
-                            instance.template as<std::string>() + message_));
+                            message_ + instance.template as<std::string>()));
                     }
                     break;
                 }
@@ -1157,7 +1215,7 @@ namespace jsonschema {
                             this_context.eval_path(), 
                             this->schema_location(), 
                             instance_location, 
-                            instance.template as<std::string>() + message_));
+                            message_ + instance.template as<std::string>()));
                     }
                     break;
                 }
@@ -1178,7 +1236,7 @@ namespace jsonschema {
     public:
         exclusive_minimum_validator(const uri& schema_location, const Json& value)
             : keyword_validator_base<Json>("exclusiveMinimum", schema_location), value_(value),
-              message_{" is no greater than exclusiveMinimum " + value.template as<std::string>()}
+              message_{"Exclusive minimum value is " + value.template as<std::string>() + " but found "}
         {
         }
 
@@ -1203,7 +1261,7 @@ namespace jsonschema {
                             this_context.eval_path(), 
                             this->schema_location(), 
                             instance_location, 
-                            instance.template as<std::string>() + message_));
+                            message_ + instance.template as<std::string>()));
                     }
                     break;
                 }
@@ -1215,7 +1273,7 @@ namespace jsonschema {
                             this_context.eval_path(), 
                             this->schema_location(), 
                             instance_location, 
-                            instance.template as<std::string>() + message_));
+                            message_ + instance.template as<std::string>()));
                     }
                     break;
                 }
@@ -1358,8 +1416,8 @@ namespace jsonschema {
             {
                 evaluation_context<Json> this_context(context, this->keyword_name());
 
-                std::string message("Maximum properties: " + std::to_string(max_properties_));
-                message.append(", found: " + std::to_string(instance.size()));
+                std::string message("Maximum number of properties is " + std::to_string(max_properties_));
+                message.append(" but found " + std::to_string(instance.size()));
                 reporter.error(validation_message(this->keyword_name(),
                     this_context.eval_path(), 
                     this->schema_location(), 
@@ -1399,8 +1457,8 @@ namespace jsonschema {
             {
                 evaluation_context<Json> this_context(context, this->keyword_name());
 
-                std::string message("Maximum properties: " + std::to_string(min_properties_));
-                message.append(", found: " + std::to_string(instance.size()));
+                std::string message("Minimum number of properties is " + std::to_string(min_properties_));
+                message.append(" but found " + std::to_string(instance.size()));
                 reporter.error(validation_message(this->keyword_name(),
                         this_context.eval_path(),
                         this->schema_location(),
@@ -1969,13 +2027,11 @@ namespace jsonschema {
                 return;
             }
 
-            evaluation_context<Json> this_context(context, this->keyword_name());
-
             std::unordered_set<std::string> allowed_properties;
 
             if (properties_)
             {
-                properties_->validate(this_context, instance, instance_location, results, reporter, patch, allowed_properties);
+                properties_->validate(context, instance, instance_location, results, reporter, patch, allowed_properties);
                 if (reporter.fail_early())
                 {
                     return;
@@ -1984,7 +2040,7 @@ namespace jsonschema {
 
             if (pattern_properties_)
             {
-                pattern_properties_->validate(this_context, instance, instance_location, results, reporter, patch, allowed_properties);
+                pattern_properties_->validate(context, instance, instance_location, results, reporter, patch, allowed_properties);
                 if (reporter.fail_early())
                 {
                     return;
@@ -1993,6 +2049,7 @@ namespace jsonschema {
 
             if (additional_properties_)
             {
+                evaluation_context<Json> this_context(context, this->keyword_name());
                 if (additional_properties_->always_fails())
                 {
                     for (const auto& prop : instance.object_range()) 
@@ -2005,7 +2062,7 @@ namespace jsonschema {
                         {
                             reporter.error(validation_message(this->keyword_name(),
                                 prop_context.eval_path(), 
-                                this->schema_location(), 
+                                additional_properties_->schema_location(), 
                                 prop_location,
                                 "Additional property '" + prop.key() + "' not allowed by schema."));
                             break;
@@ -2160,14 +2217,14 @@ namespace jsonschema {
         using keyword_validator_type = typename keyword_validator<Json>::keyword_validator_type;
         using schema_validator_type = typename schema_validator<Json>::schema_validator_type;
 
-        schema_validator_type property_names_schema_validator_;
+        schema_validator_type schema_val_;
 
     public:
         property_names_validator(const uri& schema_location,
-            schema_validator_type&& property_names_schema_validator
+            schema_validator_type&& schema_val
         )
             : keyword_validator_base<Json>("propertyNames", schema_location), 
-                property_names_schema_validator_{ std::move(property_names_schema_validator) }
+                schema_val_{ std::move(schema_val) }
         {
         }
 
@@ -2186,15 +2243,31 @@ namespace jsonschema {
 
             evaluation_context<Json> this_context(context, this->keyword_name());
 
-            for (const auto& prop : instance.object_range()) 
+            if (instance.size() > 0 && schema_val_)
             {
-                jsonpointer::json_pointer prop_location = instance_location / prop.key();
-
-                if (property_names_schema_validator_)
+                if (schema_val_->always_fails())
                 {
-                    property_names_schema_validator_->validate(this_context, prop.key() , instance_location, results, reporter, patch);
+                    jsonpointer::json_pointer item_location = instance_location / 0;
+                    reporter.error(validation_message(this->keyword_name(),
+                        this_context.eval_path(), 
+                        this->schema_location(), 
+                        item_location,
+                        "Instance has properties but the schema does not allow any property names."));
+                    return;
                 }
-                // Any property that doesn't match any of the property names in the properties keyword is ignored by this keyword.
+                else if (schema_val_->always_succeeds())
+                {
+                    return;
+                }
+                else
+                {
+                    for (const auto& prop : instance.object_range()) 
+                    {
+                        jsonpointer::json_pointer prop_location = instance_location / prop.key();
+
+                        schema_val_->validate(this_context, prop.key() , instance_location, results, reporter, patch);
+                    }
+                }
             }
         }
     };
@@ -2377,6 +2450,8 @@ namespace jsonschema {
             collecting_error_reporter local_reporter;
 
             std::size_t index = 0;
+            size_t start = 0;
+            size_t end = 0;
             for (const auto& item : instance.array_range()) 
             {
                 std::size_t errors = local_reporter.errors.size();
@@ -2385,11 +2460,28 @@ namespace jsonschema {
                 {
                     if (context.require_evaluated_items())
                     {
-                        results.evaluated_items.insert(index);
+                        if (end == start)
+                        {
+                            start = end = index;
+                        }
+                        ++end;
                     }
                     ++contains_count;
                 }
+                else
+                {
+                    if (start < end)
+                    {
+                        results.evaluated_items.insert(range{start, end});
+                        start = end;
+                    }
+                }
                 ++index;
+            }
+            if (start < end)
+            {
+                results.evaluated_items.insert(range{start, end});
+                start = end;
             }
             
             if (max_contains_ || min_contains_)
@@ -2426,11 +2518,11 @@ namespace jsonschema {
         using keyword_validator_type = typename keyword_validator<Json>::keyword_validator_type;
 
         std::vector<schema_validator_type> prefix_item_validators_;
-        schema_validator_type items_val_;
+        keyword_validator_type items_val_;
     public:
         prefix_items_validator(const std::string& keyword_name, const uri& schema_location, 
             std::vector<schema_validator_type>&& prefix_item_validators,
-            schema_validator_type&& items_val)
+            keyword_validator_type&& items_val)
             : keyword_validator_base<Json>(keyword_name, schema_location), 
               prefix_item_validators_(std::move(prefix_item_validators)), 
               items_val_(std::move(items_val))
@@ -2450,77 +2542,103 @@ namespace jsonschema {
                 return;
             }
         
-            size_t index = 0;
-            auto it = instance.array_range().cbegin();
-            auto end_it = instance.array_range().cend();
+            size_t data_index = 0;
         
-            evaluation_context<Json> this_context(context, this->keyword_name());
-            for (const auto& val : prefix_item_validators_) 
+            evaluation_context<Json> prefix_items_context(context, this->keyword_name());
+
+            size_t start = 0;
+            size_t end = 0;
+            for (std::size_t schema_index=0; 
+                  schema_index < prefix_item_validators_.size() && data_index < instance.size(); 
+                  ++schema_index, ++data_index) 
             {
-                if (it == end_it)
-                {
-                    break;
-                }
-                jsonpointer::json_pointer item_location = instance_location / index;
-        
-                evaluation_context<Json> item_context{this_context, index, evaluation_flags{}};
+                auto& val = prefix_item_validators_[schema_index];
+                evaluation_context<Json> item_context{prefix_items_context, schema_index, evaluation_flags{}};
+                jsonpointer::json_pointer item_location = instance_location / data_index;
                 std::size_t errors = reporter.error_count();
-                val->validate(item_context, *it, item_location, results, reporter, patch);
+                val->validate(item_context, instance[data_index], item_location, results, reporter, patch);
                 if (errors == reporter.error_count())
                 {
                     if (context.require_evaluated_items())
                     {
-                        results.evaluated_items.insert(index);
+                        if (end == start)
+                        {
+                            start = end = data_index;
+                        }
+                        ++end;
                     }
                 }
-                ++it;
-                ++index;
+                else
+                {
+                    if (start < end)
+                    {
+                        results.evaluated_items.insert(range{start, end});
+                        start = end;
+                    }
+                }
+
             }
-            if (it != end_it && items_val_)
+            if (start < end)
             {
+                results.evaluated_items.insert(range{start, end});
+                start = end;
+            }
+            if (data_index < instance.size() && items_val_)
+            {
+                evaluation_context<Json> items_context(context, "items");
                 if (items_val_->always_fails())
                 {
-                    evaluation_context<Json> item_context{this_context, index, evaluation_flags{}};
-                    jsonpointer::json_pointer item_location = instance_location / index;
+                    jsonpointer::json_pointer item_location = instance_location / data_index;
                     reporter.error(validation_message(this->keyword_name(),
-                        item_context.eval_path(), 
+                        items_context.eval_path(), 
                         this->schema_location(), 
                         item_location,
-                        "Extra item at index '" + std::to_string(index) + "' but the schema does not allow extra items."));
+                        "Extra item at index '" + std::to_string(data_index) + "' but the schema does not allow extra items."));
                     if (reporter.fail_early())
                     {
                         return;
                     }
                 }
-                else if (items_val_->always_fails())
+                else if (items_val_->always_succeeds())
                 {
-                    while (it != end_it)
-                    {
-                        results.evaluated_items.insert(index);
-                        ++it;
-                        ++index;
-                    }
+                    results.evaluated_items.insert(range{0,instance.size()});
                 }
                 else
                 {
-                    while (it != end_it)
+                    start = 0;
+                    end = 0;
+                    for (; data_index < instance.size(); ++data_index)
                     {
                         if (items_val_)
                         {
-                            evaluation_context<Json> item_context{this_context, index, evaluation_flags{}};
-                            jsonpointer::json_pointer item_location = instance_location / index;
+                            jsonpointer::json_pointer item_location = instance_location / data_index;
                             std::size_t errors = reporter.error_count();
-                            items_val_->validate(item_context, *it, item_location, results, reporter, patch);
+                            items_val_->validate(items_context, instance[data_index], item_location, results, reporter, patch);
                             if (errors == reporter.error_count())
                             {
                                 if (context.require_evaluated_items())
                                 {
-                                    results.evaluated_items.insert(index);
+                                    if (end == start)
+                                    {
+                                        start = end = data_index;
+                                    }
+                                    ++end;
+                                }
+                            }
+                            else
+                            {
+                                if (start < end)
+                                {
+                                    results.evaluated_items.insert(range{start, end});
+                                    start = end;
                                 }
                             }
                         }
-                        ++it;
-                        ++index;
+                    }
+                    if (start < end)
+                    {
+                        results.evaluated_items.insert(range{start, end});
+                        start = end;
                     }
                 }
             }
@@ -2533,14 +2651,13 @@ namespace jsonschema {
         using keyword_validator_type = typename keyword_validator<Json>::keyword_validator_type;
         using schema_validator_type = typename schema_validator<Json>::schema_validator_type;
 
-        schema_validator_type validator_;
+        schema_validator_type schema_val_;
 
     public:
         unevaluated_properties_validator(const uri& schema_location,
-            schema_validator_type&& val
-        )
+            schema_validator_type&& schema_val)
             : keyword_validator_base<Json>("unevaluatedProperties", std::move(schema_location)), 
-              validator_(std::move(val))
+              schema_val_(std::move(schema_val))
         {
         }
 
@@ -2564,10 +2681,10 @@ namespace jsonschema {
                 return;
             }
 
-            if (validator_)
+            if (schema_val_)
             {
                 evaluation_context<Json> this_context(context, this->keyword_name());
-                if (validator_->always_fails())
+                if (schema_val_->always_fails())
                 {
                     for (const auto& prop : instance.object_range()) 
                     {
@@ -2587,7 +2704,7 @@ namespace jsonschema {
                         }
                     }
                 }
-                else if (validator_->always_succeeds())
+                else if (schema_val_->always_succeeds())
                 {
                     if (context.require_evaluated_properties())
                     {
@@ -2607,7 +2724,7 @@ namespace jsonschema {
                         {
                             //std::cout << "Not in evaluated properties: " << prop.key() << "\n";
                             std::size_t error_count = reporter.error_count();
-                            validator_->validate(this_context, prop.value() , instance_location, results, reporter, patch);
+                            schema_val_->validate(this_context, prop.value() , instance_location, results, reporter, patch);
                             if (reporter.error_count() == error_count)
                             {
                                 if (context.require_evaluated_properties())
@@ -2628,14 +2745,14 @@ namespace jsonschema {
         using keyword_validator_type = typename keyword_validator<Json>::keyword_validator_type;
         using schema_validator_type = typename schema_validator<Json>::schema_validator_type;
 
-        schema_validator_type validator_;
+        schema_validator_type schema_val_;
 
     public:
         unevaluated_items_validator(const uri& schema_location,
-            schema_validator_type&& val
+            schema_validator_type&& schema_val
         )
             : keyword_validator_base<Json>("unevaluatedProperties", std::move(schema_location)), 
-              validator_(std::move(val))
+              schema_val_(std::move(schema_val))
         {
         }
 
@@ -2659,16 +2776,15 @@ namespace jsonschema {
                 return;
             }
 
-            if (validator_)
+            if (schema_val_)
             {
                 evaluation_context<Json> this_context(context, this->keyword_name());
-                if (validator_->always_fails())
+                if (schema_val_->always_fails())
                 {
                     for (std::size_t index = 0; index < instance.size(); ++index) 
                     {
                         // check if it is in "evaluated_items"
-                        auto item_it = results.evaluated_items.find(index);
-                        if (item_it == results.evaluated_items.end()) 
+                        if (!results.evaluated_items.contains(index)) 
                         {
                             evaluation_context<Json> item_context{this_context, index, evaluation_flags{}};
                             jsonpointer::json_pointer item_location = instance_location / index;
@@ -2682,39 +2798,54 @@ namespace jsonschema {
                         }
                     }
                 }
-                else if (validator_->always_succeeds())
+                else if (schema_val_->always_succeeds())
                 {
                     if (context.require_evaluated_items())
                     {
-                        for (std::size_t index = 0; index < instance.size(); ++index) 
-                        {
-                            results.evaluated_items.insert(index);
-                        }
+                        results.evaluated_items.insert(range{0,instance.size()});
                     }
                 }
                 else
                 {
                     std::size_t index = 0;
+                    size_t start = 0;
+                    size_t end = 0;
                     for (const auto& item : instance.array_range())
                     {
                         // check if it is in "evaluated_items"
-                        auto item_it = results.evaluated_items.find(index);
-                        if (item_it == results.evaluated_items.end()) 
+                        if (!results.evaluated_items.contains(index))
                         {
                             evaluation_context<Json> item_context{this_context, index, evaluation_flags{}};
                             jsonpointer::json_pointer item_location = instance_location / index;
                             //std::cout << "Not in evaluated properties: " << item.key() << "\n";
                             std::size_t error_count = reporter.error_count();
-                            validator_->validate(item_context, item, item_location, results, reporter, patch);
+                            schema_val_->validate(item_context, item, item_location, results, reporter, patch);
                             if (reporter.error_count() == error_count)
                             {
                                 if (context.require_evaluated_items())
                                 {
-                                    results.evaluated_items.insert(index);
+                                    if (end == start)
+                                    {
+                                        start = end = index;
+                                    }
+                                    ++end;
+                                }
+                            }
+                            else
+                            {
+                                if (start < end)
+                                {
+                                    results.evaluated_items.insert(range{start, end});
+                                    start = end;
                                 }
                             }
                         }
                         ++index;
+                    }
+                    if (start < end)
+                    {
+                        results.evaluated_items.insert(range{start, end});
+                        start = end;
                     }
                 }
             }
