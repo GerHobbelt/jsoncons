@@ -47,6 +47,7 @@ namespace {
         }
 
         json tests = json::parse(is); 
+        //std::cout << pretty_print(tests) << "\n";
 
         int count = 0;
         for (const auto& test_group : tests.array_range()) 
@@ -60,9 +61,12 @@ namespace {
                 int count_test = 0;
                 for (const auto& test_case : test_group["tests"].array_range()) 
                 {
+                    //std::cout << "  Test case " << count << "." << count_test << ": " << test_case["description"] << "\n";
                     ++count_test;
+                    std::size_t errors = 0;
                     auto reporter = [&](const jsonschema::validation_output& o)
                     {
+                        ++errors;
                         CHECK_FALSE(test_case["valid"].as<bool>());
                         if (test_case["valid"].as<bool>())
                         {
@@ -74,12 +78,17 @@ namespace {
                                 std::cout << "  Nested error: " << err.instance_location() << ": " << err.message() << "\n";
                             }
                         }
-                        else
-                        {
-                            //std::cout << o.what() << "\n";
-                        }
                     };
                     validator.validate(test_case.at("data"), reporter);
+                    if (errors == 0)
+                    {
+                        CHECK(test_case["valid"].as<bool>());
+                        if (!test_case["valid"].as<bool>())
+                        {
+                            std::cout << "  File: " << fpath << "\n";
+                            std::cout << "  Test case " << count << "." << count_test << ": " << test_case["description"] << "\n";
+                        }
+                    }
                 }
             }
             catch (const std::exception& e)

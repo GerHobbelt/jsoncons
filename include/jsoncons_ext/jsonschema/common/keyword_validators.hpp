@@ -5,15 +5,15 @@
 
 // See https://github.com/danielaparker/jsoncons for latest version
 
-#ifndef JSONCONS_JSONSCHEMA_COMMON_KEYWORDS_HPP
-#define JSONCONS_JSONSCHEMA_COMMON_KEYWORDS_HPP
+#ifndef JSONCONS_JSONSCHEMA_COMMON_KEYWORD_VALIDATORS_HPP
+#define JSONCONS_JSONSCHEMA_COMMON_KEYWORD_VALIDATORS_HPP
 
 #include <jsoncons/config/jsoncons_config.hpp>
 #include <jsoncons/uri.hpp>
 #include <jsoncons/json.hpp>
 #include <jsoncons_ext/jsonpointer/jsonpointer.hpp>
 #include <jsoncons_ext/jsonschema/common/format_validator.hpp>
-#include <jsoncons_ext/jsonschema/common/keyword_validator.hpp>
+#include <jsoncons_ext/jsonschema/common/schema_validator.hpp>
 #include <cassert>
 #include <set>
 #include <sstream>
@@ -27,19 +27,8 @@
 namespace jsoncons {
 namespace jsonschema {
 
-    struct collecting_error_reporter : public error_reporter
-    {
-        std::vector<validation_output> errors;
-
-    private:
-        void do_error(const validation_output& o) final
-        {
-            errors.push_back(o);
-        }
-    };
-
     template <class Json>
-    class ref_validator : public keyword_validator_base<Json>
+    class ref_validator : public keyword_validator_base<Json>, public virtual ref<Json>
     {
         using keyword_validator_type = std::unique_ptr<keyword_validator<Json>>;
         using schema_validator_type = std::unique_ptr<schema_validator<Json>>;
@@ -50,27 +39,35 @@ namespace jsonschema {
         ref_validator(const uri& schema_path) 
             : keyword_validator_base<Json>("$ref", schema_path), referred_schema_{nullptr}
         {
+            //std::cout << "ref_validator: " << this->schema_path().string() << "\n";
         }
 
         ref_validator(const uri& schema_path, const schema_validator<Json>* referred_schema)
             : keyword_validator_base<Json>("$ref", schema_path), referred_schema_(referred_schema) 
         {
+            //std::cout << "ref_validator2: " << this->schema_path().string() << "\n";
         }
 
-        void set_referred_schema(const schema_validator<Json>* target) { referred_schema_ = target; }
+        void set_referred_schema(const schema_validator<Json>* target) final { referred_schema_ = target; }
 
         uri get_base_uri() const
         {
             return this->schema_path();
         }
 
+        const schema_validator<Json>* match_dynamic_anchor(const std::string& s) const final
+        {
+            return referred_schema_->id() ? nullptr: referred_schema_->match_dynamic_anchor(s);
+        }
+
     private:
 
         void do_validate(const evaluation_context<Json>& eval_context, const Json& instance, 
             const jsonpointer::json_pointer& instance_location,
-            std::unordered_set<std::string>& evaluated_properties, 
+            evaluation_results& results, 
             error_reporter& reporter, 
-            Json& patch) const override
+            Json& patch, 
+            const evaluation_options& options) const override
         {
             evaluation_context<Json> this_context(eval_context, this->keyword_name());
 
@@ -84,15 +81,17 @@ namespace jsonschema {
                 return;
             }
 
-            referred_schema_->validate(this_context, instance, instance_location, evaluated_properties, reporter, patch);
+            referred_schema_->validate(this_context, instance, instance_location, results, reporter, patch, options);
         }
     };
 
-    template <class Json>
-    class recursive_ref_validator : public keyword_validator_base<Json>
+    template<class Json>
+    class recursive_ref_validator : public keyword_validator_base<Json>, public virtual ref<Json>
     {
         using keyword_validator_type = std::unique_ptr<keyword_validator<Json>>;
         using schema_validator_type = std::unique_ptr<schema_validator<Json>>;
+
+        const schema_validator<Json> *tentative_target_; 
 
     public:
         recursive_ref_validator(const uri& schema_path) 
@@ -104,35 +103,35 @@ namespace jsonschema {
             return this->schema_path();
         }
 
+        const schema_validator<Json>* match_dynamic_anchor(const std::string& /*s*/) const final
+        {
+            return nullptr;
+        }
+
+        void set_referred_schema(const schema_validator<Json>* target) final { tentative_target_ = target; }
+
     private:
 
-        void do_validate(const evaluation_context<Json>& eval_context, const Json& instance, 
+        void do_validate(const evaluation_context<Json>& eval_context, 
+            const Json& instance, 
             const jsonpointer::json_pointer& instance_location,
-            std::unordered_set<std::string>& evaluated_properties, 
+            evaluation_results& results, 
             error_reporter& reporter, 
-            Json& patch) const override
+            Json& patch, 
+            const evaluation_options& options) const override
         {
             auto rit = eval_context.dynamic_scope().rbegin();
             auto rend = eval_context.dynamic_scope().rend();
 
-            const schema_validator<Json>* schema_ptr = nullptr;
-
-            while (rit != rend && schema_ptr == nullptr)
-            {
-                if ((*rit)->schema_path() == this->schema_path())
-                {
-                    schema_ptr = *rit; 
-                }
-                ++rit;
-            }
-
+            const schema_validator<Json>* schema_ptr = tentative_target_; 
+ 
             JSONCONS_ASSERT(schema_ptr != nullptr);
 
-            if (schema_ptr->is_recursive_anchor())
+            if (schema_ptr->recursive_anchor())
             {
                 while (rit != rend)
                 {
-                    if ((*rit)->is_recursive_anchor())
+                    if ((*rit)->recursive_anchor())
                     {
                         schema_ptr = *rit; 
                     }
@@ -153,7 +152,89 @@ namespace jsonschema {
                 return;
             }
 
-            schema_ptr->validate(this_context, instance, instance_location, evaluated_properties, reporter, patch);
+            schema_ptr->validate(this_context, instance, instance_location, results, reporter, patch, options);
+        }
+    };
+
+    template <class Json>
+    class dynamic_ref_validator : public keyword_validator_base<Json>, public virtual ref<Json>
+    {
+        using keyword_validator_type = std::unique_ptr<keyword_validator<Json>>;
+        using schema_validator_type = std::unique_ptr<schema_validator<Json>>;
+
+        jsoncons::uri value_;
+        const schema_validator<Json>* tentative_target_;
+
+    public:
+        dynamic_ref_validator(const uri& schema_path, const jsoncons::uri& value) 
+            : keyword_validator_base<Json>("$dynamicRef", schema_path), value_(value)
+        {
+            //std::cout << "dynamic_ref_validator path: " << schema_path.string() << ", value: " << value.string() << "\n";
+        }
+
+        void set_referred_schema(const schema_validator<Json>* target) final { tentative_target_ = target; }
+
+        const jsoncons::uri& value() const { return value_; }
+
+        uri get_base_uri() const
+        {
+            return this->schema_path();
+        }
+
+        const schema_validator<Json>* match_dynamic_anchor(const std::string& /*s*/) const final
+        {
+            return nullptr;
+        }
+
+    private:
+
+        void do_validate(const evaluation_context<Json>& eval_context, const Json& instance, 
+            const jsonpointer::json_pointer& instance_location,
+            evaluation_results& results, 
+            error_reporter& reporter, 
+            Json& patch, 
+            const evaluation_options& options) const override
+        {
+            //std::cout << "dynamic_ref_validator [" << eval_context.eval_path().to_string() << "," << this->schema_path().string() << "]";
+            //std::cout << "results:\n";
+            //for (const auto& s : results)
+            //{
+            //    std::cout << "    " << s << "\n";
+            //}
+            //std::cout << "\n";
+
+            auto rit = eval_context.dynamic_scope().rbegin();
+            auto rend = eval_context.dynamic_scope().rend();
+
+            //std::cout << "dynamic_ref_validator::do_validate " << this->value().string() << "\n";
+
+            const schema_validator<Json> *schema_ptr = tentative_target_;
+
+            evaluation_context<Json> this_context(eval_context, this->keyword_name());
+            JSONCONS_ASSERT(schema_ptr != nullptr);
+
+            if (schema_ptr->dynamic_anchor())
+            {
+                while (rit != rend)
+                {
+                    //std::cout << "  (2) [" << (*rit)->schema_path().string() << "] " << ((*rit)->dynamic_anchor() ? (*rit)->dynamic_anchor()->value().string() : "") << "\n";
+
+                    auto p = (*rit)->match_dynamic_anchor(schema_ptr->dynamic_anchor()->fragment()); 
+                    if (p != nullptr) 
+                    {
+                        //std::cout << "Match found " << p->schema_path().string() << "\n";
+                        schema_ptr = p;
+                    }
+
+                    ++rit;
+                }
+            }
+            
+            //assert(schema_ptr != tentative_target_);
+
+            //std::cout << "dynamic_ref_validator.do_validate " << "keywordLocation: << " << this->schema_path().string() << ", instanceLocation:" << instance_location.to_string() << "\n";
+
+            schema_ptr->validate(this_context, instance, instance_location, results, reporter, patch, options);
         }
     };
 
@@ -173,13 +254,19 @@ namespace jsonschema {
         {
         }
 
+        const schema_validator<Json>* match_dynamic_anchor(const std::string& /*s*/) const final
+        {
+            return nullptr;
+        }
+
     private:
 
         void do_validate(const evaluation_context<Json>& eval_context, const Json& instance, 
             const jsonpointer::json_pointer& instance_location,
-            std::unordered_set<std::string>&, 
+            evaluation_results& /*results*/, 
             error_reporter& reporter,
-            Json&) const final
+            Json& /*patch*/, 
+            const evaluation_options& /*options*/) const final
         {
             if (!instance.is_string())
             {
@@ -237,13 +324,19 @@ namespace jsonschema {
         {
         }
 
+        const schema_validator<Json>* match_dynamic_anchor(const std::string& /*s*/) const final
+        {
+            return nullptr;
+        }
+
     private:
 
         void do_validate(const evaluation_context<Json>& eval_context, const Json& instance, 
             const jsonpointer::json_pointer& instance_location,
-            std::unordered_set<std::string>&, 
+            evaluation_results& /*results*/, 
             error_reporter& reporter,
-            Json&) const final
+            Json& /*patch*/, 
+            const evaluation_options& /*options*/) const final
         {
             if (!instance.is_string())
             {
@@ -287,14 +380,25 @@ namespace jsonschema {
 
         }
 
+        const schema_validator<Json>* match_dynamic_anchor(const std::string& /*s*/) const final
+        {
+            return nullptr;
+        }
+
     private:
 
         void do_validate(const evaluation_context<Json>& eval_context, const Json& instance, 
             const jsonpointer::json_pointer& instance_location,
-            std::unordered_set<std::string>&, 
+            evaluation_results& /*results*/, 
             error_reporter& reporter,
-            Json&) const final
+            Json& /*patch*/, 
+            const evaluation_options& options) const final
         {
+            if (!options.require_format_validation())
+            {
+                return;
+            }
+            
             if (!instance.is_string())
             {
                 return;
@@ -333,13 +437,19 @@ namespace jsonschema {
         {
         }
 
+        const schema_validator<Json>* match_dynamic_anchor(const std::string& /*s*/) const final
+        {
+            return nullptr;
+        }
+
     private:
 
         void do_validate(const evaluation_context<Json>& eval_context, const Json& instance, 
             const jsonpointer::json_pointer& instance_location,
-            std::unordered_set<std::string>&, 
+            evaluation_results& /*results*/, 
             error_reporter& reporter,
-            Json&) const final
+            Json& /*patch*/, 
+            const evaluation_options& /*options*/) const final
         {
             if (!instance.is_string())
             {
@@ -380,13 +490,19 @@ namespace jsonschema {
         {
         }
 
+        const schema_validator<Json>* match_dynamic_anchor(const std::string& /*s*/) const final
+        {
+            return nullptr;
+        }
+
     private:
 
         void do_validate(const Json&, 
             const jsonpointer::json_pointer&,
-            std::unordered_set<std::string>&, 
+            evaluation_results& /*results*/, 
             error_reporter&,
-            Json&) const final
+            Json& /*patch*/, 
+            const evaluation_options& /*options*/) const final
         {
         }
     };
@@ -406,13 +522,19 @@ namespace jsonschema {
         {
         }
 
+        const schema_validator<Json>* match_dynamic_anchor(const std::string& /*s*/) const final
+        {
+            return nullptr;
+        }
+
     private:
 
         void do_validate(const evaluation_context<Json>& eval_context, const Json& instance, 
             const jsonpointer::json_pointer& instance_location,
-            std::unordered_set<std::string>&, 
+            evaluation_results& /*results*/, 
             error_reporter& reporter,
-            Json&) const final
+            Json& /*patch*/, 
+            const evaluation_options& /*options*/) const final
         {
             if (!instance.is_string())
             {
@@ -453,13 +575,19 @@ namespace jsonschema {
         {
         }
 
+        const schema_validator<Json>* match_dynamic_anchor(const std::string& /*s*/) const final
+        {
+            return nullptr;
+        }
+
     private:
 
         void do_validate(const evaluation_context<Json>& eval_context, const Json& instance, 
             const jsonpointer::json_pointer& instance_location,
-            std::unordered_set<std::string>&, 
+            evaluation_results& /*results*/, 
             error_reporter& reporter,
-            Json&) const final
+            Json& /*patch*/, 
+            const evaluation_options& /*options*/) const final
         {
             if (!instance.is_array())
             {
@@ -499,13 +627,19 @@ namespace jsonschema {
         {
         }
 
+        const schema_validator<Json>* match_dynamic_anchor(const std::string& /*s*/) const final
+        {
+            return nullptr;
+        }
+
     private:
 
         void do_validate(const evaluation_context<Json>& eval_context, const Json& instance, 
             const jsonpointer::json_pointer& instance_location,
-            std::unordered_set<std::string>&, 
+            evaluation_results& /*results*/, 
             error_reporter& reporter,
-            Json&) const final
+            Json& /*patch*/, 
+            const evaluation_options& /*options*/) const final
         {
             if (!instance.is_array())
             {
@@ -540,24 +674,49 @@ namespace jsonschema {
         using keyword_validator_type = typename keyword_validator<Json>::keyword_validator_type;
 
         std::vector<schema_validator_type> item_validators_;
-        schema_validator_type additional_items_validator_;
+        schema_validator_type additional_items_val_;
     public:
         items_array_validator(const uri& schema_path, 
             std::vector<schema_validator_type>&& item_validators,
-            schema_validator_type&& additional_items_validator)
+            schema_validator_type&& additional_items_val)
             : keyword_validator_base<Json>("items", schema_path), 
               item_validators_(std::move(item_validators)), 
-              additional_items_validator_(std::move(additional_items_validator))
+              additional_items_val_(std::move(additional_items_val))
         {
+        }
+
+        const schema_validator<Json>* match_dynamic_anchor(const std::string& s) const final
+        {
+            for (const auto& val : item_validators_)
+            {
+                if (!val->id())
+                {
+                    auto p = val->match_dynamic_anchor(s);
+                    if (p != nullptr)
+                    {
+                        return p;
+                    }
+                }
+            }
+            if (additional_items_val_ != nullptr && !additional_items_val_->id()) 
+            {
+                auto p = additional_items_val_->match_dynamic_anchor(s);
+                if (p != nullptr)
+                {
+                    return p;
+                }
+            }
+            return nullptr;
         }
 
     private:
 
         void do_validate(const evaluation_context<Json>& eval_context, const Json& instance, 
             const jsonpointer::json_pointer& instance_location,
-            std::unordered_set<std::string>& evaluated_properties, 
+            evaluation_results& results, 
             error_reporter& reporter,
-            Json& patch) const final
+            Json& patch, 
+            const evaluation_options& options) const final
         {
             if (!instance.is_array())
             {
@@ -568,6 +727,7 @@ namespace jsonschema {
             auto validator_it = item_validators_.cbegin();
 
             evaluation_context<Json> this_context(eval_context, this->keyword_name());
+            
             for (const auto& item : instance.array_range()) 
             {
                 jsonpointer::json_pointer pointer(instance_location);
@@ -575,14 +735,26 @@ namespace jsonschema {
                 if (validator_it != item_validators_.cend())
                 {
                     evaluation_context<Json> item_context{this_context, index};
-                    pointer /= index++;
-                    (*validator_it)->validate(item_context, item, pointer, evaluated_properties, reporter, patch);
+                    pointer /= index;
+                    std::size_t errors = reporter.error_count();
+                    (*validator_it)->validate(item_context, item, pointer, results, reporter, patch, options);
+                    if (eval_context.require_evaluated_items() && errors == reporter.error_count())
+                    {
+                        results.evaluated_items.insert(index);
+                    }
                     ++validator_it;
+                    ++index;
                 }
-                else if (additional_items_validator_ != nullptr)
+                else if (additional_items_val_ != nullptr)
                 {
-                    pointer /= index++;
-                    additional_items_validator_->validate(eval_context, item, pointer, evaluated_properties, reporter, patch);
+                    pointer /= index;
+                    std::size_t errors = reporter.error_count();
+                    additional_items_val_->validate(eval_context, item, pointer, results, reporter, patch, options);
+                    if (eval_context.require_evaluated_items() && errors == reporter.error_count())
+                    {
+                        results.evaluated_items.insert(index);
+                    }
+                    ++index;
                 }
                 else
                     break;
@@ -597,22 +769,36 @@ namespace jsonschema {
         using keyword_validator_type = typename keyword_validator<Json>::keyword_validator_type;
         using schema_validator_type = typename schema_validator<Json>::schema_validator_type;
 
-        schema_validator_type items_validator_;
+        schema_validator_type items_val_;
     public:
         items_object_validator(const uri& schema_path, 
-            schema_validator_type&& items_validator)
+            schema_validator_type&& items_val)
             : keyword_validator_base<Json>("items", schema_path), 
-              items_validator_(std::move(items_validator))
+              items_val_(std::move(items_val))
         {
+        }
+
+        const schema_validator<Json>* match_dynamic_anchor(const std::string& s) const final
+        {
+            if (items_val_ != nullptr && !items_val_->id()) 
+            {
+                auto p = items_val_->match_dynamic_anchor(s);
+                if (p != nullptr)
+                {
+                    return p;
+                }
+            }
+            return nullptr;
         }
 
     private:
 
         void do_validate(const evaluation_context<Json>& eval_context, const Json& instance, 
             const jsonpointer::json_pointer& instance_location,
-            std::unordered_set<std::string>& evaluated_properties, 
+            evaluation_results& results, 
             error_reporter& reporter,
-            Json& patch) const final
+            Json& patch, 
+            const evaluation_options& options) const final
         {
             if (!instance.is_array())
             {
@@ -621,19 +807,26 @@ namespace jsonschema {
 
             evaluation_context<Json> this_context(eval_context, this->keyword_name());
 
-            size_t index = 0;
-            if (items_validator_)
+            if (items_val_)
             {
+                size_t index = 0;
                 for (const auto& item : instance.array_range()) 
                 {
                     jsonpointer::json_pointer pointer(instance_location);
                     pointer /= index;
-                    items_validator_->validate(this_context, item, pointer, evaluated_properties, reporter, patch);
-                    index++;
+                    std::size_t errors = reporter.error_count();
+                    items_val_->validate(this_context, item, pointer, results, reporter, patch, options);
+                    if (eval_context.require_evaluated_items() && errors == reporter.error_count())
+                    {
+                        results.evaluated_items.insert(index);
+                    }
+                    ++index;
                 }
             }
         }
     };
+
+    // items
 
     // uniqueItems
 
@@ -649,13 +842,19 @@ namespace jsonschema {
         {
         }
 
+        const schema_validator<Json>* match_dynamic_anchor(const std::string& /*s*/) const final
+        {
+            return nullptr;
+        }
+
     private:
 
         void do_validate(const evaluation_context<Json>& eval_context, const Json& instance, 
             const jsonpointer::json_pointer& instance_location,
-            std::unordered_set<std::string>&, 
+            evaluation_results& /*results*/, 
             error_reporter& reporter,
-            Json&) const final
+            Json& /*patch*/, 
+            const evaluation_options& /*options*/) const final
         {
             if (!instance.is_array())
             {
@@ -709,13 +908,19 @@ namespace jsonschema {
         {
         }
 
+        const schema_validator<Json>* match_dynamic_anchor(const std::string& /*s*/) const final
+        {
+            return nullptr;
+        }
+
     private:
 
         void do_validate(const evaluation_context<Json>& eval_context, const Json& instance, 
             const jsonpointer::json_pointer& instance_location,
-            std::unordered_set<std::string>&, 
+            evaluation_results& /*results*/, 
             error_reporter& reporter,
-            Json&) const final
+            Json& /*patch*/, 
+            const evaluation_options& /*options*/) const final
         {
             if (!instance.is_string())
             {
@@ -760,18 +965,33 @@ namespace jsonschema {
         {
         }
 
+        const schema_validator<Json>* match_dynamic_anchor(const std::string& s) const final
+        {
+            if (rule_ != nullptr && !rule_->id()) 
+            {
+                auto p = rule_->match_dynamic_anchor(s);
+                if (p != nullptr)
+                {
+                    return p;
+                }
+            }
+            return nullptr;
+        }
+
     private:
 
         void do_validate(const evaluation_context<Json>& eval_context, const Json& instance, 
             const jsonpointer::json_pointer& instance_location,
-            std::unordered_set<std::string>& evaluated_properties, 
+            evaluation_results& results, 
             error_reporter& reporter, 
-            Json& patch) const final
+            Json& patch, 
+            const evaluation_options& options) const final
         {
             evaluation_context<Json> this_context(eval_context, this->keyword_name());
 
+            evaluation_results local_results;
             collecting_error_reporter local_reporter;
-            rule_->validate(this_context, instance, instance_location, evaluated_properties, local_reporter, patch);
+            rule_->validate(this_context, instance, instance_location, local_results, local_reporter, patch, options);
 
             if (local_reporter.errors.empty())
             {
@@ -781,143 +1001,9 @@ namespace jsonschema {
                     instance_location.to_string(), 
                     "Instance must not be valid against schema"));
             }
-        }
-    };
-
-    template <class Json>
-    struct all_of_criterion
-    {
-        static const std::string& key()
-        {
-            static const std::string k("allOf");
-            return k;
-        }
-
-        static bool is_complete(const evaluation_context<Json>& eval_context, 
-            const Json&, 
-            const jsonpointer::json_pointer& instance_location, 
-            error_reporter& reporter, 
-            const collecting_error_reporter& local_reporter, 
-            std::size_t)
-        {
-            if (!local_reporter.errors.empty())
-                reporter.error(validation_output(key(),
-                    eval_context.eval_path(), 
-                    uri(""),
-                    instance_location.to_string(), 
-                    "At least one schema failed to match, but all are required to match. ", 
-                    local_reporter.errors));
-            return !local_reporter.errors.empty();
-        }
-    };
-
-    template <class Json>
-    struct any_of_criterion
-    {
-        static const std::string& key()
-        {
-            static const std::string k("anyOf");
-            return k;
-        }
-
-        static bool is_complete(const evaluation_context<Json>&, 
-            const Json&, 
-            const jsonpointer::json_pointer&, 
-            error_reporter&, 
-            const collecting_error_reporter&, 
-            std::size_t count)
-        {
-            //std::cout << "any_of_criterion is_complete\n";
-            return count == 1;
-        }
-    };
-
-    template <class Json>
-    struct one_of_criterion
-    {
-        static const std::string& key()
-        {
-            static const std::string k("oneOf");
-            return k;
-        }
-
-        static bool is_complete(const evaluation_context<Json>& eval_context, 
-            const Json&, 
-            const jsonpointer::json_pointer& instance_location, 
-            error_reporter& reporter, 
-            const collecting_error_reporter&, 
-            std::size_t count)
-        {
-            if (count > 1)
+            else
             {
-                std::string message(std::to_string(count));
-                message.append(" subschemas matched, but exactly one is required to match");
-                reporter.error(validation_output(key(),
-                    eval_context.eval_path(), 
-                    uri("XXX"), 
-                    instance_location.to_string(), 
-                    std::move(message)));
-            }
-            return count > 1;
-        }
-    };
-
-    template <class Json,class Criterion>
-    class combining_validator : public keyword_validator_base<Json>
-    {
-        using keyword_validator_type = typename keyword_validator<Json>::keyword_validator_type;
-        using schema_validator_type = typename schema_validator<Json>::schema_validator_type;
-
-        std::vector<schema_validator_type> validators_;
-
-    public:
-        combining_validator(const uri& schema_path,
-             std::vector<schema_validator_type>&& validators)
-            : keyword_validator_base<Json>(Criterion::key(), std::move(schema_path)),
-              validators_(std::move(validators))
-        {
-        }
-
-    private:
-
-        void do_validate(const evaluation_context<Json>& eval_context, const Json& instance, 
-            const jsonpointer::json_pointer& instance_location,
-            std::unordered_set<std::string>& evaluated_properties, 
-            error_reporter& reporter, 
-            Json& patch) const final
-        {
-            //std::cout << "combining_validator.do_validate " << "keywordLocation: << " << this->schema_path().string() << ", instanceLocation:" << instance_location.to_string() << "\n";
-
-            size_t count = 0;
-
-            collecting_error_reporter local_reporter;
-
-            evaluation_context<Json> this_context(eval_context, this->keyword_name());
-
-            bool is_complete = false;
-            for (std::size_t i = 0; i < validators_.size(); ++i) 
-            {
-                evaluation_context<Json> item_context(this_context, i);
-
-                std::size_t mark = local_reporter.errors.size();
-                validators_[i]->validate(item_context, instance, instance_location, evaluated_properties, local_reporter, patch);
-                if (!is_complete)
-                {
-                    if (mark == local_reporter.errors.size())
-                        count++;
-                    if (Criterion::is_complete(item_context, instance, instance_location, reporter, local_reporter, count))
-                        is_complete = true;
-                }
-            }
-
-            if (count == 0)
-            {
-                reporter.error(validation_output(Criterion::key(),
-                    this_context.eval_path(), 
-                    this->schema_path(), 
-                    instance_location.to_string(), 
-                    "No schema matched, but one of them is required to match", 
-                    local_reporter.errors));
+                results.merge(local_results);
             }
         }
     };
@@ -938,13 +1024,30 @@ namespace jsonschema {
         {
         }
 
+        const schema_validator<Json>* match_dynamic_anchor(const std::string& s) const final
+        {
+            for (const auto& val : validators_)
+            {
+                if (!val->id())
+                {
+                    auto p = val->match_dynamic_anchor(s);
+                    if (p != nullptr)
+                    {
+                        return p;
+                    }
+                }
+            }
+            return nullptr;
+        }
+
     private:
 
         void do_validate(const evaluation_context<Json>& eval_context, const Json& instance, 
             const jsonpointer::json_pointer& instance_location,
-            std::unordered_set<std::string>& evaluated_properties, 
+            evaluation_results& results, 
             error_reporter& reporter, 
-            Json& patch) const final
+            Json& patch, 
+            const evaluation_options& options) const final
         {
             //std::cout << "any_of_validator.do_validate " << eval_context.eval_path().to_string() << ", " << instance << "\n";
 
@@ -952,27 +1055,205 @@ namespace jsonschema {
 
             evaluation_context<Json> this_context(eval_context, this->keyword_name());
 
-            bool is_complete = false;
-            for (std::size_t i = 0; i < validators_.size() && !is_complete; ++i) 
+            evaluation_results local_results1;
+            std::size_t count = 0;
+            for (std::size_t i = 0; i < validators_.size(); ++i) 
             {
+                evaluation_results local_results2;
                 evaluation_context<Json> item_context(this_context, i);
 
-                std::size_t mark = local_reporter.errors.size();
-                validators_[i]->validate(item_context, instance, instance_location, evaluated_properties, local_reporter, patch);
-                if (mark == local_reporter.errors.size())
+                std::size_t errors = local_reporter.errors.size();
+                validators_[i]->validate(item_context, instance, instance_location, local_results2, local_reporter, patch, options);
+                if (errors == local_reporter.errors.size())
                 {
-                    is_complete = true;
+                    local_results1.merge(local_results2);
+                    ++count;
                 }
-                //std::cout << "is_complete: " << i << " " << is_complete << "\n";
+                //std::cout << "success: " << i << " " << success << "\n";
             }
 
-            if (!is_complete)
+            if (count > 0)
+            {
+                results.merge(local_results1);
+            }
+            else 
             {
                 reporter.error(validation_output(this->keyword_name(),
                     this_context.eval_path(), 
                     this->schema_path(), 
                     instance_location.to_string(), 
-                    "No schema matched, but one of them is required to match", 
+                    "No schema matched, but at least one of them is required to match", 
+                    local_reporter.errors));
+            }
+        }
+    };
+
+    template <class Json>
+    class one_of_validator : public keyword_validator_base<Json>
+    {
+        using keyword_validator_type = typename keyword_validator<Json>::keyword_validator_type;
+        using schema_validator_type = typename schema_validator<Json>::schema_validator_type;
+
+        std::vector<schema_validator_type> validators_;
+
+    public:
+        one_of_validator(const uri& schema_path,
+             std::vector<schema_validator_type>&& validators)
+            : keyword_validator_base<Json>("oneOf", schema_path),
+              validators_(std::move(validators))
+        {
+        }
+
+        const schema_validator<Json>* match_dynamic_anchor(const std::string& s) const final
+        {
+            for (const auto& val : validators_)
+            {
+                if (!val->id())
+                {
+                    auto p = val->match_dynamic_anchor(s);
+                    if (p != nullptr)
+                    {
+                        return p;
+                    }
+                }
+            }
+            return nullptr;
+        }
+
+    private:
+
+        void do_validate(const evaluation_context<Json>& eval_context, const Json& instance, 
+            const jsonpointer::json_pointer& instance_location,
+            evaluation_results& results, 
+            error_reporter& reporter, 
+            Json& patch, 
+            const evaluation_options& options) const final
+        {
+            //std::cout << "any_of_validator.do_validate " << eval_context.eval_path().to_string() << ", " << instance << "\n";
+
+            collecting_error_reporter local_reporter;
+
+            evaluation_context<Json> this_context(eval_context, this->keyword_name());
+
+            evaluation_results local_results1;
+            std::size_t count = 0;
+            for (std::size_t i = 0; i < validators_.size(); ++i) 
+            {
+                evaluation_results local_results2;
+                evaluation_context<Json> item_context(this_context, i);
+
+                std::size_t errors = local_reporter.errors.size();
+                validators_[i]->validate(item_context, instance, instance_location, local_results2, local_reporter, patch, options);
+                if (errors == local_reporter.errors.size())
+                {
+                    local_results1.merge(local_results2);
+                    ++count;
+                }
+                //std::cout << "success: " << i << " " << success << "\n";
+            }
+
+            if (count == 1)
+            {
+                results.merge(local_results1);
+            }
+            else 
+            {
+                reporter.error(validation_output(this->keyword_name(),
+                    this_context.eval_path(), 
+                    this->schema_path(), 
+                    instance_location.to_string(), 
+                    "No schema matched, but exactly one of them is required to match", 
+                    local_reporter.errors));
+            }
+        }
+    };
+
+    template <class Json>
+    class all_of_validator : public keyword_validator_base<Json>
+    {
+        using keyword_validator_type = typename keyword_validator<Json>::keyword_validator_type;
+        using schema_validator_type = typename schema_validator<Json>::schema_validator_type;
+
+        std::vector<schema_validator_type> validators_;
+
+    public:
+        all_of_validator(const uri& schema_path,
+             std::vector<schema_validator_type>&& validators)
+            : keyword_validator_base<Json>("allOf", schema_path),
+              validators_(std::move(validators))
+        {
+        }
+
+        const schema_validator<Json>* match_dynamic_anchor(const std::string& s) const final
+        {
+            for (const auto& val : validators_)
+            {
+                if (!val->id())
+                {
+                    auto p = val->match_dynamic_anchor(s);
+                    if (p != nullptr)
+                    {
+                        return p;
+                    }
+                }
+            }
+            return nullptr;
+        }
+
+    private:
+
+        void do_validate(const evaluation_context<Json>& eval_context, const Json& instance, 
+            const jsonpointer::json_pointer& instance_location,
+            evaluation_results& results, 
+            error_reporter& reporter, 
+            Json& patch, 
+            const evaluation_options& options) const final
+        {
+            //std::cout << this->keyword_name() << " [" << eval_context.eval_path().to_string() << ", " << this->schema_path().string() << "]\n";
+
+            evaluation_results local_results1;
+            collecting_error_reporter local_reporter;
+
+            evaluation_context<Json> this_context(eval_context, this->keyword_name());
+
+            std::size_t count = 0;
+            for (std::size_t i = 0; i < validators_.size(); ++i) 
+            {
+                evaluation_results local_results2;
+                evaluation_context<Json> item_context(this_context, i);
+
+                std::size_t errors = local_reporter.errors.size();
+                validators_[i]->validate(item_context, instance, instance_location, local_results2, local_reporter, patch, options);
+                //std::cout << "local_results2:\n";
+                //for (const auto& s : local_results2.evaluated_items)
+                //{
+                //    std::cout << "    " << s << "\n";
+                //}
+                if (errors == local_reporter.errors.size())
+                {
+                    local_results1.merge(local_results2);
+                    ++count;
+                }
+                //std::cout << "success: " << i << " " << success << "\n";
+            }
+
+            //std::cout << "local_results1:\n";
+            //for (const auto& s : local_results1.evaluated_items)
+            //{
+            //    std::cout << "    " << s << "\n";
+            //}
+
+            if (count == validators_.size())
+            {
+                results.merge(local_results1);
+            }
+            else 
+            {
+                reporter.error(validation_output(this->keyword_name(),
+                    this_context.eval_path(), 
+                    this->schema_path(), 
+                    instance_location.to_string(), 
+                    "No schema matched, but all of them are required to match", 
                     local_reporter.errors));
             }
         }
@@ -993,13 +1274,19 @@ namespace jsonschema {
         {
         }
 
+        const schema_validator<Json>* match_dynamic_anchor(const std::string& /*s*/) const final
+        {
+            return nullptr;
+        }
+
     private:
 
         void do_validate(const evaluation_context<Json>& eval_context, const Json& instance, 
             const jsonpointer::json_pointer& instance_location,
-            std::unordered_set<std::string>&, 
+            evaluation_results& /*results*/, 
             error_reporter& reporter, 
-            Json&) const final 
+            Json& /*patch*/, 
+            const evaluation_options& /*options*/) const final 
         {
             evaluation_context<Json> this_context(eval_context, this->keyword_name());
 
@@ -1051,13 +1338,19 @@ namespace jsonschema {
         {
         }
 
+        const schema_validator<Json>* match_dynamic_anchor(const std::string& /*s*/) const final
+        {
+            return nullptr;
+        }
+
     private:
 
         void do_validate(const evaluation_context<Json>& eval_context, const Json& instance, 
             const jsonpointer::json_pointer& instance_location,
-            std::unordered_set<std::string>&, 
+            evaluation_results& /*results*/, 
             error_reporter& reporter, 
-            Json&) const final 
+            Json& /*patch*/, 
+            const evaluation_options& /*options*/) const final 
         {
             evaluation_context<Json> this_context(eval_context, this->keyword_name());
 
@@ -1109,13 +1402,19 @@ namespace jsonschema {
         {
         }
 
+        const schema_validator<Json>* match_dynamic_anchor(const std::string& /*s*/) const final
+        {
+            return nullptr;
+        }
+
     private:
 
         void do_validate(const evaluation_context<Json>& eval_context, const Json& instance, 
             const jsonpointer::json_pointer& instance_location,
-            std::unordered_set<std::string>&, 
+            evaluation_results& /*results*/, 
             error_reporter& reporter, 
-            Json&) const final 
+            Json& /*patch*/, 
+            const evaluation_options& /*options*/) const final
         {
             evaluation_context<Json> this_context(eval_context, this->keyword_name());
 
@@ -1167,13 +1466,19 @@ namespace jsonschema {
         {
         }
 
+        const schema_validator<Json>* match_dynamic_anchor(const std::string& /*s*/) const final
+        {
+            return nullptr;
+        }
+
     private:
 
         void do_validate(const evaluation_context<Json>& eval_context, const Json& instance, 
             const jsonpointer::json_pointer& instance_location,
-            std::unordered_set<std::string>&, 
+            evaluation_results& /*results*/, 
             error_reporter& reporter, 
-            Json&) const final 
+            Json& /*patch*/, 
+            const evaluation_options& /*options*/) const final 
         {
             evaluation_context<Json> this_context(eval_context, this->keyword_name());
 
@@ -1223,13 +1528,19 @@ namespace jsonschema {
         {
         }
 
+        const schema_validator<Json>* match_dynamic_anchor(const std::string& /*s*/) const final
+        {
+            return nullptr;
+        }
+
     private:
 
         void do_validate(const evaluation_context<Json>& eval_context, const Json& instance, 
             const jsonpointer::json_pointer& instance_location,
-            std::unordered_set<std::string>&, 
+            evaluation_results& /*results*/, 
             error_reporter& reporter, 
-            Json&) const final
+            Json& /*patch*/, 
+            const evaluation_options& /*options*/) const final
         {
             if (!instance.is_number())
             {
@@ -1278,13 +1589,19 @@ namespace jsonschema {
         required_validator& operator=(const required_validator&) = delete;
         required_validator& operator=(required_validator&&) = default;
 
+        const schema_validator<Json>* match_dynamic_anchor(const std::string& /*s*/) const final
+        {
+            return nullptr;
+        }
+
     private:
 
         void do_validate(const evaluation_context<Json>& eval_context, const Json& instance, 
             const jsonpointer::json_pointer& instance_location,
-            std::unordered_set<std::string>&, 
+            evaluation_results& /*results*/, 
             error_reporter& reporter, 
-            Json&) const final
+            Json& /*patch*/, 
+            const evaluation_options& /*options*/) const final
         {
             if (!instance.is_object())
             {
@@ -1326,20 +1643,27 @@ namespace jsonschema {
         {
         }
 
+        const schema_validator<Json>* match_dynamic_anchor(const std::string& /*s*/) const final
+        {
+            return nullptr;
+        }
+
     private:
 
         void do_validate(const evaluation_context<Json>& eval_context, const Json& instance, 
             const jsonpointer::json_pointer& instance_location,
-            std::unordered_set<std::string>&, 
+            evaluation_results& /*results*/, 
             error_reporter& reporter,
-            Json&) const final
+            Json& /*patch*/, 
+            const evaluation_options& /*options*/) const final
         {
             if (!instance.is_object())
             {
-                if (instance.size() > max_properties_)
-                {
-                    return;
-                }
+                return;
+            }
+            
+            if (instance.size() > max_properties_)
+            {
                 evaluation_context<Json> this_context(eval_context, this->keyword_name());
 
                 std::string message("Maximum properties: " + std::to_string(max_properties_));
@@ -1349,12 +1673,7 @@ namespace jsonschema {
                     this->schema_path(), 
                     instance_location.to_string(), 
                     std::move(message)));
-                if (reporter.fail_early())
-                {
-                    return;
-                }
-                
-            }
+            }           
         }
     };
 
@@ -1372,13 +1691,19 @@ namespace jsonschema {
         {
         }
 
+        const schema_validator<Json>* match_dynamic_anchor(const std::string& /*s*/) const final
+        {
+            return nullptr;
+        }
+
     private:
 
         void do_validate(const evaluation_context<Json>& eval_context, const Json& instance, 
             const jsonpointer::json_pointer& instance_location,
-            std::unordered_set<std::string>&, 
+            evaluation_results& /*results*/, 
             error_reporter& reporter,
-            Json&) const final
+            Json& /*patch*/, 
+            const evaluation_options& /*options*/) const final
         {
             if (!instance.is_object())
             {
@@ -1395,72 +1720,8 @@ namespace jsonschema {
                         this->schema_path(),
                         instance_location.to_string(),
                         std::move(message)));
-                if (reporter.fail_early())
-                {
-                    return;
-                }
             }
             
-        }
-    };
-
-    template <class Json>
-    class unevaluated_properties_validator : public keyword_validator_base<Json>
-    {
-        using keyword_validator_type = typename keyword_validator<Json>::keyword_validator_type;
-        using schema_validator_type = typename schema_validator<Json>::schema_validator_type;
-
-        schema_validator_type validator_;
-
-    public:
-        unevaluated_properties_validator(const uri& schema_path,
-            schema_validator_type&& validator
-        )
-            : keyword_validator_base<Json>("unevaluatedProperties", std::move(schema_path)), 
-              validator_(std::move(validator))
-        {
-        }
-
-    private:
-
-        void do_validate(const evaluation_context<Json>& eval_context, const Json& instance, 
-            const jsonpointer::json_pointer& instance_location,
-            std::unordered_set<std::string>& evaluated_properties, 
-            error_reporter& reporter, 
-            Json& patch) const final
-        {
-            //std::cout << "Evaluated properties\n";
-            //for (const auto& s : evaluated_properties)
-            //{
-            //    std::cout << "    " << s << "\n";
-            //}
-            //std::cout << "\n";
-            if (!instance.is_object())
-            {
-                return;
-            }
-
-            if (validator_)
-            {
-                evaluation_context<Json> this_context(eval_context, this->keyword_name());
-
-                for (const auto& prop : instance.object_range()) 
-                {
-                    auto prop_it = evaluated_properties.find(prop.key());
-
-                    // check if it is in "evaluated_properties"
-                    if (prop_it == evaluated_properties.end()) 
-                    {
-                        
-                        std::size_t error_count = reporter.error_count();
-                        validator_->validate(this_context, prop.value() , instance_location, evaluated_properties, reporter, patch);
-                        if (reporter.error_count() == error_count)
-                        {
-                            evaluated_properties.insert(prop.key());
-                        }
-                    }
-                }
-            }
         }
     };
 
@@ -1470,45 +1731,75 @@ namespace jsonschema {
         using keyword_validator_type = typename keyword_validator<Json>::keyword_validator_type;
         using schema_validator_type = typename schema_validator<Json>::schema_validator_type;
 
-        schema_validator_type if_validator_;
-        schema_validator_type then_validator_;
-        schema_validator_type else_validator_;
+        schema_validator_type if_val_;
+        schema_validator_type then_val_;
+        schema_validator_type else_val_;
 
     public:
         conditional_validator(const uri& schema_path,
-          schema_validator_type&& if_validator,
-          schema_validator_type&& then_validator,
-          schema_validator_type&& else_validator
+          schema_validator_type&& if_val,
+          schema_validator_type&& then_val,
+          schema_validator_type&& else_val
         ) : keyword_validator_base<Json>("", std::move(schema_path)), 
-              if_validator_(std::move(if_validator)), 
-              then_validator_(std::move(then_validator)), 
-              else_validator_(std::move(else_validator))
+              if_val_(std::move(if_val)), 
+              then_val_(std::move(then_val)), 
+              else_val_(std::move(else_val))
         {
+        }
+
+        const schema_validator<Json>* match_dynamic_anchor(const std::string& s) const final
+        {
+            if (if_val_ != nullptr && !if_val_->id()) 
+            {
+                auto p = if_val_->match_dynamic_anchor(s);
+                if (p != nullptr)
+                {
+                    return p;
+                }
+            }
+            if (then_val_ != nullptr && !then_val_->id()) 
+            {
+                auto p = then_val_->match_dynamic_anchor(s);
+                if (p != nullptr)
+                {
+                    return p;
+                }
+            }
+            if (else_val_ != nullptr && !else_val_->id()) 
+            {
+                auto p = else_val_->match_dynamic_anchor(s);
+                if (p != nullptr)
+                {
+                    return p;
+                }
+            }
+            return nullptr;
         }
 
     private:
 
         void do_validate(const evaluation_context<Json>& eval_context, const Json& instance, 
             const jsonpointer::json_pointer& instance_location,
-            std::unordered_set<std::string>& evaluated_properties, 
+            evaluation_results& results, 
             error_reporter& reporter, 
-            Json& patch) const final
+            Json& patch, 
+            const evaluation_options& options) const final
         {
             evaluation_context<Json> this_context(eval_context, this->keyword_name());
-            if (if_validator_) 
+            if (if_val_) 
             {
                 collecting_error_reporter local_reporter;
 
-                if_validator_->validate(this_context, instance, instance_location, evaluated_properties, local_reporter, patch);
+                if_val_->validate(this_context, instance, instance_location, results, local_reporter, patch, options);
                 if (local_reporter.errors.empty()) 
                 {
-                    if (then_validator_)
-                        then_validator_->validate(this_context, instance, instance_location, evaluated_properties, reporter, patch);
+                    if (then_val_)
+                        then_val_->validate(this_context, instance, instance_location, results, reporter, patch, options);
                 } 
                 else 
                 {
-                    if (else_validator_)
-                        else_validator_->validate(this_context, instance, instance_location, evaluated_properties, reporter, patch);
+                    if (else_val_)
+                        else_val_->validate(this_context, instance, instance_location, results, reporter, patch, options);
                 }
             }
         }
@@ -1529,13 +1820,19 @@ namespace jsonschema {
         {
         }
 
+        const schema_validator<Json>* match_dynamic_anchor(const std::string& /*s*/) const final
+        {
+            return nullptr;
+        }
+
     private:
 
         void do_validate(const evaluation_context<Json>& eval_context, const Json& instance, 
             const jsonpointer::json_pointer& instance_location,
-            std::unordered_set<std::string>&, 
+            evaluation_results& /*results*/, 
             error_reporter& reporter,
-            Json&) const final
+            Json& /*patch*/, 
+            const evaluation_options& /*options*/) const final
         {
             evaluation_context<Json> this_context(eval_context, this->keyword_name());
 
@@ -1579,13 +1876,19 @@ namespace jsonschema {
         {
         }
 
+        const schema_validator<Json>* match_dynamic_anchor(const std::string& /*s*/) const final
+        {
+            return nullptr;
+        }
+
     private:
 
         void do_validate(const evaluation_context<Json>& eval_context, const Json& instance, 
             const jsonpointer::json_pointer& instance_location,
-            std::unordered_set<std::string>&, 
+            evaluation_results& /*results*/, 
             error_reporter& reporter,
-            Json&) const final
+            Json& /*patch*/, 
+            const evaluation_options& /*options*/) const final
         {
             if (value_ != instance)
             {
@@ -1647,13 +1950,19 @@ namespace jsonschema {
         {
         }
 
+        const schema_validator<Json>* match_dynamic_anchor(const std::string& /*s*/) const final
+        {
+            return nullptr;
+        }
+
     private:
 
         void do_validate(const evaluation_context<Json>& eval_context, const Json& instance, 
             const jsonpointer::json_pointer& instance_location,
-            std::unordered_set<std::string>& /*valuated_properties*/,
+            evaluation_results& /*results*/,
             error_reporter& reporter, 
-            Json& /*patch*/) const final
+            Json& /*patch*/, 
+            const evaluation_options& /*options*/) const final
         {
             //std::cout << "type_validator.do_validate " << eval_context.eval_path().to_string() << instance << "\n";
             //for (auto& type : expected_types_ )
@@ -1763,7 +2072,7 @@ namespace jsonschema {
     };
 
     template <class Json>
-    class properties_validator : public keyword_base<Json>
+    class properties_validator : public keyword_validator_base<Json>
     {
         using keyword_validator_type = typename keyword_validator<Json>::keyword_validator_type;
         using schema_validator_type = typename schema_validator<Json>::schema_validator_type;
@@ -1773,24 +2082,49 @@ namespace jsonschema {
         properties_validator(const uri& schema_path,
             std::map<std::string, schema_validator_type>&& properties
         )
-            : keyword_base<Json>("properties", std::move(schema_path)), 
+            : keyword_validator_base<Json>("properties", std::move(schema_path)),
               properties_(std::move(properties))
         {
         }
 
+        const schema_validator<Json>* match_dynamic_anchor(const std::string& s) const final
+        {
+            for (const auto& member : properties_)
+            {
+                if (!member.second->id())
+                {
+                    auto p = member.second->match_dynamic_anchor(s);
+                    if (p != nullptr)
+                    {
+                        return p;
+                    }
+                }
+            }
+            return nullptr;
+        }
+
         void validate(const evaluation_context<Json>& eval_context, const Json& instance, 
             const jsonpointer::json_pointer& instance_location,
-            std::unordered_set<std::string>& evaluated_properties, 
+            evaluation_results& results, 
             error_reporter& reporter, 
             Json& patch,
-            std::unordered_set<std::string>& all_properties) const 
+            std::unordered_set<std::string>& all_properties,
+            const evaluation_options& options) const 
         {
+            //std::cout << "properties_validator begin[" << eval_context.eval_path().to_string() << "," << this->schema_path().string() << "]\n";
             if (!instance.is_object())
             {
                 return;
             }
 
-            evaluation_context<Json> this_context(eval_context, this->keyword_name());
+            //std::cout << "results:\n";
+            //for (const auto& s : results)
+            //{
+            //    std::cout << "    " << s << "\n";
+            //}
+            //std::cout << "\n";
+
+            evaluation_context<Json> this_context(eval_context, this->keyword_name(), evaluation_flags{});
 
             for (const auto& prop : instance.object_range()) 
             {
@@ -1804,12 +2138,12 @@ namespace jsonschema {
                 // check if it is in "properties"
                 if (properties_it != properties_.end()) 
                 {
-                    std::size_t error_count = reporter.error_count();
-                    properties_it->second->validate(prop_context, prop.value() , pointer, evaluated_properties, reporter, patch);
+                    std::size_t errors = reporter.error_count();
+                    properties_it->second->validate(prop_context, prop.value() , pointer, results, reporter, patch, options);
                     all_properties.insert(prop.key());
-                    if (reporter.error_count() == error_count)
+                    if (eval_context.require_evaluated_properties() && errors == reporter.error_count())
                     {
-                        evaluated_properties.insert(prop.key());
+                        results.evaluated_properties.insert(prop.key());
                     }
                 }
             }
@@ -1818,6 +2152,7 @@ namespace jsonschema {
             // reverse search
             for (auto const& prop : properties_) 
             {
+                //std::cout << "   prop:" << prop.first << "\n";
                 const auto finding = instance.find(prop.first);
                 if (finding == instance.object_range().end()) 
                 { 
@@ -1833,9 +2168,27 @@ namespace jsonschema {
                     }
                 }
             }
+            //std::cout << "properties_validator end[" << eval_context.eval_path().to_string() << "," << this->schema_path().string() << "]";
+            //std::cout << "results:\n";
+            //for (const auto& s : results)
+            //{
+            //    std::cout << "    " << s << "\n";
+            //}
+            //std::cout << "\n";
         }
 
     private:
+
+        void do_validate(const evaluation_context<Json>& eval_context, const Json& instance, 
+            const jsonpointer::json_pointer& instance_location,
+            evaluation_results& results, 
+            error_reporter& reporter, 
+            Json& patch, 
+            const evaluation_options& options) const final
+        {
+            std::unordered_set<std::string> all_properties;
+            validate(eval_context, instance, instance_location, results, reporter, patch, all_properties, options);
+        }
 
         void update_patch(Json& patch, const jsonpointer::json_pointer& instance_location, Json&& default_value) const
         {
@@ -1848,7 +2201,7 @@ namespace jsonschema {
     };
 
     template <class Json>
-    class pattern_properties_validator : public keyword_base<Json>
+    class pattern_properties_validator : public keyword_validator_base<Json>
     {
         using keyword_validator_type = typename keyword_validator<Json>::keyword_validator_type;
         using schema_validator_type = typename schema_validator<Json>::schema_validator_type;
@@ -1858,18 +2211,35 @@ namespace jsonschema {
         pattern_properties_validator(const uri& schema_path,
             std::vector<std::pair<std::regex, schema_validator_type>>&& pattern_properties
         )
-            : keyword_base<Json>("patternProperties", std::move(schema_path)), 
+            : keyword_validator_base<Json>("patternProperties", std::move(schema_path)),
               pattern_properties_(std::move(pattern_properties))
         {
+        }
+
+        const schema_validator<Json>* match_dynamic_anchor(const std::string& s) const final
+        {
+            for (const auto& member : pattern_properties_)
+            {
+                if (!member.second->id())
+                {
+                    auto p = member.second->match_dynamic_anchor(s);
+                    if (p != nullptr)
+                    {
+                        return p;
+                    }
+                }
+            }
+            return nullptr;
         }
 
 #if defined(JSONCONS_HAS_STD_REGEX)
         void validate(const evaluation_context<Json>& eval_context, const Json& instance, 
             const jsonpointer::json_pointer& instance_location, 
-            std::unordered_set<std::string>& evaluated_properties, 
+            evaluation_results& results, 
             error_reporter& reporter, 
             Json& patch,
-            std::unordered_set<std::string>& all_properties) const 
+            std::unordered_set<std::string>& all_properties,
+            const evaluation_options& options) const 
         {
             if (!instance.is_object())
             {
@@ -1887,11 +2257,11 @@ namespace jsonschema {
                     if (std::regex_search(prop.key(), schema_pp.first)) 
                     {
                         all_properties.insert(prop.key());
-                        std::size_t error_count = reporter.error_count();
-                        schema_pp.second->validate(prop_context, prop.value() , pointer, evaluated_properties, reporter, patch);
-                        if (reporter.error_count() == error_count)
+                        std::size_t errors = reporter.error_count();
+                        schema_pp.second->validate(prop_context, prop.value() , pointer, results, reporter, patch, options);
+                        if (eval_context.require_evaluated_properties() && errors == reporter.error_count())
                         {
-                            evaluated_properties.insert(prop.key());
+                            results.evaluated_properties.insert(prop.key());
                         }
                     }
             }
@@ -1899,6 +2269,17 @@ namespace jsonschema {
         }
 
     private:
+
+        void do_validate(const evaluation_context<Json>& eval_context, const Json& instance, 
+            const jsonpointer::json_pointer& instance_location,
+            evaluation_results& results, 
+            error_reporter& reporter, 
+            Json& patch, 
+            const evaluation_options& options) const final
+        {
+            std::unordered_set<std::string> all_properties;
+            validate(eval_context, instance, instance_location, results, reporter, patch, all_properties, options);
+        }
     };
 
     template <class Json>
@@ -1924,13 +2305,43 @@ namespace jsonschema {
         {
         }
 
+        const schema_validator<Json>* match_dynamic_anchor(const std::string& s) const final
+        {
+            if (properties_ != nullptr)
+            {
+                auto p = properties_->match_dynamic_anchor(s);
+                if (p != nullptr)
+                {
+                    return p;
+                }
+            }
+            if (pattern_properties_ != nullptr)
+            {
+                auto p = pattern_properties_->match_dynamic_anchor(s);
+                if (p != nullptr)
+                {
+                    return p;
+                }
+            }
+            if (additional_properties_ != nullptr && !additional_properties_->id()) 
+            {
+                auto p = additional_properties_->match_dynamic_anchor(s);
+                if (p != nullptr)
+                {
+                    return p;
+                }
+            }
+            return nullptr;
+        }
+
     private:
 
         void do_validate(const evaluation_context<Json>& eval_context, const Json& instance, 
             const jsonpointer::json_pointer& instance_location,
-            std::unordered_set<std::string>& evaluated_properties, 
+            evaluation_results& results, 
             error_reporter& reporter, 
-            Json& patch) const final
+            Json& patch, 
+            const evaluation_options& options) const final
         {
             if (!instance.is_object())
             {
@@ -1943,7 +2354,7 @@ namespace jsonschema {
 
             if (properties_)
             {
-                properties_->validate(this_context, instance, instance_location, evaluated_properties, reporter, patch, all_properties);
+                properties_->validate(this_context, instance, instance_location, results, reporter, patch, all_properties, options);
                 if (reporter.fail_early())
                 {
                     return;
@@ -1952,7 +2363,7 @@ namespace jsonschema {
 
             if (pattern_properties_)
             {
-                pattern_properties_->validate(this_context, instance, instance_location, evaluated_properties, reporter, patch, all_properties);
+                pattern_properties_->validate(this_context, instance, instance_location, results, reporter, patch, all_properties, options);
                 if (reporter.fail_early())
                 {
                     return;
@@ -1976,7 +2387,7 @@ namespace jsonschema {
                         //std::cout << " !!!additionalProperties!!!";
                         collecting_error_reporter local_reporter;
 
-                        additional_properties_->validate(this_context, prop.value() , pointer, evaluated_properties, local_reporter, patch);
+                        additional_properties_->validate(this_context, prop.value() , pointer, results, local_reporter, patch, options);
                         if (!local_reporter.errors.empty())
                         {
                             reporter.error(validation_output(this->keyword_name(),
@@ -1989,9 +2400,9 @@ namespace jsonschema {
                                 return;
                             }
                         }
-                        else
+                        else if (eval_context.require_evaluated_properties())
                         {
-                            evaluated_properties.insert(prop.key());
+                            results.evaluated_properties.insert(prop.key());
                         }
                     }
                 }
@@ -2016,13 +2427,27 @@ namespace jsonschema {
         {
         }
 
+        const schema_validator<Json>* match_dynamic_anchor(const std::string& s) const final
+        {
+            for (const auto& member : dependent_required_)
+            {
+                auto p = member.second->match_dynamic_anchor(s);
+                if (p != nullptr)
+                {
+                    return p;
+                }
+            }
+            return nullptr;
+        }
+
     private:
 
         void do_validate(const evaluation_context<Json>& eval_context, const Json& instance, 
             const jsonpointer::json_pointer& instance_location,
-            std::unordered_set<std::string>& evaluated_properties, 
+            evaluation_results& results, 
             error_reporter& reporter, 
-            Json& patch) const final
+            Json& patch, 
+            const evaluation_options& options) const final
         {
             if (!instance.is_object())
             {
@@ -2039,7 +2464,7 @@ namespace jsonschema {
                     // if dependency-prop is present in instance
                     jsonpointer::json_pointer pointer(instance_location);
                     pointer /= dep.first;
-                    dep.second->validate(this_context, instance, pointer, evaluated_properties, reporter, patch); // validate
+                    dep.second->validate(this_context, instance, pointer, results, reporter, patch, options); // validate
                 }
             }
         }
@@ -2062,13 +2487,30 @@ namespace jsonschema {
         {
         }
 
+        const schema_validator<Json>* match_dynamic_anchor(const std::string& s) const final
+        {
+            for (const auto& member : dependent_schemas_)
+            {
+                if (!member.second->id())
+                {
+                    auto p = member.second->match_dynamic_anchor(s);
+                    if (p != nullptr)
+                    {
+                        return p;
+                    }
+                }
+            }
+            return nullptr;
+        }
+
     private:
 
         void do_validate(const evaluation_context<Json>& eval_context, const Json& instance, 
             const jsonpointer::json_pointer& instance_location,
-            std::unordered_set<std::string>& evaluated_properties, 
+            evaluation_results& results, 
             error_reporter& reporter, 
-            Json& patch) const final
+            Json& patch, 
+            const evaluation_options& options) const final
         {
             if (!instance.is_object())
             {
@@ -2085,7 +2527,7 @@ namespace jsonschema {
                     // if dependency-prop is present in instance
                     jsonpointer::json_pointer pointer(instance_location);
                     pointer /= dep.first;
-                    dep.second->validate(this_context, instance, pointer, evaluated_properties, reporter, patch); // validate
+                    dep.second->validate(this_context, instance, pointer, results, reporter, patch, options); // validate
                 }
             }
         }
@@ -2108,13 +2550,30 @@ namespace jsonschema {
         {
         }
 
+        const schema_validator<Json>* match_dynamic_anchor(const std::string& s) const final
+        {
+            if (property_names_schema_validator_ != nullptr)
+            {
+                if (!property_names_schema_validator_->id())
+                {
+                    auto p = property_names_schema_validator_->match_dynamic_anchor(s);
+                    if (p != nullptr)
+                    {
+                        return p;
+                    }
+                }
+            }
+            return nullptr;
+        }
+
     private:
 
         void do_validate(const evaluation_context<Json>& eval_context, const Json& instance, 
             const jsonpointer::json_pointer& instance_location,
-            std::unordered_set<std::string>& evaluated_properties, 
+            evaluation_results& results, 
             error_reporter& reporter, 
-            Json& patch) const final
+            Json& patch, 
+            const evaluation_options& options) const final
         {
             if (!instance.is_object())
             {
@@ -2130,7 +2589,7 @@ namespace jsonschema {
 
                 if (property_names_schema_validator_)
                 {
-                    property_names_schema_validator_->validate(this_context, prop.key() , instance_location, evaluated_properties, reporter, patch);
+                    property_names_schema_validator_->validate(this_context, prop.key() , instance_location, results, reporter, patch, options);
                 }
                 // Any property that doesn't match any of the property names in the properties keyword is ignored by this keyword.
             }
@@ -2157,13 +2616,38 @@ namespace jsonschema {
         {
         }
 
+        const schema_validator<Json>* match_dynamic_anchor(const std::string& s) const final
+        {
+            for (const auto& member : dependent_required_)
+            {
+                auto p = member.second->match_dynamic_anchor(s);
+                if (p != nullptr)
+                {
+                    return p;
+                }
+            }
+            for (const auto& member : dependent_schemas_)
+            {
+                if (!member.second->id())
+                {
+                    auto p = member.second->match_dynamic_anchor(s);
+                    if (p != nullptr)
+                    {
+                        return p;
+                    }
+                }
+            }
+            return nullptr;
+        }
+
     private:
 
         void do_validate(const evaluation_context<Json>& eval_context, const Json& instance, 
             const jsonpointer::json_pointer& instance_location,
-            std::unordered_set<std::string>& evaluated_properties, 
+            evaluation_results& results, 
             error_reporter& reporter, 
-            Json& patch) const final
+            Json& patch, 
+            const evaluation_options& options) const final
         {
             if (!instance.is_object())
             {
@@ -2180,7 +2664,7 @@ namespace jsonschema {
                     // if dependency-prop is present in instance
                     jsonpointer::json_pointer pointer(instance_location);
                     pointer /= dep.first;
-                    dep.second->validate(this_context, instance, pointer, evaluated_properties, reporter, patch); // validate
+                    dep.second->validate(this_context, instance, pointer, results, reporter, patch, options); // validate
                 }
             }
 
@@ -2192,7 +2676,7 @@ namespace jsonschema {
                     // if dependency-prop is present in instance
                     jsonpointer::json_pointer pointer(instance_location);
                     pointer /= dep.first;
-                    dep.second->validate(this_context, instance, pointer, evaluated_properties, reporter, patch); // validate
+                    dep.second->validate(this_context, instance, pointer, results, reporter, patch, options); // validate
                 }
             }
         }
@@ -2282,6 +2766,19 @@ namespace jsonschema {
         {
         }
 
+        const schema_validator<Json>* match_dynamic_anchor(const std::string& s) const final
+        {
+            if (schema_validator_ != nullptr && !schema_validator_->id()) 
+            {
+                auto p = schema_validator_->match_dynamic_anchor(s);
+                if (p != nullptr)
+                {
+                    return p;
+                }
+            }
+            return nullptr;
+        }
+
         contains_validator(const uri& schema_path,
             schema_validator_type&& schema_validator,
             std::unique_ptr<max_contains_keyword<Json>>&& max_contains,
@@ -2297,9 +2794,10 @@ namespace jsonschema {
 
         void do_validate(const evaluation_context<Json>& eval_context, const Json& instance, 
             const jsonpointer::json_pointer& instance_location,
-            std::unordered_set<std::string>& evaluated_properties, 
+            evaluation_results& results, 
             error_reporter& reporter, 
-            Json& patch) const final
+            Json& patch, 
+            const evaluation_options& options) const final
         {
             if (!instance.is_array())
             {
@@ -2315,19 +2813,33 @@ namespace jsonschema {
 
             std::size_t contains_count = 0;
             collecting_error_reporter local_reporter;
+
+            std::size_t index = 0;
             for (const auto& item : instance.array_range()) 
             {
-                std::size_t mark = local_reporter.errors.size();
-                schema_validator_->validate(this_context, item, instance_location, evaluated_properties, local_reporter, patch);
-                if (mark == local_reporter.errors.size()) 
+                std::size_t errors = local_reporter.errors.size();
+                schema_validator_->validate(this_context, item, instance_location, results, local_reporter, patch, options);
+                if (errors == local_reporter.errors.size())
                 {
+                    if (eval_context.require_evaluated_items())
+                    {
+                        results.evaluated_items.insert(index);
+                    }
                     ++contains_count;
                 }
+                ++index;
             }
-            if (max_contains_ && min_contains_)
+            
+            if (max_contains_ || min_contains_)
             {
-                max_contains_->validate(this_context, instance_location, contains_count, reporter);
-                min_contains_->validate(this_context, instance_location, contains_count, reporter);
+                if (max_contains_)
+                {
+                    max_contains_->validate(this_context, instance_location, contains_count, reporter);
+                }
+                if (min_contains_)
+                {
+                    min_contains_->validate(this_context, instance_location, contains_count, reporter);
+                }
             }
             else if (contains_count == 0)
             {
@@ -2342,7 +2854,108 @@ namespace jsonschema {
                     return;
                 }
             }
-            
+        }
+    };
+
+    template <class Json>
+    class prefix_items_validator : public keyword_validator_base<Json>
+    {
+        using schema_validator_type = typename schema_validator<Json>::schema_validator_type;
+        using keyword_validator_type = typename keyword_validator<Json>::keyword_validator_type;
+
+        std::vector<schema_validator_type> prefix_items_validators_;
+        schema_validator_type items_val_;
+    public:
+        prefix_items_validator(const uri& schema_path, 
+            std::vector<schema_validator_type>&& item_validators,
+            schema_validator_type&& additional_items_val)
+            : keyword_validator_base<Json>("prefixItems", schema_path), 
+              prefix_items_validators_(std::move(item_validators)), 
+              items_val_(std::move(additional_items_val))
+        {
+        }
+
+        const schema_validator<Json>* match_dynamic_anchor(const std::string& s) const final
+        {
+            for (const auto& val : prefix_items_validators_)
+            {
+                if (!val->id())
+                {
+                    auto p = val->match_dynamic_anchor(s);
+                    if (p != nullptr)
+                    {
+                        return p;
+                    }
+                }
+            }
+            if (items_val_ != nullptr && !items_val_->id()) 
+            {
+                auto p = items_val_->match_dynamic_anchor(s);
+                if (p != nullptr)
+                {
+                    return p;
+                }
+            }
+            return nullptr;
+        }
+
+    private:
+
+        void do_validate(const evaluation_context<Json>& eval_context, const Json& instance, 
+            const jsonpointer::json_pointer& instance_location,
+            evaluation_results& results, 
+            error_reporter& reporter,
+            Json& patch, 
+            const evaluation_options& options) const final
+        {
+            if (!instance.is_array())
+            {
+                return;
+            }
+        
+            size_t index = 0;
+            auto it = instance.array_range().cbegin();
+            auto end_it = instance.array_range().cend();
+        
+            evaluation_context<Json> this_context(eval_context, this->keyword_name());
+            for (const auto& val : prefix_items_validators_) 
+            {
+                if (it == end_it)
+                {
+                    break;
+                }
+                jsonpointer::json_pointer pointer(instance_location);
+                pointer /= index;
+        
+                evaluation_context<Json> item_context{this_context, index};
+                std::size_t errors = reporter.error_count();
+                val->validate(item_context, *it, pointer, results, reporter, patch, options);
+                if (eval_context.require_evaluated_items() && errors == reporter.error_count())
+                {
+                    results.evaluated_items.insert(index);
+                }
+                ++it;
+                ++index;
+            }
+            if (items_val_)
+            {
+                while (it != end_it)
+                {
+                    jsonpointer::json_pointer pointer(instance_location);
+                    pointer /= index;
+                    if (items_val_)
+                    {
+                        std::size_t errors = reporter.error_count();
+                        items_val_->validate(eval_context, *it, pointer, results, reporter, patch, options);
+                        if (eval_context.require_evaluated_items() && errors == reporter.error_count())
+                        {
+                            results.evaluated_items.insert(index);
+                        }
+                    }
+                    ++it;
+                    ++index;
+                }
+            }
         }
     };
 

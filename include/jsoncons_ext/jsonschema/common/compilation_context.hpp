@@ -12,7 +12,7 @@
 #include <jsoncons/json.hpp>
 #include <jsoncons_ext/jsonpointer/jsonpointer.hpp>
 #include <jsoncons_ext/jsonschema/jsonschema_error.hpp>
-#include <jsoncons_ext/jsonschema/common/schema_identifier.hpp>
+#include <jsoncons_ext/jsonschema/common/uri_wrapper.hpp>
 
 namespace jsoncons {
 namespace jsonschema {
@@ -20,21 +20,38 @@ namespace jsonschema {
     class compilation_context
     {
         uri absolute_uri_;
-        std::vector<schema_identifier> uris_;
+        std::vector<uri_wrapper> uris_;
+        jsoncons::optional<uri> id_;
     public:
-        explicit compilation_context(const schema_identifier& location)
-            : absolute_uri_(location.uri()), 
-              uris_(std::vector<schema_identifier>{{location}})
+
+        compilation_context()
         {
         }
 
-        explicit compilation_context(const std::vector<schema_identifier>& uris)
+        explicit compilation_context(const uri_wrapper& location)
+            : absolute_uri_(location.uri()), 
+              uris_(std::vector<uri_wrapper>{{location}})
+        {
+        }
+
+        explicit compilation_context(const std::vector<uri_wrapper>& uris)
             : uris_(uris)
         {
             absolute_uri_ = !uris.empty() ? uris.back().uri() : uri{ "#" };
         }
 
-        const std::vector<schema_identifier>& uris() const {return uris_;}
+        explicit compilation_context(const std::vector<uri_wrapper>& uris, const jsoncons::optional<uri>& id)
+            : uris_(uris), id_(id) 
+        {
+            absolute_uri_ = !uris.empty() ? uris.back().uri() : uri{ "#" };
+        }
+
+        const std::vector<uri_wrapper>& uris() const {return uris_;}
+        
+        const jsoncons::optional<uri>& id() const
+        {
+            return id_;
+        }
 
         const uri& get_absolute_uri() const
         {
@@ -43,7 +60,7 @@ namespace jsonschema {
 
         uri get_base_uri() const
         {
-            return absolute_uri_.base();
+            return absolute_uri_;
         }
 
         std::string make_schema_path_with(const std::string& keyword) const

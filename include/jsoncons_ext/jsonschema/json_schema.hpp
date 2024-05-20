@@ -12,7 +12,7 @@
 #include <jsoncons/json.hpp>
 #include <jsoncons_ext/jsonpointer/jsonpointer.hpp>
 #include <jsoncons_ext/jsonschema/jsonschema_error.hpp>
-#include <jsoncons_ext/jsonschema/common/keyword_validator.hpp>
+#include <jsoncons_ext/jsonschema/common/schema_validator.hpp>
 #include <unordered_set>
 
 namespace jsoncons {
@@ -41,12 +41,13 @@ namespace jsonschema {
 
         void validate(const Json& instance, 
             const jsonpointer::json_pointer& instance_location,
-            std::unordered_set<std::string>& evaluated_properties,
+            evaluation_results& results,
             error_reporter& reporter, 
-            Json& patch) const 
+            Json& patch, 
+            const evaluation_options& options) const 
         {
             JSONCONS_ASSERT(root_ != nullptr);
-            root_->validate(evaluation_context<Json>{}, instance, instance_location, evaluated_properties, reporter, patch);
+            root_->validate(evaluation_context<Json>{}, instance, instance_location, results, reporter, patch, options);
         }
     };
 

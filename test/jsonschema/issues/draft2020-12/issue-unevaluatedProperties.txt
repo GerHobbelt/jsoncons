@@ -1,0 +1,49 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://example.com/derived",
+
+    "$ref": "/baseSchema",
+
+    "$defs": {
+        "derived": {
+            "$dynamicAnchor": "addons",
+            "properties": {
+                "bar": { "type": "string" }
+            }
+        },
+        "baseSchema": {
+            "$id": "/baseSchema",
+
+            "$comment": "unevaluatedProperties comes first so it's more likely to catch bugs with implementations that are sensitive to keyword ordering",
+            "unevaluatedProperties": false,
+            "type": "object",
+            "properties": {
+                "foo": { "type": "string" }
+            },
+            "$dynamicRef": "#addons",
+
+            "$defs": {
+                "defaultAddons": {
+                    "$comment": "Needed to satisfy the bookending requirement",
+                    "$dynamicAnchor": "addons"
+                }
+            }
+        }
+    }
+}
+
+"with no unevaluated properties"
+    {
+        "foo": "foo",
+        "bar": "bar"
+    }
+
+dynamic_ref_validator [/$ref,https://example.com/baseSchema]match_dynamic_anchor addons, https://example.com/baseSchema, id: https://example.com/baseSchema
+match_dynamic_anchor addons, https://example.com/baseSchema#/properties/foo, id:
+match_dynamic_anchor addons, https://example.com/baseSchema#addons, id:
+Match found https://example.com/baseSchema#addons
+match_dynamic_anchor addons, https://example.com/derived, id: https://example.com/derived
+match_dynamic_anchor addons, https://example.com/baseSchema, id: https://example.com/baseSchema
+match_dynamic_anchor addons, https://example.com/baseSchema#/properties/foo, id:
+match_dynamic_anchor addons, https://example.com/baseSchema#addons, id:
+Match found https://example.com/baseSchema#addons

@@ -18,41 +18,117 @@ namespace jsonschema {
 
     template <class Json>
     class schema_validator;
+    
+    enum class evaluation_flags : uint32_t {require_evaluated_properties=1, require_evaluated_items=2};
 
-    template <class Json>
+    inline evaluation_flags operator~(evaluation_flags a)
+    {
+        return static_cast<evaluation_flags>(~static_cast<unsigned int>(a));
+    }
+
+    inline evaluation_flags operator&(evaluation_flags a, evaluation_flags b)
+    {
+        return static_cast<evaluation_flags>(static_cast<unsigned int>(a) & static_cast<unsigned int>(b));
+    }
+
+    inline evaluation_flags operator^(evaluation_flags a, evaluation_flags b)
+    {
+        return static_cast<evaluation_flags>(static_cast<unsigned int>(a) ^ static_cast<unsigned int>(b));
+    }
+
+    inline evaluation_flags operator|(evaluation_flags a, evaluation_flags b)
+    {
+        return static_cast<evaluation_flags>(static_cast<unsigned int>(a) | static_cast<unsigned int>(b));
+    }
+
+    inline evaluation_flags operator&=(evaluation_flags& a, evaluation_flags b)
+    {
+        a = a & b;
+        return a;
+    }
+
+    inline evaluation_flags operator^=(evaluation_flags& a, evaluation_flags b)
+    {
+        a = a ^ b;
+        return a;
+    }
+
+    inline evaluation_flags operator|=(evaluation_flags& a, evaluation_flags b)
+    {
+        a = a | b;
+        return a;
+    }
+
+    template<class Json>
     class evaluation_context
     {
     private:
-        std::vector<const schema_validator<Json>*> dynamic_scope_;
+        std::vector<const schema_validator<Json> *> dynamic_scope_;
         jsonpointer::json_pointer eval_path_;
+        evaluation_flags flags_;
     public:
         evaluation_context()
+            : flags_{}
         {
         }
 
         evaluation_context(const evaluation_context& other)
-            : dynamic_scope_{other.dynamic_scope_}, eval_path_{other.eval_path_}
+            : dynamic_scope_ { other.dynamic_scope_}, eval_path_{other.eval_path_},
+              flags_(other.flags_)
         {
         }
 
         evaluation_context(evaluation_context&& other)
-            : dynamic_scope_{std::move(other.dynamic_scope_)}, eval_path_{std::move(other.eval_path_)}
+            : dynamic_scope_{std::move(other.dynamic_scope_)},eval_path_{std::move(other.eval_path_)},
+              flags_(other.flags_)
         {
         }
 
-        evaluation_context(const evaluation_context& parent, const schema_validator<Json>* validator)
-            : dynamic_scope_{ parent.dynamic_scope_ }, eval_path_{ parent.eval_path_ }
+        evaluation_context(const evaluation_context& parent, const schema_validator<Json> *validator)
+            : dynamic_scope_ { parent.dynamic_scope_ }, eval_path_{ parent.eval_path_ },
+              flags_(parent.flags_)
         {
-            dynamic_scope_.push_back(validator);
+            if (validator->id()|| dynamic_scope_.empty())
+            {
+                dynamic_scope_.push_back(validator);
+            }
+        }
+
+        evaluation_context(const evaluation_context& parent, const schema_validator<Json> *validator,
+            evaluation_flags flags)
+            : dynamic_scope_ { parent.dynamic_scope_ }, eval_path_{ parent.eval_path_ },
+              flags_(flags)
+        {
+            if (validator->id()|| dynamic_scope_.empty())
+            {
+                dynamic_scope_.push_back(validator);
+            }
         }
 
         evaluation_context(const evaluation_context& parent, const std::string& name)
-            : dynamic_scope_{parent.dynamic_scope_}, eval_path_(parent.eval_path() / name)
+            : dynamic_scope_{parent.dynamic_scope_}, eval_path_(parent.eval_path() / name),
+              flags_(parent.flags_)
+              
+        {
+        }
+
+        evaluation_context(const evaluation_context& parent, const std::string& name,
+            evaluation_flags flags)
+            : dynamic_scope_{parent.dynamic_scope_}, eval_path_(parent.eval_path() / name),
+              flags_(flags)
         {
         }
 
         evaluation_context(const evaluation_context& parent, std::size_t index)
-            : dynamic_scope_{parent.dynamic_scope_}, eval_path_(parent.eval_path() / index)
+            : dynamic_scope_{parent.dynamic_scope_}, eval_path_(parent.eval_path() / index),
+              flags_(parent.flags_)
+        {
+        }
+
+        evaluation_context(const evaluation_context& parent, std::size_t index,
+            evaluation_flags flags)
+            : dynamic_scope_{parent.dynamic_scope_}, eval_path_(parent.eval_path() / index),
+              flags_(flags)
         {
         }
 
@@ -64,6 +140,21 @@ namespace jsonschema {
         const jsonpointer::json_pointer& eval_path() const
         {
             return eval_path_;
+        }
+        
+        evaluation_flags eval_flags() const
+        {
+            return flags_;
+        }
+        
+        bool require_evaluated_properties() const
+        {
+            return (flags_ & evaluation_flags::require_evaluated_properties) == evaluation_flags::require_evaluated_properties;
+        }
+
+        bool require_evaluated_items() const
+        {
+            return (flags_ & evaluation_flags::require_evaluated_items) == evaluation_flags::require_evaluated_items;
         }
     }; 
 
