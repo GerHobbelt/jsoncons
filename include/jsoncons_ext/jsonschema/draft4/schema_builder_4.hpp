@@ -4,8 +4,8 @@
 
 // See https://github.com/danielaparker/jsoncons for latest version
 
-#ifndef JSONCONS_JSONSCHEMA_DRAFT7_SCHEMA_BUILDER_7_HPP
-#define JSONCONS_JSONSCHEMA_DRAFT7_SCHEMA_BUILDER_7_HPP
+#ifndef JSONCONS_JSONSCHEMA_DRAFT4_SCHEMA_BUILDER_4_HPP
+#define JSONCONS_JSONSCHEMA_DRAFT4_SCHEMA_BUILDER_4_HPP
 
 #include <jsoncons/uri.hpp>
 #include <jsoncons/json.hpp>
@@ -14,7 +14,7 @@
 #include <jsoncons_ext/jsonschema/json_schema.hpp>
 #include <jsoncons_ext/jsonschema/common/schema_validators.hpp>
 #include <jsoncons_ext/jsonschema/common/schema_builder.hpp>
-#include <jsoncons_ext/jsonschema/draft7/schema_draft7.hpp>
+#include <jsoncons_ext/jsonschema/draft4/schema_draft4.hpp>
 #include <cassert>
 #include <set>
 #include <sstream>
@@ -26,10 +26,10 @@
 
 namespace jsoncons {
 namespace jsonschema {
-namespace draft7 {
+namespace draft4 {
 
     template <class Json>
-    class schema_builder_7 : public schema_builder<Json> 
+    class schema_builder_4 : public schema_builder<Json> 
     {
     public:
         using schema_store_type = typename schema_builder<Json>::schema_store_type;
@@ -45,28 +45,25 @@ namespace draft7 {
         std::unordered_map<std::string,keyword_factory_type> keyword_factory_map_;
 
     public:
-        schema_builder_7(const schema_builder_factory_type& builder_factory, 
+        schema_builder_4(const schema_builder_factory_type& builder_factory, 
             evaluation_options options, schema_store_type* schema_store_ptr,
             const std::vector<schema_resolver<json>>& resolvers) 
-            : schema_builder<Json>(schema_version::draft7(), builder_factory, options, schema_store_ptr, resolvers)
+            : schema_builder<Json>(schema_version::draft4(), builder_factory, options, schema_store_ptr, resolvers)
         {
             init();
         }
 
-        schema_builder_7(const schema_builder_7&) = delete;
-        schema_builder_7& operator=(const schema_builder_7&) = delete;
-        schema_builder_7(schema_builder_7&&) = default;
-        schema_builder_7& operator=(schema_builder_7&&) = default;
+        schema_builder_4(const schema_builder_4&) = delete;
+        schema_builder_4& operator=(const schema_builder_4&) = delete;
+        schema_builder_4(schema_builder_4&&) = default;
+        schema_builder_4& operator=(schema_builder_4&&) = default;
 
         void init()
         {
             keyword_factory_map_.emplace("type", 
                 [&](const compilation_context& context, const Json& sch, const Json&, anchor_uri_map_type&){return this->make_type_validator(context, sch);});
             keyword_factory_map_.emplace("contentEncoding", 
-                [&](const compilation_context& context, const Json& sch, const Json&, anchor_uri_map_type&)
-            {
-                return this->make_content_encoding_validator(context, sch);}
-            );
+                [&](const compilation_context& context, const Json& sch, const Json&, anchor_uri_map_type&){return this->make_content_encoding_validator(context, sch);});
             keyword_factory_map_.emplace("contentMediaType", 
                 [&](const compilation_context& context, const Json& sch, const Json& parent, anchor_uri_map_type&){return this->make_content_media_type_validator(context, sch, parent);});
             if (this->options().require_format_validation())
@@ -86,9 +83,6 @@ namespace draft7 {
                 [&](const compilation_context& context, const Json& sch, const Json&, anchor_uri_map_type&){return this->make_max_properties_validator(context, sch);});
             keyword_factory_map_.emplace("minProperties", 
                 [&](const compilation_context& context, const Json& sch, const Json&, anchor_uri_map_type&){return this->make_min_properties_validator(context, sch);});
-            keyword_factory_map_.emplace("contains", 
-                [&](const compilation_context& context, const Json& sch, const Json& parent, anchor_uri_map_type& anchor_dict)
-                        {return this->make_contains_validator(context, sch, parent, anchor_dict);});
             keyword_factory_map_.emplace("uniqueItems", 
                 [&](const compilation_context& context, const Json& sch, const Json&, anchor_uri_map_type&){return this->make_unique_items_validator(context, sch);});
             keyword_factory_map_.emplace("maxLength", 
@@ -98,17 +92,11 @@ namespace draft7 {
             keyword_factory_map_.emplace("not", 
                 [&](const compilation_context& context, const Json& sch, const Json&, anchor_uri_map_type& anchor_dict){return this->make_not_validator(context, sch, anchor_dict);});
             keyword_factory_map_.emplace("maximum", 
-                [&](const compilation_context& context, const Json& sch, const Json&, anchor_uri_map_type&){return this->make_maximum_validator(context, sch);});
-            keyword_factory_map_.emplace("exclusiveMaximum", 
-                [&](const compilation_context& context, const Json& sch, const Json&, anchor_uri_map_type&){return this->make_exclusive_maximum_validator(context, sch);});
+                [&](const compilation_context& context, const Json& sch, const Json& parent, anchor_uri_map_type&){return make_maximum_validator_4(context, sch, parent);});
             keyword_factory_map_.emplace("minimum", 
-                [&](const compilation_context& context, const Json& sch, const Json&, anchor_uri_map_type&){return this->make_minimum_validator(context, sch);});
-            keyword_factory_map_.emplace("exclusiveMinimum", 
-                [&](const compilation_context& context, const Json& sch, const Json&, anchor_uri_map_type&){return this->make_exclusive_minimum_validator(context, sch);});
+                [&](const compilation_context& context, const Json& sch, const Json& parent, anchor_uri_map_type&){return make_minimum_validator_4(context, sch, parent);});
             keyword_factory_map_.emplace("multipleOf", 
                 [&](const compilation_context& context, const Json& sch, const Json&, anchor_uri_map_type&){return this->make_multiple_of_validator(context, sch);});
-            keyword_factory_map_.emplace("const", 
-                [&](const compilation_context& context, const Json& sch, const Json&, anchor_uri_map_type&){return this->make_const_validator(context, sch);});
             keyword_factory_map_.emplace("enum", 
                 [&](const compilation_context& context, const Json& sch, const Json&, anchor_uri_map_type&){return this->make_enum_validator(context, sch);});
             keyword_factory_map_.emplace("allOf", 
@@ -119,8 +107,6 @@ namespace draft7 {
                 [&](const compilation_context& context, const Json& sch, const Json&, anchor_uri_map_type& anchor_dict){return this->make_one_of_validator(context, sch, anchor_dict);});
             keyword_factory_map_.emplace("dependencies", 
                 [&](const compilation_context& context, const Json& sch, const Json&, anchor_uri_map_type& anchor_dict){return this->make_dependencies_validator(context, sch, anchor_dict);});
-            keyword_factory_map_.emplace("propertyNames", 
-                [&](const compilation_context& context, const Json& sch, const Json&, anchor_uri_map_type& anchor_dict){return this->make_property_names_validator(context, sch, anchor_dict);});
             keyword_factory_map_.emplace("required", 
                 [&](const compilation_context& context, const Json& sch, const Json&, anchor_uri_map_type&){return this->make_required_validator(context, sch);});
         }
@@ -236,37 +222,6 @@ namespace draft7 {
                     }
                 }
             }
-
-            schema_validator_type if_validator;
-            schema_validator_type then_validator;
-            schema_validator_type else_validator;
-
-            it = sch.find("if");
-            if (it != sch.object_range().end()) 
-            {
-                std::string sub_keys[] = { "if" };
-                if_validator = make_schema_validator(context, it->value(), sub_keys, anchor_dict);
-            }
-
-            it = sch.find("then");
-            if (it != sch.object_range().end()) 
-            {
-                std::string sub_keys[] = { "then" };
-                then_validator = make_schema_validator(context, it->value(), sub_keys, anchor_dict);
-            }
-
-            it = sch.find("else");
-            if (it != sch.object_range().end()) 
-            {
-                std::string sub_keys[] = { "else" };
-                else_validator = make_schema_validator(context, it->value(), sub_keys, anchor_dict);
-            }
-            if (if_validator || then_validator || else_validator)
-            {
-                validators.emplace_back(jsoncons::make_unique<conditional_validator<Json>>(
-                    context.get_absolute_uri().string(),
-                    std::move(if_validator), std::move(then_validator), std::move(else_validator)));
-            }
             
             std::unique_ptr<properties_validator<Json>> properties;
             it = sch.find("properties");
@@ -343,7 +298,67 @@ namespace draft7 {
                 std::move(pattern_properties));
         }
 #endif
-       
+
+        std::unique_ptr<keyword_validator<Json>> make_maximum_validator_4(const compilation_context& context, 
+            const Json& sch, const Json& parent)
+        {
+            uri schema_location = context.make_schema_path_with("maximum");
+            if (!sch.is_number())
+            {
+                std::string message("maximum must be a number value");
+                JSONCONS_THROW(schema_error(message));
+            }
+            
+            bool is_exclusive = false;
+
+            if (parent.is_object())
+            {
+                auto it = parent.find("exclusiveMaximum");
+                if (it != parent.object_range().end())
+                {
+                    is_exclusive = it->value().as_bool();
+                }
+            }
+            if (is_exclusive)
+            {
+                return jsoncons::make_unique<exclusive_maximum_validator<Json>>(schema_location, sch);
+            }
+            else
+            {
+                return jsoncons::make_unique<maximum_validator<Json>>(schema_location, sch);
+            }
+        }
+
+        virtual std::unique_ptr<keyword_validator<Json>> make_minimum_validator_4(const compilation_context& context, 
+            const Json& sch, const Json& parent)
+        {
+            uri schema_location = context.make_schema_path_with("minimum");
+
+            if (!sch.is_number())
+            {
+                std::string message("minimum must be an integer");
+                JSONCONS_THROW(schema_error(message));
+            }
+
+            bool is_exclusive = false;
+            if (parent.is_object())
+            {
+                auto it = parent.find("exclusiveMinimum");
+                if (it != parent.object_range().end())
+                {
+                    is_exclusive = it->value().as_bool();
+                }
+            }
+            if (is_exclusive)
+            {
+                return jsoncons::make_unique<exclusive_minimum_validator<Json>>( schema_location, sch);
+            }
+            else
+            {
+                return jsoncons::make_unique<minimum_validator<Json>>( schema_location, sch);
+            }
+        }
+
     private:
 
         compilation_context make_compilation_context(const compilation_context& parent, 
@@ -371,13 +386,13 @@ namespace draft7 {
             jsoncons::optional<uri> id;
             if (sch.is_object())
             {
-                auto it = sch.find("$id"); // If $id is found, this schema can be referenced by the id
+                auto it = sch.find("id"); // If id is found, this schema can be referenced by the id
                 if (it != sch.object_range().end()) 
                 {
                     uri_wrapper relative(it->value().template as<std::string>()); 
                     uri_wrapper new_uri = relative.resolve(uri_wrapper{ parent.get_absolute_uri() });
                     id = new_uri.uri();
-                    //std::cout << "$id: " << id << ", " << new_uri.string() << "\n";
+                    //std::cout << "id: " << id << ", " << new_uri.string() << "\n";
                     // Add it to the list if it is not already there
                     if (std::find(new_uris.begin(), new_uris.end(), new_uri) == new_uris.end())
                     {
@@ -403,7 +418,7 @@ namespace draft7 {
         static const std::unordered_set<std::string>& known_keywords()
         {
             static std::unordered_set<std::string> keywords{
-                "$id",                 
+                "id",                 
                 "$ref",                
                 "additionalItems",     
                 "additionalProperties",
@@ -421,9 +436,6 @@ namespace draft7 {
                 "exclusiveMaximum",
                 "exclusiveMinimum",
                 "exclusiveMinimum",
-                "if",
-                "then",
-                "else",        
                 "items",               
                 "maximum",             
                 "maxItems",            
@@ -450,8 +462,8 @@ namespace draft7 {
         }
     };
 
-} // namespace draft7
+} // namespace draft4
 } // namespace jsonschema
 } // namespace jsoncons
 
-#endif // JSONCONS_JSONSCHEMA_DRAFT7_KEYWORD_FACTORY_HPP
+#endif // JSONCONS_JSONSCHEMA_DRAFT4_KEYWORD_FACTORY_HPP

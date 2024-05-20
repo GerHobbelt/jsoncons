@@ -59,32 +59,32 @@ TEST_CASE("jsonschema output format tests")
 
         auto reporter = [](const jsonschema::validation_message& o)
         {
-            std::cout << o.keyword() << ", " << o.keyword_location() << ", " << o.absolute_keyword_location() << "\n";
+            std::cout << o.keyword() << ", " << o.eval_path().string() << ", " << o.schema_location().string() << "\n";
 
             for (auto& item : o.details())
             {
-                std::cout << "    " << item.keyword() << ", " << item.keyword_location()  << ", " << item.absolute_keyword_location() << "\n";
+                std::cout << "    " << item.keyword() << ", " << item.eval_path().string()  << ", " << item.schema_location().string() << "\n";
             }
 /*
             if (o.keyword() == "minItems")
             {
-                CHECK(o.schema_path() == std::string("https://example.com/polygon#/minItems"));
+                CHECK(o.schema_location() == std::string("https://example.com/polygon#/minItems"));
             }
             else if (o.keyword() == "maxItems")
             {
-                CHECK(o.schema_path() == std::string("https://example.com/polygon#/maxItems"));
+                CHECK(o.schema_location() == std::string("https://example.com/polygon#/maxItems"));
             }
             else if (o.keyword() == "required")
             {
-                CHECK(o.schema_path() == std::string("https://example.com/polygon#/$defs/point/required"));
+                CHECK(o.schema_location() == std::string("https://example.com/polygon#/$defs/point/required"));
             }
             else if (o.keyword() == "additionalProperties")
             {
-                CHECK(o.schema_path() == std::string("https://example.com/polygon#/$defs/point/additionalProperties/false"));
+                CHECK(o.schema_location() == std::string("https://example.com/polygon#/$defs/point/additionalProperties/false"));
             }
             else
             {
-                //std::cout << o.keyword() << ", " << o.instance_location().string() << ": " << o.message() << ", " << o.schema_path() << "\n";
+                //std::cout << o.keyword() << ", " << o.instance_location().string() << ": " << o.message() << ", " << o.schema_location() << "\n";
                 //for (const auto& nested : o.details())
                 //{
                 //    std::cout << "    " << nested.message() << "\n";
@@ -166,11 +166,11 @@ TEST_CASE("jsonschema output format tests 2")
 
         auto reporter = [](const jsonschema::validation_message& o)
         {
-            std::cout << o.keyword() << ", " << o.keyword_location() << ", " << o.absolute_keyword_location() << "\n";
+            std::cout << o.keyword() << ", " << o.eval_path().string() << ", " << o.schema_location().string() << "\n";
 
             for (auto& item : o.details())
             {
-                std::cout << "    " << item.keyword() << ", " << item.keyword_location()  << ", " << item.absolute_keyword_location() << "\n";
+                std::cout << "    " << item.keyword() << ", " << item.eval_path().string()  << ", " << item.schema_location().string() << "\n";
             }
         };
         validator.validate(instance, reporter);

@@ -18,22 +18,17 @@ namespace {
 
     json resolver(const jsoncons::uri& uri)
     {
-        if (uri.path() == "/draft-07/schema") 
-        {
-            return jsoncons::jsonschema::draft7::schema_draft7<json>::get_schema();
-        }
-        else
-        {
-            //std::cout << uri.string() << ", " << uri.path() << "\n";
-            std::string pathname = "./jsonschema/JSON-Schema-Test-Suite/remotes";
-            pathname += std::string(uri.path());
+        //std::cout << uri.string() << ", " << uri.path() << "\n";
+        std::string pathname = "./jsonschema/JSON-Schema-Test-Suite/remotes";
+        pathname += std::string(uri.path());
 
-            std::fstream is(pathname.c_str());
-            if (!is)
-                throw jsonschema::schema_error("Could not open " + pathname + " for schema loading\n");
-
-            return json::parse(is);
+        std::fstream is(pathname.c_str());
+        if (!is)
+        {
+            return json::null();
         }
+
+        return json::parse(is);
     }
 
     void jsonschema_tests(const std::string& fpath)
@@ -55,7 +50,7 @@ namespace {
             try
             {
                 jsonschema::json_schema<json> compiled = jsonschema::make_json_schema(test_group.at("schema"), resolver, 
-                    jsonschema::evaluation_options{}.default_version(jsonschema::schema::draft07())
+                    jsonschema::evaluation_options{}.default_version(jsonschema::schema_version::draft7())
                     .require_format_validation(true));
 
                 int count_test = 0;
@@ -172,16 +167,17 @@ TEST_CASE("jsonschema draft7 tests")
         jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft7/optional/format/ipv6.json");
         //jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft7/optional/format/iri.json");
         //jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft7/optional/format/iri-reference.json");
-        //jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft7/optional/format/json-pointer.json");
+        jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft7/optional/format/json-pointer.json");
         //jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft7/optional/format/regex.json");
         //jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft7/optional/format/relative-json-pointer.json");
         jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft7/optional/format/time.json"); 
+        //jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft7/optional/format/uri.json"); // REVISIT
  
         //jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft7/optional/format/uri.json");
         //jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft7/optional/format/uri-reference.json");
         //jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft7/optional/format/uri-template.json");
 
-        //jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft7/optional/content.json"); // REVISIT
+        jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft7/optional/content.json"); 
     }
     SECTION("#417")
     {

@@ -18,23 +18,17 @@ namespace {
  
     json resolver(const jsoncons::uri& uri)
     {
-        if (uri.string() == "https://json-schema.org/draft/2019-09/schema") 
-        {
-            //JSONCONS_THROW(jsonschema::schema_error(std::string("Don't currently support ") + "https://json-schema.org/draft/2019-09/schema"));
-            return jsoncons::jsonschema::draft201909::schema_draft201909<json>::get_schema();
-        }
-        else
-        {
-            //std::cout << uri.string() << ", " << uri.path() << "\n";
-            std::string pathname = "./jsonschema/JSON-Schema-Test-Suite/remotes";
-            pathname += std::string(uri.path());
+        //std::cout << uri.string() << ", " << uri.path() << "\n";
+        std::string pathname = "./jsonschema/JSON-Schema-Test-Suite/remotes";
+        pathname += std::string(uri.path());
 
-            std::fstream is(pathname.c_str());
-            if (!is)
-                throw jsonschema::schema_error("Could not open " + pathname + " for schema loading\n");
-
-            return json::parse(is);
+        std::fstream is(pathname.c_str());
+        if (!is)
+        {
+            return json::null();
         }
+
+        return json::parse(is);
     }
 
     void jsonschema_tests(const std::string& fpath)
@@ -56,7 +50,7 @@ namespace {
             try
             {
                 jsonschema::json_schema<json> compiled = jsonschema::make_json_schema(test_group.at("schema"), resolver, 
-                    jsonschema::evaluation_options{}.default_version(jsonschema::schema::draft201909()));
+                    jsonschema::evaluation_options{}.default_version(jsonschema::schema_version::draft201909()));
 
                 int count_test = 0;
                 for (const auto& test_case : test_group["tests"].array_range()) 
@@ -111,6 +105,7 @@ TEST_CASE("jsonschema draft2019-09 tests")
         //jsonschema_tests("./jsonschema/issues/draft2019-09/issue-ref.json");
         //jsonschema_tests("./jsonschema/issues/draft2019-09/issue-recursiveRef.json");
     }
+//#if 0
     SECTION("tests")
     {
 
@@ -141,6 +136,8 @@ TEST_CASE("jsonschema draft2019-09 tests")
 
         jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft2019-09/if-then-else.json");
         jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft2019-09/items.json");
+        jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft2019-09/infinite-loop-detection.json"); 
+        
         jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft2019-09/maximum.json");
         jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft2019-09/maxItems.json");
         jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft2019-09/maxLength.json");
@@ -155,8 +152,6 @@ TEST_CASE("jsonschema draft2019-09 tests")
         jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft2019-09/oneOf.json");
 
         jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft2019-09/recursiveRef.json");
-        jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft2019-09/unevaluatedProperties.json");
-        jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft2019-09/unevaluatedItems.json");
 
 #ifdef JSONCONS_HAS_STD_REGEX
         jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft2019-09/pattern.json");
@@ -173,8 +168,12 @@ TEST_CASE("jsonschema draft2019-09 tests")
 
         jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft2019-09/type.json");
 
+        jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft2019-09/unevaluatedProperties.json");
+        jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft2019-09/unevaluatedItems.json");
+
         jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft2019-09/uniqueItems.json"); 
-/*      // format tests
+        jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft2019-09/vocabulary.json");
+        /*      // format tests
         jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft2019-09/optional/format/date.json");
         jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft2019-09/optional/format/date-time.json");
         //jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft2019-09/optional/format/ecmascript-regex.json");
@@ -195,5 +194,8 @@ TEST_CASE("jsonschema draft2019-09 tests")
         //jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft2019-09/optional/format/uri-reference.json");
         //jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft2019-09/optional/format/uri-template.json");
 */
+
+        jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft7/optional/content.json");
     }
+//#endif    
 }

@@ -42,14 +42,77 @@ namespace draft202012 {
         using keyword_factory_type = std::function<keyword_validator_type(const compilation_context& context, 
             const Json& sch, const Json& parent, anchor_uri_map_type&)>;
 
-        std::unordered_map<std::string,keyword_factory_type> keyword_factory_map_;
+        std::unordered_map<std::string,keyword_factory_type> applicator_factory_map_;
+
+        std::unordered_map<std::string,keyword_factory_type> validation_factory_map_;
+        
+        static const std::string& core_id()
+        {
+            static std::string id = "https://json-schema.org/draft/2020-12/vocab/core";
+            return id;
+        }
+        static const std::string& applicator_id()
+        {
+            static std::string id = "https://json-schema.org/draft/2020-12/vocab/applicator";
+            return id;
+        }
+        static const std::string& unevaluated_id()
+        {
+            static std::string id = "https://json-schema.org/draft/2020-12/vocab/unevaluated";
+            return id;
+        }
+        static const std::string& validation_id()
+        {
+            static std::string id = "https://json-schema.org/draft/2020-12/vocab/validation";
+            return id;
+        }
+        static const std::string& meta_data_id()
+        {
+            static std::string id = "https://json-schema.org/draft/2020-12/vocab/meta-data";
+            return id;
+        }
+        static const std::string& format_annotation_id()
+        {
+            static std::string id = "https://json-schema.org/draft/2020-12/format-annotation";
+            return id;
+        }
+        static const std::string& content_id()
+        {
+            static std::string id = "https://json-schema.org/draft/2020-12/vocab/content";
+            return id;
+        }
+        
+        bool include_applicator_;
+        bool include_unevaluated_;
+        bool include_validation_;
 
     public:
         schema_builder_202012(const schema_builder_factory_type& builder_factory, 
-            const uri_resolver<Json>& resolver, evaluation_options options, 
-            schema_store_type* schema_store_ptr) 
-            : schema_builder<Json>(schema::draft202012(), builder_factory, resolver, options, schema_store_ptr)
+            evaluation_options options, schema_store_type* schema_store_ptr,
+            const std::vector<schema_resolver<json>>& resolvers,
+            const std::unordered_map<std::string,bool>& vocabulary) 
+            : schema_builder<Json>(schema_version::draft202012(), 
+                builder_factory, options, schema_store_ptr, resolvers, vocabulary),
+                include_applicator_(true), include_unevaluated_(true), include_validation_(true)
         {
+            if (!vocabulary.empty())
+            {
+                auto it = vocabulary.find(applicator_id());
+                if (it == vocabulary.end() || !(it->second))
+                {
+                    include_applicator_ = false;
+                }
+                it = vocabulary.find(unevaluated_id());
+                if (it == vocabulary.end() || !(it->second))
+                {
+                    include_unevaluated_ = false;
+                }
+                it = vocabulary.find(validation_id());
+                if (it == vocabulary.end() || !(it->second))
+                {
+                    include_validation_ = false;
+                }
+            }
             init();
         }
 
@@ -60,75 +123,77 @@ namespace draft202012 {
 
         void init()
         {
-            keyword_factory_map_.emplace("type", 
+            applicator_factory_map_.emplace("propertyNames", 
+                [&](const compilation_context& context, const Json& sch, const Json&, anchor_uri_map_type& anchor_dict){return this->make_property_names_validator(context, sch, anchor_dict);});
+            applicator_factory_map_.emplace("dependentSchemas", 
+                [&](const compilation_context& context, const Json& sch, const Json&, anchor_uri_map_type& anchor_dict){return this->make_dependent_schemas_validator(context, sch, anchor_dict);});
+
+            // validation
+            validation_factory_map_.emplace("type", 
                 [&](const compilation_context& context, const Json& sch, const Json&, anchor_uri_map_type&){return this->make_type_validator(context, sch);});
-/*            
-            keyword_factory_map_.emplace("contentEncoding", 
+            
+            validation_factory_map_.emplace("contentEncoding", 
                 [&](const compilation_context& context, const Json& sch, const Json&, anchor_uri_map_type&){return this->make_content_encoding_validator(context, sch);});
-            keyword_factory_map_.emplace("contentMediaType", 
-                [&](const compilation_context& context, const Json& sch, const Json&, anchor_uri_map_type&){return this->make_content_media_type_validator(context, sch);});
-*/                
+            validation_factory_map_.emplace("contentMediaType", 
+                [&](const compilation_context& context, const Json& sch, const Json& parent, anchor_uri_map_type&){return this->make_content_media_type_validator(context, sch, parent);});
+                
             if (this->options().require_format_validation())
             {
-                keyword_factory_map_.emplace("format", 
+                validation_factory_map_.emplace("format", 
                     [&](const compilation_context& context, const Json& sch, const Json&, anchor_uri_map_type&){return this->make_format_validator(context, sch);});
             }
 #if defined(JSONCONS_HAS_STD_REGEX)
-            keyword_factory_map_.emplace("pattern", 
+            validation_factory_map_.emplace("pattern", 
                 [&](const compilation_context& context, const Json& sch, const Json&, anchor_uri_map_type&){return this->make_pattern_validator(context, sch);});
 #endif
-            keyword_factory_map_.emplace("maxItems", 
+            validation_factory_map_.emplace("maxItems", 
                 [&](const compilation_context& context, const Json& sch, const Json&, anchor_uri_map_type&){return this->make_max_items_validator(context, sch);});
-            keyword_factory_map_.emplace("minItems", 
+            validation_factory_map_.emplace("minItems", 
                 [&](const compilation_context& context, const Json& sch, const Json&, anchor_uri_map_type&){return this->make_min_items_validator(context, sch);});
-            keyword_factory_map_.emplace("maxProperties", 
+            validation_factory_map_.emplace("maxProperties", 
                 [&](const compilation_context& context, const Json& sch, const Json&, anchor_uri_map_type&){return this->make_max_properties_validator(context, sch);});
-            keyword_factory_map_.emplace("minProperties", 
+            validation_factory_map_.emplace("minProperties", 
                 [&](const compilation_context& context, const Json& sch, const Json&, anchor_uri_map_type&){return this->make_min_properties_validator(context, sch);});
-            keyword_factory_map_.emplace("contains", 
+            validation_factory_map_.emplace("contains", 
                 [&](const compilation_context& context, const Json& sch, const Json& parent, anchor_uri_map_type& anchor_dict)
                         {return this->make_contains_validator(context, sch, parent, anchor_dict);});
-            keyword_factory_map_.emplace("uniqueItems", 
+            validation_factory_map_.emplace("uniqueItems", 
                 [&](const compilation_context& context, const Json& sch, const Json&, anchor_uri_map_type&){return this->make_unique_items_validator(context, sch);});
-            keyword_factory_map_.emplace("maxLength", 
+            validation_factory_map_.emplace("maxLength", 
                 [&](const compilation_context& context, const Json& sch, const Json&, anchor_uri_map_type&){return this->make_max_length_validator(context, sch);});
-            keyword_factory_map_.emplace("minLength", 
+            validation_factory_map_.emplace("minLength", 
                 [&](const compilation_context& context, const Json& sch, const Json&, anchor_uri_map_type&){return this->make_min_length_validator(context, sch);});
-            keyword_factory_map_.emplace("not", 
+            validation_factory_map_.emplace("not", 
                 [&](const compilation_context& context, const Json& sch, const Json&, anchor_uri_map_type& anchor_dict){return this->make_not_validator(context, sch, anchor_dict);});
-            keyword_factory_map_.emplace("maximum", 
+            validation_factory_map_.emplace("maximum", 
                 [&](const compilation_context& context, const Json& sch, const Json&, anchor_uri_map_type&){return this->make_maximum_validator(context, sch);});
-            keyword_factory_map_.emplace("exclusiveMaximum", 
+            validation_factory_map_.emplace("exclusiveMaximum", 
                 [&](const compilation_context& context, const Json& sch, const Json&, anchor_uri_map_type&){return this->make_exclusive_maximum_validator(context, sch);});
-            keyword_factory_map_.emplace("minimum", 
+            validation_factory_map_.emplace("minimum", 
                 [&](const compilation_context& context, const Json& sch, const Json&, anchor_uri_map_type&){return this->make_minimum_validator(context, sch);});
-            keyword_factory_map_.emplace("exclusiveMinimum", 
+            validation_factory_map_.emplace("exclusiveMinimum", 
                 [&](const compilation_context& context, const Json& sch, const Json&, anchor_uri_map_type&){return this->make_exclusive_minimum_validator(context, sch);});
-            keyword_factory_map_.emplace("multipleOf", 
+            validation_factory_map_.emplace("multipleOf", 
                 [&](const compilation_context& context, const Json& sch, const Json&, anchor_uri_map_type&){return this->make_multiple_of_validator(context, sch);});
-            keyword_factory_map_.emplace("const", 
+            validation_factory_map_.emplace("const", 
                 [&](const compilation_context& context, const Json& sch, const Json&, anchor_uri_map_type&){return this->make_const_validator(context, sch);});
-            keyword_factory_map_.emplace("enum", 
+            validation_factory_map_.emplace("enum", 
                 [&](const compilation_context& context, const Json& sch, const Json&, anchor_uri_map_type&){return this->make_enum_validator(context, sch);});
-            keyword_factory_map_.emplace("allOf", 
+            validation_factory_map_.emplace("allOf", 
                 [&](const compilation_context& context, const Json& sch, const Json&, anchor_uri_map_type& anchor_dict){return this->make_all_of_validator(context, sch, anchor_dict);});
-            keyword_factory_map_.emplace("anyOf", 
+            validation_factory_map_.emplace("anyOf", 
                 [&](const compilation_context& context, const Json& sch, const Json&, anchor_uri_map_type& anchor_dict){return this->make_any_of_validator(context, sch, anchor_dict);});
-            keyword_factory_map_.emplace("oneOf", 
+            validation_factory_map_.emplace("oneOf", 
                 [&](const compilation_context& context, const Json& sch, const Json&, anchor_uri_map_type& anchor_dict){return this->make_one_of_validator(context, sch, anchor_dict);});          
             if (this->options().compatibility_mode())
             {
-                keyword_factory_map_.emplace("dependencies", 
+                validation_factory_map_.emplace("dependencies", 
                     [&](const compilation_context& context, const Json& sch, const Json&, anchor_uri_map_type& anchor_dict){return this->make_dependencies_validator(context, sch, anchor_dict);});
             }
-            keyword_factory_map_.emplace("propertyNames", 
-                [&](const compilation_context& context, const Json& sch, const Json&, anchor_uri_map_type& anchor_dict){return this->make_property_names_validator(context, sch, anchor_dict);});
-            keyword_factory_map_.emplace("required", 
+            validation_factory_map_.emplace("required", 
                 [&](const compilation_context& context, const Json& sch, const Json&, anchor_uri_map_type&){return this->make_required_validator(context, sch);});
-            keyword_factory_map_.emplace("dependentRequired", 
+            validation_factory_map_.emplace("dependentRequired", 
                 [&](const compilation_context& context, const Json& sch, const Json&, anchor_uri_map_type&){return this->make_dependent_required_validator(context, sch);});
-            keyword_factory_map_.emplace("dependentSchemas", 
-                [&](const compilation_context& context, const Json& sch, const Json&, anchor_uri_map_type& anchor_dict){return this->make_dependent_schemas_validator(context, sch, anchor_dict);});
         }
 
         schema_validator_type make_schema_validator(const compilation_context& context, 
@@ -143,9 +208,9 @@ namespace draft202012 {
             {
                 case json_type::bool_value:
                 {
-                    uri schema_path = new_context.get_absolute_uri();
+                    uri schema_location = new_context.get_absolute_uri();
                     schema_validator_ptr = jsoncons::make_unique<boolean_schema_validator<Json>>( 
-                        schema_path, sch.template as<bool>());
+                        schema_location, sch.template as<bool>());
                     schema_validator<Json>* p = schema_validator_ptr.get();
                     for (const auto& uri : new_context.uris()) 
                     { 
@@ -155,20 +220,19 @@ namespace draft202012 {
                 }
                 case json_type::object_value:
                 {
-                    std::set<std::string> known_keywords;
-
                     schema_validator_ptr = make_object_schema_validator(new_context, sch, anchor_dict);
                     schema_validator<Json>* p = schema_validator_ptr.get();
                     for (const auto& uri : new_context.uris()) 
                     { 
                         this->insert_schema(uri, p);
-                        for (const auto& item : sch.object_range())
+                        /*for (const auto& item : sch.object_range())
                         {
-                            if (known_keywords.find(item.key()) == known_keywords.end())
+                            if (known_keywords().find(item.key()) == known_keywords().end())
                             {
+                                std::cout << "  " << item.key() << "\n";
                                 this->insert_unknown_keyword(uri, item.key(), item.value()); // save unknown keywords for later reference
                             }
-                        }
+                        }*/
                     }          
                     break;
                 }
@@ -188,7 +252,6 @@ namespace draft202012 {
             std::vector<keyword_validator_type> validators;
             std::unique_ptr<unevaluated_properties_validator<Json>> unevaluated_properties_val;
             std::unique_ptr<unevaluated_items_validator<Json>> unevaluated_items_val;
-            std::set<std::string> known_keywords;
             jsoncons::optional<jsoncons::uri> dynamic_anchor;
             std::map<std::string,schema_validator_type> defs;
             anchor_uri_map_type local_anchor_dict;
@@ -212,7 +275,6 @@ namespace draft202012 {
                         std::string sub_keys[] = { "definitions", def.key() };
                         defs.emplace(def.key(), this->make_cross_draft_schema_validator(context, def.value(), sub_keys, local_anchor_dict));
                     }
-                    known_keywords.insert("definitions");
                 }
             }
             it = sch.find("$defs");
@@ -223,14 +285,12 @@ namespace draft202012 {
                     std::string sub_keys[] = { "$defs", def.key() };
                     defs.emplace(def.key(), this->make_cross_draft_schema_validator(context, def.value(), sub_keys, local_anchor_dict));
                 }
-                known_keywords.insert("$defs");
             }
 
             it = sch.find("default");
             if (it != sch.object_range().end()) 
             {
                 default_value = it->value();
-                known_keywords.insert("default");
             }
 
             it = sch.find("$ref");
@@ -252,121 +312,139 @@ namespace draft202012 {
                 validators.push_back(std::move(orig));
             }
 
-            for (const auto& key_value : sch.object_range())
+            if (include_applicator_)
             {
-                auto factory_it = keyword_factory_map_.find(key_value.key());
-                if (factory_it != keyword_factory_map_.end())
+                for (const auto& key_value : sch.object_range())
                 {
-                    auto validator = factory_it->second(context, key_value.value(), sch, local_anchor_dict);
-                    if (validator)
-                    {   
-                        validators.emplace_back(std::move(validator));
+                    auto factory_it = applicator_factory_map_.find(key_value.key());
+                    if (factory_it != applicator_factory_map_.end())
+                    {
+                        auto validator = factory_it->second(context, key_value.value(), sch, local_anchor_dict);
+                        if (validator)
+                        {   
+                            validators.emplace_back(std::move(validator));
+                        }
+                    }
+                }
+
+                schema_validator_type if_validator;
+                schema_validator_type then_validator;
+                schema_validator_type else_validator;
+
+                it = sch.find("if");
+                if (it != sch.object_range().end()) 
+                {
+                    std::string sub_keys[] = { "if" };
+                    if_validator = this->make_cross_draft_schema_validator(context, it->value(), sub_keys, local_anchor_dict);
+                }
+
+                it = sch.find("then");
+                if (it != sch.object_range().end()) 
+                {
+                    std::string sub_keys[] = { "then" };
+                    then_validator = this->make_cross_draft_schema_validator(context, it->value(), sub_keys, local_anchor_dict);
+                }
+
+                it = sch.find("else");
+                if (it != sch.object_range().end()) 
+                {
+                    std::string sub_keys[] = { "else" };
+                    else_validator = this->make_cross_draft_schema_validator(context, it->value(), sub_keys, local_anchor_dict);
+                }
+                if (if_validator || then_validator || else_validator)
+                {
+                    validators.emplace_back(jsoncons::make_unique<conditional_validator<Json>>(
+                        context.get_absolute_uri().string(),
+                        std::move(if_validator), std::move(then_validator), std::move(else_validator)));
+                }
+                // Object validators
+
+                std::unique_ptr<properties_validator<Json>> properties;
+                it = sch.find("properties");
+                if (it != sch.object_range().end()) 
+                {
+                    properties = this->make_properties_validator(context, it->value(), local_anchor_dict);
+                }
+                std::unique_ptr<pattern_properties_validator<Json>> pattern_properties;
+
+        #if defined(JSONCONS_HAS_STD_REGEX)
+                it = sch.find("patternProperties");
+                if (it != sch.object_range().end())
+                {
+                    pattern_properties = make_pattern_properties_validator(context, it->value(), local_anchor_dict);
+                }
+        #endif
+
+                it = sch.find("additionalProperties");
+                if (it != sch.object_range().end()) 
+                {
+                    validators.emplace_back(this->make_additional_properties_validator(context, it->value(), 
+                        std::move(properties), std::move(pattern_properties), local_anchor_dict));
+                }
+                else
+                {
+                    if (properties)
+                    {
+                        validators.emplace_back(std::move(properties));
+                    }
+    #if defined(JSONCONS_HAS_STD_REGEX)
+                    if (pattern_properties)
+                    {
+                        validators.emplace_back(std::move(pattern_properties));
+                    }
+    #endif
+                }
+
+                it = sch.find("prefixItems");
+                if (it != sch.object_range().end()) 
+                {
+
+                    if (it->value().type() == json_type::array_value) 
+                    {
+                        validators.emplace_back(make_prefix_items_validator(context, it->value(), sch, local_anchor_dict));
+                    } 
+                }
+                else
+                {
+                    it = sch.find("items");
+                    if (it != sch.object_range().end()) 
+                    {
+                        if (it->value().type() == json_type::object_value || it->value().type() == json_type::bool_value)
+                        {
+                            validators.emplace_back(this->make_items_validator(context, it->value(), local_anchor_dict));
+                        }
                     }
                 }
             }
 
-            schema_validator_type if_validator;
-            schema_validator_type then_validator;
-            schema_validator_type else_validator;
-
-            it = sch.find("if");
-            if (it != sch.object_range().end()) 
+            if (include_validation_)
             {
-                std::string sub_keys[] = { "if" };
-                if_validator = this->make_cross_draft_schema_validator(context, it->value(), sub_keys, local_anchor_dict);
-            }
-
-            it = sch.find("then");
-            if (it != sch.object_range().end()) 
-            {
-                std::string sub_keys[] = { "then" };
-                then_validator = this->make_cross_draft_schema_validator(context, it->value(), sub_keys, local_anchor_dict);
-            }
-
-            it = sch.find("else");
-            if (it != sch.object_range().end()) 
-            {
-                std::string sub_keys[] = { "else" };
-                else_validator = this->make_cross_draft_schema_validator(context, it->value(), sub_keys, local_anchor_dict);
-            }
-            if (if_validator || then_validator || else_validator)
-            {
-                validators.emplace_back(jsoncons::make_unique<conditional_validator<Json>>(
-                    context.get_absolute_uri().string(),
-                    std::move(if_validator), std::move(then_validator), std::move(else_validator)));
-            }
-            // Object validators
-
-            std::unique_ptr<properties_validator<Json>> properties;
-            it = sch.find("properties");
-            if (it != sch.object_range().end()) 
-            {
-                properties = make_properties_validator(context, it->value(), local_anchor_dict);
-            }
-            std::unique_ptr<pattern_properties_validator<Json>> pattern_properties;
-
-    #if defined(JSONCONS_HAS_STD_REGEX)
-            it = sch.find("patternProperties");
-            if (it != sch.object_range().end())
-            {
-                pattern_properties = make_pattern_properties_validator(context, it->value(), local_anchor_dict);
-            }
-    #endif
-
-            it = sch.find("additionalProperties");
-            if (it != sch.object_range().end()) 
-            {
-                validators.emplace_back(make_additional_properties_validator(context, it->value(), 
-                    std::move(properties), std::move(pattern_properties), local_anchor_dict));
-            }
-            else
-            {
-                if (properties)
+                for (const auto& key_value : sch.object_range())
                 {
-                    validators.emplace_back(std::move(properties));
-                }
-#if defined(JSONCONS_HAS_STD_REGEX)
-                if (pattern_properties)
-                {
-                    validators.emplace_back(std::move(pattern_properties));
-                }
-#endif
-            }
-
-            it = sch.find("prefixItems");
-            if (it != sch.object_range().end()) 
-            {
-
-                if (it->value().type() == json_type::array_value) 
-                {
-                    validators.emplace_back(make_prefix_items_validator(context, it->value(), sch, local_anchor_dict));
-                } 
-                else if (it->value().type() == json_type::object_value || it->value().type() == json_type::bool_value)
-                {
-                    validators.emplace_back(make_items_object_validator(context, it->value(), local_anchor_dict));
-                }
-            }
-            else
-            {
-                it = sch.find("items");
-                if (it != sch.object_range().end()) 
-                {
-                    if (it->value().type() == json_type::object_value || it->value().type() == json_type::bool_value)
+                    auto factory_it = validation_factory_map_.find(key_value.key());
+                    if (factory_it != validation_factory_map_.end())
                     {
-                        validators.emplace_back(make_items_object_validator(context, it->value(), local_anchor_dict));
+                        auto validator = factory_it->second(context, key_value.value(), sch, local_anchor_dict);
+                        if (validator)
+                        {   
+                            validators.emplace_back(std::move(validator));
+                        }
                     }
                 }
             }
             
-            it = sch.find("unevaluatedProperties");
-            if (it != sch.object_range().end()) 
+            if (include_unevaluated_)
             {
-                unevaluated_properties_val = this->make_unevaluated_properties_validator(context, it->value(), local_anchor_dict);
-            }
-            it = sch.find("unevaluatedItems");
-            if (it != sch.object_range().end()) 
-            {
-                unevaluated_items_val = this->make_unevaluated_items_validator(context, it->value(), local_anchor_dict);
+                it = sch.find("unevaluatedProperties");
+                if (it != sch.object_range().end()) 
+                {
+                    unevaluated_properties_val = this->make_unevaluated_properties_validator(context, it->value(), local_anchor_dict);
+                }
+                it = sch.find("unevaluatedItems");
+                if (it != sch.object_range().end()) 
+                {
+                    unevaluated_items_val = this->make_unevaluated_items_validator(context, it->value(), local_anchor_dict);
+                }
             }
 
             if (!id)
@@ -390,10 +468,10 @@ namespace draft202012 {
         std::unique_ptr<prefix_items_validator<Json>> make_prefix_items_validator(const compilation_context& context, 
             const Json& sch, const Json& parent, anchor_uri_map_type& anchor_dict)
         {
-            std::vector<schema_validator_type> item_validators;
-            schema_validator_type additional_items_validator;
+            std::vector<schema_validator_type> prefix_item_validators;
+            schema_validator_type items_validator;
 
-            uri schema_path{context.make_schema_path_with("prefixItems")};
+            uri schema_location{context.make_schema_path_with("prefixItems")};
 
             if (sch.type() == json_type::array_value) 
             {
@@ -402,48 +480,19 @@ namespace draft202012 {
                 {
                     std::string sub_keys[] = {"prefixItems", std::to_string(c++)};
 
-                    item_validators.emplace_back(this->make_cross_draft_schema_validator(context, subsch, sub_keys, anchor_dict));
+                    prefix_item_validators.emplace_back(this->make_cross_draft_schema_validator(context, subsch, sub_keys, anchor_dict));
                 }
 
                 auto it = parent.find("items");
                 if (it != parent.object_range().end()) 
                 {
                     std::string sub_keys[] = {"items"};
-                    additional_items_validator = this->make_cross_draft_schema_validator(context, it->value(), sub_keys, anchor_dict);
+                    items_validator = this->make_cross_draft_schema_validator(context, it->value(), sub_keys, anchor_dict);
                 }
             }
 
-            return jsoncons::make_unique<prefix_items_validator<Json>>( schema_path,  
-                std::move(item_validators), std::move(additional_items_validator));
-        }
-
-        std::unique_ptr<items_object_validator<Json>> make_items_object_validator(const compilation_context& context, 
-            const Json& sch, anchor_uri_map_type& anchor_dict)
-        {
-            uri schema_path{context.make_schema_path_with("items")};
-
-            std::string sub_keys[] = {"items"};
-
-            return jsoncons::make_unique<items_object_validator<Json>>( schema_path, 
-                this->make_cross_draft_schema_validator(context, sch, sub_keys, anchor_dict));
-        }
-                
-        std::unique_ptr<properties_validator<Json>> make_properties_validator(const compilation_context& context, 
-            const Json& sch, anchor_uri_map_type& anchor_dict)
-        {
-            uri schema_path = context.get_absolute_uri();
-            std::map<std::string, schema_validator_type> properties;
-
-            for (const auto& prop : sch.object_range())
-            {
-                std::string sub_keys[] =
-                {"properties", prop.key()};
-                properties.emplace(std::make_pair(prop.key(), 
-                    this->make_cross_draft_schema_validator(context, prop.value(), sub_keys, anchor_dict)));
-            }
-
-            return jsoncons::make_unique<properties_validator<Json>>(std::move(schema_path), 
-                std::move(properties));
+            return jsoncons::make_unique<prefix_items_validator<Json>>("prefixItems", schema_location,  
+                std::move(prefix_item_validators), std::move(items_validator));
         }
 
 #if defined(JSONCONS_HAS_STD_REGEX)
@@ -451,7 +500,7 @@ namespace draft202012 {
         std::unique_ptr<pattern_properties_validator<Json>> make_pattern_properties_validator( const compilation_context& context, 
             const Json& sch, anchor_uri_map_type& anchor_dict)
         {
-            uri schema_path = context.get_absolute_uri();
+            uri schema_location = context.get_absolute_uri();
             std::vector<std::pair<std::regex, schema_validator_type>> pattern_properties;
             
             for (const auto& prop : sch.object_range())
@@ -463,27 +512,10 @@ namespace draft202012 {
                         this->make_cross_draft_schema_validator(context, prop.value(), sub_keys, anchor_dict)));
             }
 
-            return jsoncons::make_unique<pattern_properties_validator<Json>>( std::move(schema_path),
+            return jsoncons::make_unique<pattern_properties_validator<Json>>( std::move(schema_location),
                 std::move(pattern_properties));
         }
 #endif       
-
-        std::unique_ptr<additional_properties_validator<Json>> make_additional_properties_validator( 
-            const compilation_context& context, const Json& sch, 
-            std::unique_ptr<properties_validator<Json>>&& properties, std::unique_ptr<pattern_properties_validator<Json>>&& pattern_properties,
-            anchor_uri_map_type& anchor_dict)
-        {
-            uri schema_path = context.get_absolute_uri();
-            std::vector<keyword_validator_type> validators;
-            schema_validator_type additional_properties;
-
-            std::string sub_keys[] = {"additionalProperties"};
-            additional_properties = this->make_cross_draft_schema_validator(context, sch, sub_keys, anchor_dict);
-
-            return jsoncons::make_unique<additional_properties_validator<Json>>( std::move(schema_path),
-                std::move(properties), std::move(pattern_properties),
-                std::move(additional_properties));
-        }
 
     private:
 
@@ -577,6 +609,65 @@ namespace draft202012 {
             return compilation_context(new_uris, id);
         }
 
+    private:
+        static const std::unordered_set<std::string>& known_keywords()
+        {
+            static std::unordered_set<std::string> keywords{
+                "$anchor",       
+                "$dynamicAnchor",
+                "$dynamicRef",   
+                "$id",                 
+                "$ref",                
+                "additionalItems",     
+                "additionalProperties",
+                "allOf",               
+                "anyOf",               
+                "const",               
+                "contains",            
+                "contentEncoding",     
+                "contentMediaType",    
+                "default",    
+                "$defs",
+                "dependencies", 
+                "dependentRequired",           
+                "dependentSchemas",    
+                "description",        
+                "enum",                
+                "exclusiveMaximum",
+                "exclusiveMaximum",
+                "exclusiveMinimum",
+                "exclusiveMinimum",
+                "if",
+                "then",
+                "else",        
+                "items",               
+                "maximum",             
+                "maxItems",            
+                "maxLength",           
+                "maxProperties",       
+                "minimum",             
+                "minItems",            
+                "minLength",           
+                "minProperties",       
+                "multipleOf",          
+                "not",                 
+                "oneOf",               
+                "pattern",             
+                "patternProperties",   
+                "prefixItems",    
+                "properties",          
+                "propertyNames",       
+                "readOnly",            
+                "required", 
+                "title",               
+                "type",                
+                "uniqueItems",         
+                "unevaluatedItems",
+                "unevaluatedProperties",        
+                "writeOnly"           
+            };
+            return keywords;
+        }
     };
 
 } // namespace draft202012

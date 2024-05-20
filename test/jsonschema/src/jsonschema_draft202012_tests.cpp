@@ -18,23 +18,17 @@ namespace {
  
     json resolver(const jsoncons::uri& uri)
     {
-        if (uri.string() == "https://json-schema.org/draft/2020-12/schema") 
-        {
-            //JSONCONS_THROW(jsonschema::schema_error(std::string("Don't currently support ") + "https://json-schema.org/draft/2020-12/schema"));
-            return jsoncons::jsonschema::draft202012::schema_draft202012<json>::get_schema();
-        }
-        else
-        {
-            //std::cout << uri.string() << ", " << uri.path() << "\n";
-            std::string pathname = "./jsonschema/JSON-Schema-Test-Suite/remotes";
-            pathname += std::string(uri.path());
+        //std::cout << uri.string() << ", " << uri.path() << "\n";
+        std::string pathname = "./jsonschema/JSON-Schema-Test-Suite/remotes";
+        pathname += std::string(uri.path());
 
-            std::fstream is(pathname.c_str());
-            if (!is)
-                throw jsonschema::schema_error("Could not open " + pathname + " for schema loading\n");
-
-            return json::parse(is);
+        std::fstream is(pathname.c_str());
+        if (!is)
+        {
+            return json::null();
         }
+
+        return json::parse(is);       
     }
 
     void jsonschema_tests(const std::string& fpath)
@@ -56,7 +50,8 @@ namespace {
             try
             {
                 jsonschema::json_schema<json> compiled = jsonschema::make_json_schema(test_group.at("schema"), resolver, 
-                    jsonschema::evaluation_options{}.default_version(jsonschema::schema::draft202012()));
+                    jsonschema::evaluation_options{}.default_version(jsonschema::schema_version::draft202012())
+                                                    .compatibility_mode(true));
 
                 int count_test = 0;
                 for (const auto& test_case : test_group["tests"].array_range()) 
@@ -112,6 +107,11 @@ TEST_CASE("jsonschema draft2020-12 tests")
         //jsonschema_tests("./jsonschema/issues/draft2020-12/issue-unevaluatedItems.json");
     }
 //#if 0
+    SECTION("more_tests")
+    {
+        // unevaluated-tests.json is from https://github.com/networknt/json-schema-validator/tree/master/src/test/resources/schema/unevaluatedTests
+        jsonschema_tests("./jsonschema/more_tests/draft2020-12/unevaluated-tests.json");
+    }
     SECTION("tests")
     {
 
@@ -140,6 +140,7 @@ TEST_CASE("jsonschema draft2020-12 tests")
 #endif
 
         jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft2020-12/if-then-else.json");
+        jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft2020-12/infinite-loop-detection.json");
         jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft2020-12/items.json");
         jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft2020-12/maximum.json");
         jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft2020-12/maxItems.json");
@@ -161,18 +162,19 @@ TEST_CASE("jsonschema draft2020-12 tests")
         jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft2020-12/propertyNames.json");
         jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft2020-12/ref.json"); 
 
-        jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft2020-12/unevaluatedProperties.json");
-        
-        jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft2020-12/unevaluatedItems.json");
-
         jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft2020-12/refRemote.json");
 
         jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft2020-12/required.json");
 
         jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft2020-12/type.json");
 
+        jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft2020-12/unevaluatedProperties.json");
+        
+        jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft2020-12/unevaluatedItems.json");
+
         jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft2020-12/uniqueItems.json"); 
-/*
+        jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft2020-12/vocabulary.json");
+    /*
         // format tests
         jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft2020-12/optional/format/date.json");
         jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft2020-12/optional/format/date-time.json");
@@ -194,6 +196,8 @@ TEST_CASE("jsonschema draft2020-12 tests")
         //jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft2020-12/optional/format/uri-reference.json");
         //jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft2020-12/optional/format/uri-template.json");
 */
+
+        jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft7/optional/content.json");
     }
 //#endif
 }

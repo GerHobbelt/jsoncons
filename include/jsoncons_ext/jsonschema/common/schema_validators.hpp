@@ -44,9 +44,9 @@ namespace jsonschema {
             return schema_val_->get_default_value();
         }
 
-        const uri& schema_path() const final
+        const uri& schema_location() const final
         {
-            return schema_val_->schema_path();
+            return schema_val_->schema_location();
         }
 
         bool recursive_anchor() const final
@@ -67,6 +67,16 @@ namespace jsonschema {
         const schema_validator<Json>* get_schema_for_dynamic_anchor(const std::string& anchor) const final
         {
             return schema_val_->get_schema_for_dynamic_anchor(anchor);
+        }
+
+        bool always_fails() const final
+        {
+            return schema_val_->always_fails();
+        }
+
+        bool always_succeeds() const final
+        {
+            return schema_val_->always_succeeds();
         }
         
     private:
@@ -89,7 +99,7 @@ namespace jsonschema {
         using schema_validator_type = typename std::unique_ptr<schema_validator<Json>>;
         using keyword_validator_type = typename std::unique_ptr<keyword_validator<Json>>;
 
-        uri schema_path_;
+        uri schema_location_;
         bool value_;
 
         jsoncons::optional<jsoncons::uri> id_;
@@ -97,8 +107,8 @@ namespace jsonschema {
         jsoncons::optional<jsoncons::uri> dynamic_anchor_;
 
     public:
-        boolean_schema_validator(const uri& schema_path, bool value)
-            : schema_path_(schema_path), value_(value)
+        boolean_schema_validator(const uri& schema_location, bool value)
+            : schema_location_(schema_location), value_(value)
         {
         }
 
@@ -107,9 +117,9 @@ namespace jsonschema {
             return jsoncons::optional<Json>{};
         }
 
-        const uri& schema_path() const final
+        const uri& schema_location() const final
         {
-            return schema_path_;
+            return schema_location_;
         }
 
         bool recursive_anchor() const final
@@ -132,6 +142,16 @@ namespace jsonschema {
             return nullptr;
         }
 
+        bool always_fails() const final
+        {
+            return !value_;
+        }
+
+        bool always_succeeds() const final
+        {
+            return value_;
+        }
+
     private:
 
         void do_validate(const evaluation_context<Json>& context, const Json&, 
@@ -144,13 +164,13 @@ namespace jsonschema {
             {
                 reporter.error(validation_message("false", 
                     context.eval_path(),
-                    this->schema_path(), 
+                    this->schema_location(), 
                     instance_location, 
                     "False schema always fails"));
             }
         }
     };
-
+ 
     template <class Json>
     class object_schema_validator : public schema_validator<Json>
     {
@@ -159,7 +179,7 @@ namespace jsonschema {
         using keyword_validator_type = typename std::unique_ptr<keyword_validator<Json>>;
         using anchor_schema_map_type = std::unordered_map<std::string,std::unique_ptr<ref_validator<Json>>>;
 
-        uri schema_path_;
+        uri schema_location_;
         jsoncons::optional<jsoncons::uri> id_;
         std::vector<keyword_validator_type> validators_; 
         std::unique_ptr<unevaluated_properties_validator<Json>> unevaluated_properties_val_;
@@ -171,12 +191,12 @@ namespace jsonschema {
         anchor_schema_map_type anchor_dict_;
 
     public:
-        object_schema_validator(const uri& schema_path, 
+        object_schema_validator(const uri& schema_location, 
             const jsoncons::optional<jsoncons::uri>& id,
             std::vector<keyword_validator_type>&& validators, 
             std::map<std::string,schema_validator_type>&& defs,
             Json&& default_value)
-            : schema_path_(schema_path),
+            : schema_location_(schema_location),
               id_(id),
               validators_(std::move(validators)),
               defs_(std::move(defs)),
@@ -184,14 +204,14 @@ namespace jsonschema {
               recursive_anchor_(false)
         {
         }
-        object_schema_validator(const uri& schema_path, 
+        object_schema_validator(const uri& schema_location, 
             const jsoncons::optional<jsoncons::uri>& id,
             std::vector<keyword_validator_type>&& validators,
             std::unique_ptr<unevaluated_properties_validator<Json>>&& unevaluated_properties_val, 
             std::unique_ptr<unevaluated_items_validator<Json>>&& unevaluated_items_val, 
             std::map<std::string,schema_validator_type>&& defs,
             Json&& default_value, bool recursive_anchor)
-            : schema_path_(schema_path),
+            : schema_location_(schema_location),
               id_(id),
               validators_(std::move(validators)),
               unevaluated_properties_val_(std::move(unevaluated_properties_val)),
@@ -201,7 +221,7 @@ namespace jsonschema {
               recursive_anchor_(recursive_anchor)
         {
         }
-        object_schema_validator(const uri& schema_path, 
+        object_schema_validator(const uri& schema_location, 
             const jsoncons::optional<jsoncons::uri>& id,
             std::vector<keyword_validator_type>&& validators, 
             std::unique_ptr<unevaluated_properties_validator<Json>>&& unevaluated_properties_val, 
@@ -210,7 +230,7 @@ namespace jsonschema {
             Json&& default_value,
             jsoncons::optional<jsoncons::uri>&& dynamic_anchor,
             anchor_schema_map_type&& anchor_dict)
-            : schema_path_(schema_path),
+            : schema_location_(schema_location),
               id_(std::move(id)),
               validators_(std::move(validators)),
               unevaluated_properties_val_(std::move(unevaluated_properties_val)),
@@ -228,9 +248,9 @@ namespace jsonschema {
             return default_value_;
         }
 
-        const uri& schema_path() const override
+        const uri& schema_location() const override
         {
-            return schema_path_;
+            return schema_location_;
         }
 
         bool recursive_anchor() const final
@@ -254,6 +274,16 @@ namespace jsonschema {
             return dynamic_anchor_;
         }
 
+        bool always_fails() const final
+        {
+            return false;
+        }
+
+        bool always_succeeds() const final
+        {
+            return false;
+        }
+
     private:
 
         void do_validate(const evaluation_context<Json>& context, const Json& instance, 
@@ -262,7 +292,7 @@ namespace jsonschema {
             error_reporter& reporter, 
             Json& patch) const final
         {
-            //std::cout << "object_schema_validator begin[" << context.eval_path().string() << "," << this->schema_path().string() << "]";
+            //std::cout << "object_schema_validator begin[" << context.eval_path().string() << "," << this->schema_location().string() << "]";
             //std::cout << "results:\n";
             //for (const auto& s : results)
             //{
@@ -325,7 +355,7 @@ namespace jsonschema {
                 results.merge(std::move(local_results.evaluated_items));
             }
             
-            //std::cout << "object_schema_validator end[" << context.eval_path().string() << "," << this->schema_path().string() << "]";
+            //std::cout << "object_schema_validator end[" << context.eval_path().string() << "," << this->schema_location().string() << "]";
             //std::cout << "results:\n";
             //for (const auto& s : results)
             //{

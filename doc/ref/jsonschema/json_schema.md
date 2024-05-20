@@ -7,6 +7,11 @@ template <class Json>
 class json_schema
 ```
 
+A `json_schema` represents the compiled form of a JSON Schema document.
+A `json_schema` is immutable and thread-safe.
+
+The class satisfies the requirements of MoveConstructible and MoveAssignable, but not CopyConstructible or CopyAssignable.
+
 #### Member functions
 
     bool is_valid(const Json& instance) const;  (1)
@@ -16,10 +21,12 @@ class json_schema
     void validate(const Json& instance, Json& patch) const;  (3)
 
     template <class Reporter>
-    void validate(const Json& instance, const Reporter& reporter) const;  (3)
+    void validate(const Json& instance, const Reporter& reporter) const;  (4)
 
     template <class Reporter>
-    void validate(const Json& instance, const Reporter& reporter, Json& patch) const;  (4)
+    void validate(const Json& instance, const Reporter& reporter, Json& patch) const;  (5)
+
+    void validate(const Json& instance, json_visitor& visitor) const;  (6)
 
 (1) Validates input JSON against a JSON Schema and returns false upon the 
 first schema violation.
@@ -32,11 +39,14 @@ that throws upon the first schema violation. Writes a JSONPatch document to the 
 parameter.
 
 (4) Validates input JSON against a JSON Schema with a provided error reporter
-that is called for each schema violation.
+that is called for each schema violation. 
 
 (5) Validates input JSON against a JSON Schema with a provided error reporter
 that is called for each schema violation. Writes a JSONPatch document to the output
 parameter.
+
+(6) Validates input JSON against a JSON Schema and writes the validation messages
+to a [json_visitor](../corelib/basic_json_visitor.md).
 
 #### Parameters
 
@@ -57,6 +67,11 @@ which accepts an argument of type <a href="validation_output.md">validation_outp
     <td>A JSONPatch document that may be applied to the input JSON
 to fill in missing properties that have "default" values in the
 schema.</td> 
+  </tr>
+  <tr>
+    <td>visitor</td>
+    <td>A [json_visitor](../corelib/basic_json_visitor.md) that receives JSON events 
+    corresponding to an array of validation messages.</td> 
   </tr>
 </table>
 

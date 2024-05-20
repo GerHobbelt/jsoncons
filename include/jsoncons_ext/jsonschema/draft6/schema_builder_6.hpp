@@ -4,8 +4,8 @@
 
 // See https://github.com/danielaparker/jsoncons for latest version
 
-#ifndef JSONCONS_JSONSCHEMA_DRAFT7_SCHEMA_BUILDER_7_HPP
-#define JSONCONS_JSONSCHEMA_DRAFT7_SCHEMA_BUILDER_7_HPP
+#ifndef JSONCONS_JSONSCHEMA_DRAFT6_SCHEMA_BUILDER_6_HPP
+#define JSONCONS_JSONSCHEMA_DRAFT6_SCHEMA_BUILDER_6_HPP
 
 #include <jsoncons/uri.hpp>
 #include <jsoncons/json.hpp>
@@ -14,7 +14,7 @@
 #include <jsoncons_ext/jsonschema/json_schema.hpp>
 #include <jsoncons_ext/jsonschema/common/schema_validators.hpp>
 #include <jsoncons_ext/jsonschema/common/schema_builder.hpp>
-#include <jsoncons_ext/jsonschema/draft7/schema_draft7.hpp>
+#include <jsoncons_ext/jsonschema/draft6/schema_draft6.hpp>
 #include <cassert>
 #include <set>
 #include <sstream>
@@ -26,10 +26,10 @@
 
 namespace jsoncons {
 namespace jsonschema {
-namespace draft7 {
+namespace draft6 {
 
     template <class Json>
-    class schema_builder_7 : public schema_builder<Json> 
+    class schema_builder_6 : public schema_builder<Json> 
     {
     public:
         using schema_store_type = typename schema_builder<Json>::schema_store_type;
@@ -45,28 +45,25 @@ namespace draft7 {
         std::unordered_map<std::string,keyword_factory_type> keyword_factory_map_;
 
     public:
-        schema_builder_7(const schema_builder_factory_type& builder_factory, 
+        schema_builder_6(const schema_builder_factory_type& builder_factory, 
             evaluation_options options, schema_store_type* schema_store_ptr,
             const std::vector<schema_resolver<json>>& resolvers) 
-            : schema_builder<Json>(schema_version::draft7(), builder_factory, options, schema_store_ptr, resolvers)
+            : schema_builder<Json>(schema_version::draft6(), builder_factory, options, schema_store_ptr, resolvers)
         {
             init();
         }
 
-        schema_builder_7(const schema_builder_7&) = delete;
-        schema_builder_7& operator=(const schema_builder_7&) = delete;
-        schema_builder_7(schema_builder_7&&) = default;
-        schema_builder_7& operator=(schema_builder_7&&) = default;
+        schema_builder_6(const schema_builder_6&) = delete;
+        schema_builder_6& operator=(const schema_builder_6&) = delete;
+        schema_builder_6(schema_builder_6&&) = default;
+        schema_builder_6& operator=(schema_builder_6&&) = default;
 
         void init()
         {
             keyword_factory_map_.emplace("type", 
                 [&](const compilation_context& context, const Json& sch, const Json&, anchor_uri_map_type&){return this->make_type_validator(context, sch);});
             keyword_factory_map_.emplace("contentEncoding", 
-                [&](const compilation_context& context, const Json& sch, const Json&, anchor_uri_map_type&)
-            {
-                return this->make_content_encoding_validator(context, sch);}
-            );
+                [&](const compilation_context& context, const Json& sch, const Json&, anchor_uri_map_type&){return this->make_content_encoding_validator(context, sch);});
             keyword_factory_map_.emplace("contentMediaType", 
                 [&](const compilation_context& context, const Json& sch, const Json& parent, anchor_uri_map_type&){return this->make_content_media_type_validator(context, sch, parent);});
             if (this->options().require_format_validation())
@@ -236,37 +233,6 @@ namespace draft7 {
                     }
                 }
             }
-
-            schema_validator_type if_validator;
-            schema_validator_type then_validator;
-            schema_validator_type else_validator;
-
-            it = sch.find("if");
-            if (it != sch.object_range().end()) 
-            {
-                std::string sub_keys[] = { "if" };
-                if_validator = make_schema_validator(context, it->value(), sub_keys, anchor_dict);
-            }
-
-            it = sch.find("then");
-            if (it != sch.object_range().end()) 
-            {
-                std::string sub_keys[] = { "then" };
-                then_validator = make_schema_validator(context, it->value(), sub_keys, anchor_dict);
-            }
-
-            it = sch.find("else");
-            if (it != sch.object_range().end()) 
-            {
-                std::string sub_keys[] = { "else" };
-                else_validator = make_schema_validator(context, it->value(), sub_keys, anchor_dict);
-            }
-            if (if_validator || then_validator || else_validator)
-            {
-                validators.emplace_back(jsoncons::make_unique<conditional_validator<Json>>(
-                    context.get_absolute_uri().string(),
-                    std::move(if_validator), std::move(then_validator), std::move(else_validator)));
-            }
             
             std::unique_ptr<properties_validator<Json>> properties;
             it = sch.find("properties");
@@ -421,9 +387,6 @@ namespace draft7 {
                 "exclusiveMaximum",
                 "exclusiveMinimum",
                 "exclusiveMinimum",
-                "if",
-                "then",
-                "else",        
                 "items",               
                 "maximum",             
                 "maxItems",            
@@ -450,7 +413,7 @@ namespace draft7 {
         }
     };
 
-} // namespace draft7
+} // namespace draft6
 } // namespace jsonschema
 } // namespace jsoncons
 

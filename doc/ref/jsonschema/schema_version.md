@@ -1,14 +1,20 @@
-### jsoncons::jsonschema::schema
+### jsoncons::jsonschema::schema_version
 
 ```cpp
 #include <jsoncons/jsonschema/jsonschema.hpp>
 
-struct schema;
+struct schema_version;
 ```
 
 Member functions
 
-    static std::string draft07();
+    static std::string draft4();
+Returns "http://json-schema.org/draft-04/schema#".
+
+    static std::string draft6();
+Returns "http://json-schema.org/draft-06/schema#".
+
+    static std::string draft7();
 Returns "http://json-schema.org/draft-07/schema#".
 
     static std::string draft201909();
