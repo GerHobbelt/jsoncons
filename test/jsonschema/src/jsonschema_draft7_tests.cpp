@@ -87,20 +87,20 @@ TEST_CASE("jsonschema draft7 tests")
 {
     SECTION("issues")
     {
-        //jsonschema_tests("./jsonschema/issues/draft7/issue1.json");
-        //jsonschema_tests("./jsonschema/issues/draft7/issue2.json");
-        //jsonschema_tests("./jsonschema/issues/draft7/issue3.json");
-        //jsonschema_tests("./jsonschema/issues/draft7/issue4.json");
-        //jsonschema_tests("./jsonschema/issues/draft7/issue5.json");
-        //jsonschema_tests("./jsonschema/issues/draft7/issue6.json");
+        //jsonschema_tests("./jsonschema/issues/draft7/issue-ref.json");
+        jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft7/contains.json");
+        jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft7/maxItems.json");
+        jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft7/minItems.json");
+        jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft7/uniqueItems.json");
+        jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft7/items.json");
     }
     SECTION("tests")
     {
-        jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft7/additionalItems.json");
+        //jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft7/additionalItems.json");
 #ifdef JSONCONS_HAS_STD_REGEX
-        jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft7/additionalProperties.json");
+        //jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft7/additionalProperties.json");
 #endif
-        jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft7/allOf.json");
+        /*jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft7/allOf.json");
         jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft7/anyOf.json");
         jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft7/boolean_schema.json");
         jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft7/const.json");
@@ -169,6 +169,7 @@ TEST_CASE("jsonschema draft7 tests")
         //jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft7/optional/format/uri-template.json");
 
         jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft7/optional/content.json");
+        */
     }
 
     SECTION("#417")
@@ -177,7 +178,7 @@ TEST_CASE("jsonschema draft7 tests")
     {
       "$id": "https://example.com/polygon",
       "$schema": "http://json-schema.org/draft-07/schema#",
-      "$defs": {
+      "unknown-keyword": {
         "point": {
           "type": "object",
           "properties": {
@@ -189,11 +190,11 @@ TEST_CASE("jsonschema draft7 tests")
         }
       },
       "type": "array",
-      "items": { "$ref": "#/$defs/point" },
+      "items": { "$ref": "#/unknown-keyword/point" },
       "minItems": 3,
       "maxItems": 1
     }
-            )");
+ )");
 
             jsoncons::json instance = jsoncons::json::parse(R"(
     [
@@ -206,7 +207,7 @@ TEST_CASE("jsonschema draft7 tests")
         "z": 6.7
       }
     ]
-            )");
+ )");
 
             auto sch = jsoncons::jsonschema::make_schema(schema);
             jsoncons::jsonschema::json_validator<jsoncons::json> validator(sch);

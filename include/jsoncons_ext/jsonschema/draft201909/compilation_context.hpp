@@ -23,14 +23,14 @@ namespace draft201909 {
         uri absolute_uri_;
         std::vector<schema_location> uris_;
     public:
-        compilation_context(const schema_location& location)
-            : absolute_uri_(location.uri().is_absolute() ? location.uri() : uri{}), 
+        explicit compilation_context(const schema_location& location)
+            : absolute_uri_(location.uri()), 
               uris_(std::vector<schema_location>{{location}})
         {
         }
 
-        compilation_context(schema_location&& location)
-            : absolute_uri_(location.uri().is_absolute() ? location.uri() : uri{}), 
+        explicit compilation_context(schema_location&& location)
+            : absolute_uri_(location.uri()), 
               uris_(std::vector<schema_location>{{std::move(location)}})
         {
         }
@@ -38,30 +38,12 @@ namespace draft201909 {
         explicit compilation_context(const std::vector<schema_location>& uris)
             : uris_(uris)
         {
-            for (auto it = uris_.rbegin();
-                 it != uris_.rend();
-                 ++it)
-            {
-                if (it->uri().is_absolute())
-                {
-                    absolute_uri_ = it->uri();
-                    break;
-                }
-            }
+            absolute_uri_ = !uris.empty() ? uris.back().uri() : uri{ "#" };
         }
         explicit compilation_context(std::vector<schema_location>&& uris)
             : uris_(std::move(uris))
         {
-            for (auto it = uris_.rbegin();
-                 it != uris_.rend();
-                 ++it)
-            {
-                if (it->uri().is_absolute())
-                {
-                    absolute_uri_ = it->uri();
-                    break;
-                }
-            }
+            absolute_uri_ = !uris.empty() ? uris.back().uri() : uri{ "#" };
         }
 
         const std::vector<schema_location>& uris() const {return uris_;}
@@ -93,121 +75,16 @@ namespace draft201909 {
             }
         }
 
-        template <class Json>
-        compilation_context update_uris(const Json& sch, const std::string& key) const
-        {
-            std::string sub_keys[] = {key};
-            return update_uris(sch, sub_keys);
-        }
-
-        template <class Json>
-        compilation_context update_uris(const Json& sch, jsoncons::span<const std::string> keys) const
-        {
-            // Exclude uri's that are not plain name identifiers
-            std::vector<schema_location> new_uris;
-            for (const auto& uri : uris_)
-            {
-                if (uri.is_absolute())
-                {
-                    new_uris.push_back(uri);
-                }
-            }
-
-            if (new_uris.empty())
-            {
-                new_uris.emplace_back("#");
-            }
-
-            // Append the keys for this sub-schema to the uri's
-            for (const auto& key : keys)
-            {
-                for (auto& uri : new_uris)
-                {
-                    auto new_u = uri.append(key);
-                    uri = schema_location(new_u);
-                }
-            }
-            if (sch.is_object())
-            {
-                auto it = sch.find("$id"); // If $id is found, this schema can be referenced by the id
-                if (it != sch.object_range().end()) 
-                {
-                    std::string id = it->value().template as<std::string>(); 
-                    schema_location relative(id); 
-                    schema_location new_uri = relative.resolve(get_base_uri());
-                    //std::cout << "$id: " << id << ", " << new_uri.string() << "\n";
-                    // Add it to the list if it is not already there
-                    if (std::find(new_uris.begin(), new_uris.end(), new_uri) == new_uris.end())
-                    {
-                        new_uris.emplace_back(new_uri); 
-                    }
-                }
-                it = sch.find("$recursiveAnchor"); 
-                if (it != sch.object_range().end()) 
-                {
-                    bool is_recursive_anchor = it->value().template as<bool>();  
-                    if (is_recursive_anchor)
-                    {
-                        new_uris.back().anchor_flags(uri_anchor_flags::recursive_anchor);
-                    }
-                }
-            }
-
-            //std::cout << "\ncontext isRecursiveAnchor: " << (anchor_flags == uri_anchor_flags::recursive_anchor) << "\n\n";
-            //for (const auto& uri : new_uris)
-            //{
-            //    std::cout << "    " << uri.string() << "\n";
-            //}
-
-            return compilation_context(new_uris);
-        }
-
-        compilation_context update_uris(jsoncons::span<const std::string> keys) const
-        {
-            // Exclude uri's that are not plain name identifiers
-            std::vector<schema_location> new_uris;
-            for (const auto& uri : uris_)
-            {
-                if (uri.is_absolute())
-                {
-                    new_uris.push_back(uri);
-                }
-            }
-
-            if (new_uris.empty())
-            {
-                new_uris.emplace_back("#");
-            }
-
-            // Append the keys for this sub-schema to the uri's
-            for (const auto& key : keys)
-            {
-                for (auto& uri : new_uris)
-                {
-                    auto new_u = uri.append(key);
-                    uri = schema_location(new_u);
-                }
-            }
-
-            //std::cout << "\ncontext isRecursiveAnchor: " << (anchor_flags == uri_anchor_flags::recursive_anchor) << "\n\n";
-            //for (const auto& uri : new_uris)
-            //{
-            //    std::cout << "    " << uri.string() << "\n";
-            //}
-
-            return compilation_context(new_uris);
-        }
-
         std::string make_schema_path_with(const std::string& keyword) const
         {
             for (auto it = uris_.rbegin(); it != uris_.rend(); ++it)
             {
-                if (!it->has_plain_name_fragment() && it->is_absolute())
+                if (!it->has_plain_name_fragment())
                 {
                     return it->append(keyword).string();
                 }
             }
-            return "";
+            return "#";
         }
     };
 
