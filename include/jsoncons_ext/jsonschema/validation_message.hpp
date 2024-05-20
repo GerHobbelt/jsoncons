@@ -11,7 +11,6 @@
 #include <jsoncons/uri.hpp>
 #include <jsoncons/json.hpp>
 #include <jsoncons_ext/jsonpointer/jsonpointer.hpp>
-#include <jsoncons_ext/jsonschema/json_schema.hpp>
 #include <cassert>
 #include <set>
 #include <sstream>
@@ -88,54 +87,6 @@ namespace jsonschema {
         const std::vector<validation_message>& details() const
         {
             return details_;
-        }
-    };
-    
-    class validation_message_to_json_adaptor 
-    {
-        json_visitor* visitor_ptr_;
-    public:
-        validation_message_to_json_adaptor(json_visitor& visitor)
-            : visitor_ptr_(std::addressof(visitor))
-        {
-        }
-
-        void operator()(const validation_message& message)
-        {
-            write_error(message);
-        }
-
-        void write_error(const validation_message& message)
-        {
-            visitor_ptr_->begin_object();
-
-            visitor_ptr_->key("valid");
-            visitor_ptr_->bool_value(false);
-
-            visitor_ptr_->key("evaluationPath");
-            visitor_ptr_->string_value(message.eval_path().string());
-
-            visitor_ptr_->key("schemaLocation");
-            visitor_ptr_->string_value(message.schema_location().string());
-
-            visitor_ptr_->key("instanceLocation");
-            visitor_ptr_->string_value(message.instance_location().string());
-
-            visitor_ptr_->key("error");
-            visitor_ptr_->string_value(message.message());
-
-            if (!message.details().empty())
-            {
-                visitor_ptr_->key("details");
-                visitor_ptr_->begin_array();
-                for (const auto& detail : message.details())
-                {
-                    write_error(detail);
-                }
-                visitor_ptr_->end_array();
-            }
-
-            visitor_ptr_->end_object();
         }
     };
 

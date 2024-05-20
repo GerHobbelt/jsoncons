@@ -76,7 +76,7 @@ TEST_CASE("jsonschema validation report tests")
         "evaluationPath": "/properties/multi/allOf",
         "schemaLocation": "https://test.com/schema#/properties/multi/allOf",
         "instanceLocation": "/multi",
-        "error": "No schema matched, but all of them are required to match",
+        "error": "Must be valid against all schemas, but found unmatched schemas",
         "details": [
             {
                 "valid": false,
@@ -132,7 +132,52 @@ TEST_CASE("jsonschema prefixItems report tests")
     {
         "valid": false,
         "evaluationPath": "/items",
-        "schemaLocation": "#/prefixItems",
+        "schemaLocation": "#/items",
+        "instanceLocation": "/4",
+        "error": "Extra item at index '4' but the schema does not allow extra items."
+    }
+]
+        )");
+
+        jsoncons::json_decoder<ojson> decoder;    
+        jsonschema::json_schema<json> compiled = jsonschema::make_json_schema(schema);
+    
+        json data = json::parse(R"(
+            [1600, "Pennsylvania", "Avenue", "NW", "Washington"]
+        )");
+    
+        compiled.validate(data, decoder);
+        
+        ojson output = decoder.get_result();
+        CHECK(expected == output);
+        //std::cout << pretty_print(output) << "\n";
+    }
+}
+
+TEST_CASE("jsonschema items-additionalItems report tests")
+{
+    json schema = json::parse(R"(
+{
+  "$schema": "https://json-schema.org/draft/2019-09/schema",
+  "type": "array",
+  "items": [
+    { "type": "number" },
+    { "type": "string" },
+    { "enum": ["Street", "Avenue", "Boulevard"] },
+    { "enum": ["NW", "NE", "SW", "SE"] }
+  ],
+  "additionalItems": false
+}
+    )");
+
+    SECTION("Test 1")
+    {
+        ojson expected = ojson::parse(R"(
+[
+    {
+        "valid": false,
+        "evaluationPath": "/additionalItems",
+        "schemaLocation": "#/additionalItems",
         "instanceLocation": "/4",
         "error": "Extra item at index '4' but the schema does not allow extra items."
     }
@@ -297,7 +342,7 @@ TEST_CASE("jsonschema unevaluatedItems output tests")
 
 TEST_CASE("jsonschema items output tests")
 {
-   std::string schema_string = R"(
+   std::string schema_str = R"(
 {
   "$schema": "http://json-schema.org/draft-04/schema#",
   "definitions": {
@@ -373,7 +418,7 @@ TEST_CASE("jsonschema items output tests")
         "evaluationPath": "/items/oneOf",
         "schemaLocation": "https://json.schemastore.org/json-patch.json#/items/oneOf",
         "instanceLocation": "/0",
-        "error": "No schema matched, but exactly one of them is required to match",
+        "error": "Must be valid against exactly one schema, but found no matching schemas",
         "details": [
             {
                 "valid": false,
@@ -422,7 +467,7 @@ TEST_CASE("jsonschema items output tests")
 ]
         )");
 
- std::string data_string = R"(
+        std::string data_str = R"(
 [
     {
         "op": "invalid_op",
@@ -431,8 +476,8 @@ TEST_CASE("jsonschema items output tests")
     }
 ]
         )";   
-        auto schema_ = jsoncons::ojson::parse(schema_string);
-        auto data_ = jsoncons::ojson::parse(data_string);
+        auto schema_ = jsoncons::ojson::parse(schema_str);
+        auto data_ = jsoncons::ojson::parse(data_str);
         auto compiled = jsoncons::jsonschema::make_json_schema(schema_);
         jsoncons::json_decoder<jsoncons::ojson> decoder;
         compiled.validate(data_, decoder);
@@ -504,7 +549,7 @@ TEST_CASE("jsonschema more output tests 2")
         "evaluationPath": "/oneOf",
         "schemaLocation": "http://schemarepo.org/schemas/user.json#/oneOf",
         "instanceLocation": "",
-        "error": "No schema matched, but exactly one of them is required to match",
+        "error": "Must be valid against exactly one schema, but found no matching schemas",
         "details": [
             {
                 "valid": false,
@@ -766,3 +811,61 @@ TEST_CASE("jsonschema additionalProperties with 'not {}' output tests")
     }
 }
 
+TEST_CASE("jsonschema with 'oneOf' output tests")
+{
+    json schema = json::parse(R"(
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "/test_schema",
+  "type": "object",
+  "properties": {
+    "One": {
+      "type": "string"
+    },
+    "Two" : {
+      "type": "string"
+    }
+  },
+  "oneOf" : [
+    {
+      "required" : ["One"]
+    },
+    {
+      "required" : ["Two"]
+    }
+  ],
+  "unevaluatedProperties" : false
+}
+    )");
+
+    SECTION("Test 1")
+    {
+        ojson expected = ojson::parse(R"(
+[
+    {
+        "valid": false,
+        "evaluationPath": "/oneOf",
+        "schemaLocation": "/test_schema#/oneOf",
+        "instanceLocation": "",
+        "error": "Must be valid against exactly one schema, but found 2 matching schemas at indices 0,1"
+    }
+]
+        )");
+
+        jsoncons::json_decoder<ojson> decoder;    
+        jsonschema::json_schema<json> compiled = jsonschema::make_json_schema(schema);
+    
+        json data = json::parse(R"(
+{
+    "One" : "test",
+    "Two" : "test"
+}
+)");
+    
+        compiled.validate(data, decoder);
+        
+        ojson output = decoder.get_result();
+        CHECK(expected == output);
+        //std::cout << pretty_print(output) << "\n";
+    }
+}

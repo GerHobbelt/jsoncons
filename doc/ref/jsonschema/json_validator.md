@@ -1,4 +1,4 @@
-### jsoncons::jsonschema::json_validator
+### jsoncons::jsonschema::json_validator: deprecated (since 0.174.0)
 
 ```cpp
 #include <jsoncons_ext/jsonschema/jsonschema.hpp>
@@ -17,8 +17,8 @@ class json_validator
 
     Json validate(const Json& instance) const;  (2)
 
-    template <class Reporter>
-    Json validate(const Json& instance, const Reporter& reporter) const;  (3)
+    template <class MsgReporter>
+    Json validate(const Json& instance, const MsgReporter& reporter) const;  (3)
 
 (1) Validates input JSON against a JSON Schema and returns false upon the 
 first schema violation.
@@ -40,7 +40,7 @@ that is called for each schema violation.
     <td>reporter</td>
     <td>A function object with signature equivalent to 
     <pre>
-           void fun(const validation_output& o)</pre>
+           void fun(const validation_output& msg)</pre>
 which accepts an argument of type <a href="validation_output.md">validation_output</a>.</td> 
   </tr>
 </table>

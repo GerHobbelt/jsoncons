@@ -12,6 +12,11 @@ std::pair<Json*,bool> replace(Json& root,
 
 Replace a JSON value in a JSON document at a specified location. 
 
+If `create_if_missing` is `false`, the target location must exist 
+for the replacement to succeed. If `create_if_missing` is `true`, 
+and if the target location specifies object members that do not
+already exist, the missing objects and members are added.  
+
 #### Parameters
 <table>
   <tr>
@@ -35,7 +40,7 @@ Replace a JSON value in a JSON document at a specified location.
 #### Return value
 
 Returns a `std::pair<Json*,bool>`. If the replacement succeeded, the bool component is `true`, and
-the `Json*` component points to the new value in the `root`. If the replacement succeeded, the bool component is `false`.
+the `Json*` component points to the new value in the `root`. If the replacement failed, the bool component is `false`.
 
 #### Exceptions
 

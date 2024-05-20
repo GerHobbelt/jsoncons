@@ -83,18 +83,18 @@ class validation_output
         }
     };
 
-    struct validation_message_to_validation_output_adaptor : public error_reporter
+    struct validation_message_to_validation_output : public error_reporter
     {
-        using validation_output_reporter_t = std::function<void(const validation_output& o)>;
+        using validation_output_reporter_t = std::function<void(const validation_output& msg)>;
 
         validation_output_reporter_t reporter_;
 
-        validation_message_to_validation_output_adaptor(const validation_output_reporter_t& reporter)
+        validation_message_to_validation_output(const validation_output_reporter_t& reporter)
             : reporter_(reporter)
         {
         }
     private:
-        void do_error(const validation_message& m) override
+        walk_result do_error(const validation_message& m) override
         {
             std::vector<validation_output> nested_errors;
             for (const auto& detail : m.details())
@@ -110,6 +110,8 @@ class validation_output
                 m.instance_location().string(),
                 m.message(),
                 std::move(nested_errors)));
+
+            return walk_result::advance;
         }
     };
 
@@ -135,7 +137,7 @@ class validation_output
         // Validate input JSON against a JSON Schema with a default throwing error reporter
         Json validate(const Json& instance) const
         {
-            throwing_error_reporter reporter;
+            throwing_error_listener reporter;
             Json patch(json_array_arg);
 
             root_->validate2(instance, reporter, patch);
@@ -153,13 +155,13 @@ class validation_output
         }
 
         // Validate input JSON against a JSON Schema with a provided error reporter
-        template <class Reporter>
-        typename std::enable_if<extension_traits::is_unary_function_object<Reporter,validation_output>::value,Json>::type
-        validate(const Json& instance, Reporter&& reporter) const
+        template <class MsgReporter>
+        typename std::enable_if<extension_traits::is_unary_function_object<MsgReporter,validation_output>::value,Json>::type
+        validate(const Json& instance, MsgReporter&& reporter) const
         {
             Json patch(json_array_arg);
 
-            validation_message_to_validation_output_adaptor adaptor(reporter);
+            validation_message_to_validation_output adaptor(reporter);
 
             root_->validate2(instance, adaptor, patch);
             return patch;

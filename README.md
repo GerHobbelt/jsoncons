@@ -43,16 +43,15 @@ old names but continues to support many of them. The deprecated names can be sup
 - [mergepatch](doc/ref/mergepatch/mergepatch.md) implements the IETF standard [JSON Merge Patch](https://datatracker.ietf.org/doc/html/rfc7386)
 - [jsonpath](doc/ref/jsonpath/jsonpath.md) implements [Stefan Goessner's JSONPath](http://goessner.net/articles/JsonPath/).  It also supports search and replace using JSONPath expressions.
 - [jsonpointer](doc/ref/jsonpointer/jsonpointer.md) implements the IETF standard [JavaScript Object Notation (JSON) Pointer](https://tools.ietf.org/html/rfc6901)
-- [jsonschema](doc/ref/jsonschema/jsonschema.md) implements the JSON Schema [Draft 7](https://json-schema.org/specification-links.html#draft-7) specification for validating input JSON. (since 0.160.0)
-A preview of our upcoming support for Drafts 2019-09 and 2020-12 is available on master branch.
+- [jsonschema](doc/ref/jsonschema/jsonschema.md) implements Drafts 4, 6, 7, 2019-9 and 2020-12 of the [JSON Schema Specification](https://json-schema.org/specification) (since 0.174.0)
 - [msgpack](doc/ref/msgpack/msgpack.md) implements decode from and encode to the [MessagePack](http://msgpack.org/index.html) data format.
 - [ubjson](doc/ref/ubjson/ubjson.md) implements decode from and encode to the [Universal Binary JSON Specification](http://ubjson.org/) data format.
 
 ## What users say
 
-_"I am so happy I have come across your json c++ library!"_
+_"Apache Kvrocks consistently utilizes jsoncons to offer support for JSON data structures to users. We find the development experience with jsoncons outstanding!"_
 
-_"I finally decided on jsoncons after evaluating quite a few json libraries out there."_
+_"I have been using your library in my native language – R – and have created an R package making it easy for (a) JMESpath and JSONpath queries on JSON strings or R objects and (b) for other R developers to link to your library."_
 
 _"I’m using your library for an external interface to pass data, as well as using the conversions from csv to json, which are really helpful for converting data for use in javascript"_
 
@@ -62,7 +61,7 @@ _"the JSONPath feature of this library, it's great"_
 
 _"We use JMESPath implementation quite extensively"_ 
 
-_"We love your JSON Schema validator. We are using it in our data modelling tool to parse JSON Schema files"_
+_"We love your JSON Schema validator. We are using it in ER/Studio our data modelling tool to parse JSON Schema files so we can create entity relations models from them."_
 
 _"the serialization lib of choice with its beautiful mappings and ease of use"_
 

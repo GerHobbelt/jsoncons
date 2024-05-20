@@ -59,7 +59,7 @@ namespace {
                     //std::cout << "  Test case " << count << "." << count_test << ": " << test_case["description"] << "\n";
                     ++count_test;
                     std::size_t errors = 0;
-                    auto reporter = [&](const jsonschema::validation_message& o)
+                    auto reporter = [&](const jsonschema::validation_message& msg) -> jsonschema::walk_result
                     {
                         ++errors;
                         CHECK_FALSE(test_case["valid"].as<bool>());
@@ -67,12 +67,13 @@ namespace {
                         {
                             std::cout << "  File: " << fpath << "\n";
                             std::cout << "  Test case " << count << "." << count_test << ": " << test_case["description"] << "\n";
-                            std::cout << "  Failed: " << o.instance_location().string() << ": " << o.message() << "\n";
-                            for (const auto& err : o.details())
+                            std::cout << "  Failed: " << msg.instance_location().string() << ": " << msg.message() << "\n";
+                            for (const auto& err : msg.details())
                             {
                                 std::cout << "  Nested error: " << err.instance_location().string() << ": " << err.message() << "\n";
                             }
                         }
+                        return jsonschema::walk_result::advance;
                     };
                     compiled.validate(test_case.at("data"), reporter);
                     if (errors == 0)
@@ -185,8 +186,10 @@ TEST_CASE("jsonschema draft2019-09 tests")
             jsonschema::evaluation_options{}.default_version(jsonschema::schema_version::draft201909()).
                 require_format_validation(true));
         //jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft2019-09/optional/format/ecmascript-regex.json");
-        /*jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft2019-09/optional/format/email.json");
-        jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft2019-09/optional/format/hostname.json");
+        jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft2019-09/optional/format/email.json",
+            jsonschema::evaluation_options{}.default_version(jsonschema::schema_version::draft201909()).
+                require_format_validation(true));
+        /*jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft2019-09/optional/format/hostname.json");
         //jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft2019-09/optional/format/idn-email.json");
         //jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft2019-09/optional/format/idn-hostname.json");
         jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft2019-09/optional/format/ipv4.json");
