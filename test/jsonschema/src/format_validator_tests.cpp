@@ -1,4 +1,4 @@
-// Copyright 2013-2023 Daniel Parker
+// Copyright 2013-2024 Daniel Parker
 // Distributed under the Boost license, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
@@ -29,7 +29,7 @@ TEST_CASE("IP4 format checker tests")
     }
     SECTION("o tests")
     {
-        CHECK(jsonschema::validate_ipv4_rfc2673(R"(o64072)"));
+        CHECK(jsonschema::validate_ipv4_rfc2673(R"(064072)"));
     }
     SECTION("x tests")
     {
@@ -100,7 +100,10 @@ TEST_CASE("date-time tests")
     SECTION("dates")
     {
         CHECK(jsonschema::validate_date_time_rfc3339("1985-04-12T23:20:50.52Z", jsonschema::date_time_type::date_time));
-        CHECK(jsonschema::validate_date_time_rfc3339("1996-12-19t16:39:57-08:00", jsonschema::date_time_type::date_time));
+        CHECK(jsonschema::validate_date_time_rfc3339("1996-12-19T16:39:57-08:00", jsonschema::date_time_type::date_time));
+        CHECK(jsonschema::validate_date_time_rfc3339("1990-12-31T23:59:60Z", jsonschema::date_time_type::date_time));
+        CHECK(jsonschema::validate_date_time_rfc3339("1990-12-31T15:59:60-08:00", jsonschema::date_time_type::date_time));
+        CHECK(jsonschema::validate_date_time_rfc3339("1937-01-01T12:00:27.87+00:20", jsonschema::date_time_type::date_time));
     }
 }
 

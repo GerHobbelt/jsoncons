@@ -1,4 +1,4 @@
-// Copyright 2013-2023 Daniel Parker
+// Copyright 2013-2024 Daniel Parker
 // Distributed under the Boost license, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
@@ -39,7 +39,10 @@ namespace jsoncons {
         part_type fragment_;
     public:
 
-        uri() = default;
+        uri()
+            : uri_string_{}, scheme_{0,0},userinfo_{0,0},host_{0,0},port_{0,0},path_{0,0},query_{0,0},fragment_{0,0} 
+        {
+        }
 
         uri(const uri& other)
             : uri_string_(other.uri_string_), scheme_(other.scheme_), userinfo_(other.userinfo_), host_(other.host_), 

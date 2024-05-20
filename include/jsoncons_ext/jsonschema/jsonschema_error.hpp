@@ -1,9 +1,9 @@
-/// Copyright 2013-2023 Daniel Parker
+/// Copyright 2013-2024 Daniel Parker
 // Distributed under the Boost license, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
 // See https://github.com/danielaparker/jsoncons for latest version
-
+ 
 #ifndef JSONCONS_JSONSCHEMA_JSONSCHEMA_ERROR_HPP
 #define JSONCONS_JSONSCHEMA_JSONSCHEMA_ERROR_HPP
 
@@ -41,19 +41,19 @@ namespace jsonschema {
         }  
     };
 
-    class validation_output 
+    class validation_message 
     {
         std::string keyword_;
         jsonpointer::json_pointer eval_path_;
         uri schema_path_;
-        std::string instance_location_;
+        jsonpointer::json_pointer instance_location_;
         std::string message_;
-        std::vector<validation_output> nested_errors_;
+        std::vector<validation_message> details_;
     public:
-        validation_output(std::string keyword,
+        validation_message(std::string keyword,
             jsonpointer::json_pointer eval_path,
             uri schema_path,
-            std::string instance_location,
+            jsonpointer::json_pointer instance_location,
             std::string message)
             : keyword_(std::move(keyword)), 
               eval_path_(std::move(eval_path)),
@@ -63,22 +63,22 @@ namespace jsonschema {
         {
         }
 
-        validation_output(const std::string& keyword,
+        validation_message(const std::string& keyword,
             const jsonpointer::json_pointer& eval_path,
             const uri& schema_path,
-            const std::string& instance_location,
+            const jsonpointer::json_pointer& instance_location,
             const std::string& message,
-            const std::vector<validation_output>& nested_errors)
+            const std::vector<validation_message>& details)
             : keyword_(keyword),
               eval_path_(eval_path),
               schema_path_(schema_path),
               instance_location_(instance_location), 
               message_(message),
-              nested_errors_(nested_errors)
+              details_(details)
         {
         }
 
-        const std::string& instance_location() const
+        const jsonpointer::json_pointer& instance_location() const
         {
             return instance_location_;
         }
@@ -113,9 +113,9 @@ namespace jsonschema {
             return keyword_;
         }
 
-        const std::vector<validation_output>& nested_errors() const
+        const std::vector<validation_message>& details() const
         {
-            return nested_errors_;
+            return details_;
         }
     };
 

@@ -1,4 +1,4 @@
-// Copyright 2013-2023 Daniel Parker
+// Copyright 2013-2024 Daniel Parker
 // Distributed under the Boost license, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
@@ -63,7 +63,7 @@ namespace jsonschema {
     class evaluation_context
     {
     private:
-        std::vector<const schema_validator<Json> *> dynamic_scope_;
+        std::vector<const schema_validator<Json>*> dynamic_scope_;
         jsonpointer::json_pointer eval_path_;
         evaluation_flags flags_;
     public:
@@ -88,7 +88,7 @@ namespace jsonschema {
             : dynamic_scope_ { parent.dynamic_scope_ }, eval_path_{ parent.eval_path_ },
               flags_(parent.flags_)
         {
-            if (validator->id()|| dynamic_scope_.empty())
+            if (validator->id() || dynamic_scope_.empty())
             {
                 dynamic_scope_.push_back(validator);
             }
@@ -99,7 +99,7 @@ namespace jsonschema {
             : dynamic_scope_ { parent.dynamic_scope_ }, eval_path_{ parent.eval_path_ },
               flags_(flags)
         {
-            if (validator->id()|| dynamic_scope_.empty())
+            if (validator->id() || dynamic_scope_.empty())
             {
                 dynamic_scope_.push_back(validator);
             }

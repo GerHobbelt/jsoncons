@@ -186,7 +186,7 @@ add_executable(unit_tests
                ubjson/src/ubjson_cursor_tests.cpp
                ubjson/src/ubjson_encoder_tests.cpp
                corelib/src/testmain.cpp
-)
+)              
 
 if (${CMAKE_VERSION} VERSION_LESS "3.8.0")
     target_compile_features(unit_tests INTERFACE cxx_range_for)  # for C++11 - flags

@@ -1,4 +1,4 @@
-// Copyright 2013-2023 Daniel Parker
+// Copyright 2013-2024 Daniel Parker
 // Distributed under the Boost license, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
@@ -23,40 +23,91 @@
 namespace jsoncons {
 namespace jsonschema {
 
-    class throwing_error_reporter : public error_reporter
+    class validation_output 
     {
-        void do_error(const validation_output& o) override
-        {
-            JSONCONS_THROW(validation_error(o.instance_location() + ": " + o.message()));
-        }
-    };
-
-    class fail_early_reporter : public error_reporter
-    {
-        void do_error(const validation_output&) override
-        {
-        }
+        std::string keyword_;
+        std::string schema_path_;
+        jsonpointer::json_pointer instance_location_;
+        std::string message_;
+        std::vector<validation_output> nested_errors_;
     public:
-        fail_early_reporter()
-            : error_reporter(true)
+        validation_output(std::string keyword,
+            std::string schema_path,
+            jsonpointer::json_pointer instance_location,
+            std::string message)
+            : keyword_(std::move(keyword)), 
+              schema_path_(std::move(schema_path)),
+              instance_location_(std::move(instance_location)),
+              message_(std::move(message))
         {
+        }
+
+        validation_output(const std::string& keyword,
+            const std::string& schema_path,
+            const jsonpointer::json_pointer& instance_location,
+            const std::string& message,
+            const std::vector<validation_output>& nested_errors)
+            : keyword_(keyword),
+              schema_path_(schema_path),
+              instance_location_(instance_location), 
+              message_(message),
+              nested_errors_(nested_errors)
+        {
+        }
+
+        const jsonpointer::json_pointer& instance_location() const
+        {
+            return instance_location_;
+        }
+
+        const std::string& message() const
+        {
+            return message_;
+        }
+
+        const std::string& schema_path() const
+        {
+            return schema_path_;
+        }
+
+        const std::string& keyword() const
+        {
+            return keyword_;
+        }
+
+        const std::vector<validation_output>& nested_errors() const
+        {
+            return nested_errors_;
         }
     };
 
-    using error_reporter_t = std::function<void(const validation_output& o)>;
-
-    struct error_reporter_adaptor : public error_reporter
+    struct validation_message_to_validation_output_adaptor : public error_reporter
     {
-        error_reporter_t reporter_;
+        using validation_output_reporter_t = std::function<void(const validation_output& o)>;
 
-        error_reporter_adaptor(const error_reporter_t& reporter)
+        validation_output_reporter_t reporter_;
+
+        validation_message_to_validation_output_adaptor(const validation_output_reporter_t& reporter)
             : reporter_(reporter)
         {
         }
     private:
-        void do_error(const validation_output& e) override
+        void do_error(const validation_message& m) override
         {
-            reporter_(e);
+            std::vector<validation_output> nested_errors;
+            for (const auto& detail : m.details())
+            {
+                nested_errors.emplace_back(validation_output(detail.keyword(),
+                    detail.schema_path().string(),
+                    detail.instance_location(),
+                    detail.message()));
+            }
+                
+            reporter_(validation_output(m.keyword(),
+                m.schema_path().string(),
+                m.instance_location(),
+                m.message(),
+                std::move(nested_errors)));
         }
     };
 
@@ -80,43 +131,35 @@ namespace jsonschema {
         ~json_validator() = default;
 
         // Validate input JSON against a JSON Schema with a default throwing error reporter
-        Json validate(const Json& instance, 
-            const evaluation_options& options = evaluation_options{}) const
+        Json validate(const Json& instance) const
         {
             throwing_error_reporter reporter;
-            jsonpointer::json_pointer instance_location("#");
             Json patch(json_array_arg);
 
-            evaluation_results results;
-            root_->validate(instance, instance_location, results, reporter, patch, options);
+            root_->validate2(instance, reporter, patch);
             return patch;
         }
 
         // Validate input JSON against a JSON Schema 
-        bool is_valid(const Json& instance, 
-            const evaluation_options& options = evaluation_options{}) const
+        bool is_valid(const Json& instance) const
         {
             fail_early_reporter reporter;
-            jsonpointer::json_pointer instance_location("#");
             Json patch(json_array_arg);
 
-            evaluation_results results;
-            root_->validate(instance, instance_location, results, reporter, patch, options);
+            root_->validate2(instance, reporter, patch);
             return reporter.error_count() == 0;
         }
 
         // Validate input JSON against a JSON Schema with a provided error reporter
         template <class Reporter>
         typename std::enable_if<extension_traits::is_unary_function_object_exact<Reporter,void,validation_output>::value,Json>::type
-        validate(const Json& instance, const Reporter& reporter, 
-            const evaluation_options& options = evaluation_options{}) const
+        validate(const Json& instance, Reporter&& reporter) const
         {
-            jsonpointer::json_pointer instance_location("#");
             Json patch(json_array_arg);
 
-            error_reporter_adaptor adaptor(reporter);
-            evaluation_results results;
-            root_->validate(instance, instance_location, results, adaptor, patch, options);
+            validation_message_to_validation_output_adaptor adaptor(reporter);
+
+            root_->validate2(instance, adaptor, patch);
             return patch;
         }
     };

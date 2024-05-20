@@ -1,4 +1,4 @@
-// Copyright 2013-2023 Daniel Parker
+// Copyright 2013-2024 Daniel Parker
 // Distributed under the Boost license, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
@@ -85,12 +85,12 @@ TEST_CASE("jsonschema version tests")
 
     SECTION("test 4")
     {
-        REQUIRE_THROWS_WITH(jsonschema::make_schema(schema_04), "Unsupported schema version http://json-schema.org/draft-04/schema#");
+        REQUIRE_THROWS_WITH(jsonschema::make_json_schema(schema_04), "Unsupported schema version http://json-schema.org/draft-04/schema#");
     }
 
     SECTION("test 7")
     {
-        REQUIRE_THROWS_WITH(jsonschema::make_schema(schema_07), "exclusiveMinimum must be a number value");
+        REQUIRE_THROWS_WITH(jsonschema::make_json_schema(schema_07), "exclusiveMinimum must be a number value");
     }
 }
 

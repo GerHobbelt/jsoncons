@@ -1,4 +1,4 @@
-// Copyright 2013-2023 Daniel Parker
+// Copyright 2013-2024 Daniel Parker
 // Distributed under Boost license
 
 #include <iostream>
@@ -80,19 +80,17 @@ void reporter_example()
     try
     {
         // Throws schema_error if JSON Schema loading fails
-        auto sch = jsonschema::make_schema(schema);
+        jsonschema::json_schema<json> compiled = jsonschema::make_json_schema(schema);
 
         std::size_t error_count = 0;
-        auto reporter = [&error_count](const jsonschema::validation_output& o)
+        auto reporter = [&error_count](const jsonschema::validation_message& o)
         {
             ++error_count;
-            std::cout << o.instance_location() << ": " << o.message() << "\n";
+            std::cout << o.instance_location().string() << ": " << o.message() << "\n";
         };
 
-        jsonschema::json_validator<json> validator(sch);
-
         // Will call reporter for each schema violation
-        validator.validate(data, reporter);
+        compiled.validate(data, reporter);
 
         std::cout << "\nError count: " << error_count << "\n\n";
     }
@@ -112,7 +110,7 @@ json resolver(const jsoncons::uri& uri)
 
     std::fstream is(pathname.c_str());
     if (!is)
-        throw jsonschema::schema_error("Could not open " + std::string(uri.base()) + " for schema loading\n");
+        throw jsonschema::schema_error("Could not open " + uri.base().string() + " for schema loading\n");
 
     return json::parse(is);        
 }
@@ -142,19 +140,17 @@ void uriresolver_example()
     try
     {
         // Throws schema_error if JSON Schema loading fails
-        auto sch = jsonschema::make_schema(schema, resolver);
+        jsonschema::json_schema<json> compiled = jsonschema::make_json_schema(schema, resolver);
 
         std::size_t error_count = 0;
-        auto reporter = [&error_count](const jsonschema::validation_output& o)
+        auto reporter = [&error_count](const jsonschema::validation_message& o)
         {
             ++error_count;
-            std::cout << o.instance_location() << ": " << o.message() << "\n";
+            std::cout << o.instance_location().string() << ": " << o.message() << "\n";
         };
 
-        jsonschema::json_validator<json> validator(sch);
-
         // Will call reporter for each schema violation
-        validator.validate(data, reporter);
+        compiled.validate(data, reporter);
 
         std::cout << "\nError count: " << error_count << "\n\n";
     }
@@ -168,15 +164,15 @@ void defaults_example()
 {
     // JSON Schema
     json schema = json::parse(R"(
-
-"properties": {
+{
+    "properties": {
     "bar": {
         "type": "string",
         "minLength": 4,
         "default": "bad"
     }
+    }
 }
-
 )");
 
     try
@@ -185,12 +181,11 @@ void defaults_example()
         json data = json::parse("{}");
 
         // will throw schema_error if JSON Schema loading fails 
-        auto sch = jsonschema::make_schema(schema, resolver); 
-
-        jsonschema::json_validator<json> validator(sch); 
+        jsonschema::json_schema<json> compiled = jsonschema::make_json_schema(schema, resolver); 
 
         // will throw a validation_error when a schema violation happens 
-        json patch = validator.validate(data); 
+        json patch;
+        compiled.validate(data, patch); 
 
         std::cout << "Patch: " << patch << "\n";
 
@@ -322,12 +317,10 @@ void validate_before_decode_example()
         json data = json::parse(test_data);
 
         // Throws schema_error if JSON Schema loading fails
-        auto sch = jsonschema::make_schema(schema);
-
-        jsonschema::json_validator<json> validator(sch);
+        jsonschema::json_schema<json> compiled = jsonschema::make_json_schema(schema);
 
         // Test that input is valid before attempting to decode
-        if (validator.is_valid(data))
+        if (compiled.is_valid(data))
         {
             const ns::job_properties v = data.as<ns::job_properties>(); // You don't need to reparse test_data 
 
@@ -337,7 +330,7 @@ void validate_before_decode_example()
 
             // Verify that output is valid
             json test = json::parse(output);
-            assert(validator.is_valid(test));
+            assert(compiled.is_valid(test));
         }
         else
         {

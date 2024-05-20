@@ -1,4 +1,4 @@
-// Copyright 2013-2023 Daniel Parker
+// Copyright 2013-2024 Daniel Parker
 // Distributed under the Boost license, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
@@ -39,9 +39,51 @@ TEST_CASE("jsonschema defaults tests")
             json data = json::parse("{}");
 
             // will throw schema_error if JSON Schema loading fails 
-            auto sch = jsonschema::make_schema(schema); 
+            jsonschema::json_schema<json> compiled = jsonschema::make_json_schema(schema); 
 
-            jsonschema::json_validator<json> validator(sch); 
+            // will throw a validation_error when a schema violation happens 
+            json patch;
+            compiled.validate(data, patch); 
+
+            std::cout << "patch:\n" << pretty_print(patch) << "\n";
+
+            jsonpatch::apply_patch(data, patch);
+
+            json expected = json::parse(R"(
+            {"bar":"bad"}
+ )");
+
+            CHECK(data == expected);
+        }
+        catch (const std::exception& e)
+        {
+            std::cout << e.what() << "\n";
+        }
+
+    }
+
+    SECTION("Legacy")
+    {
+        json schema = json::parse(R"(
+{
+    "properties": {
+        "bar": {
+            "type": "string",
+            "minLength": 4,
+            "default": "bad"
+        }
+    }
+}
+    )");
+
+        try
+        {
+            // Data
+            json data = json::parse("{}");
+
+            // will throw schema_error if JSON Schema loading fails 
+            auto sch = jsonschema::make_schema(schema); 
+            jsonschema::json_validator<json> validator(sch);
 
             // will throw a validation_error when a schema violation happens 
             json patch = validator.validate(data); 

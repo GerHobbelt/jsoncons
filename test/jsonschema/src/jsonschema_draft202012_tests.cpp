@@ -1,4 +1,4 @@
-// Copyright 2013-2023 Daniel Parker
+// Copyright 2013-2024 Daniel Parker
 // Distributed under the Boost license, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
@@ -55,8 +55,8 @@ namespace {
             ++count;
             try
             {
-                auto schema = jsonschema::make_schema(test_group.at("schema"), resolver);
-                jsonschema::json_validator<json> validator(schema);
+                jsonschema::json_schema<json> compiled = jsonschema::make_json_schema(test_group.at("schema"), resolver, 
+                    jsonschema::evaluation_options{}.default_version(jsonschema::schema::draft202012()));
 
                 int count_test = 0;
                 for (const auto& test_case : test_group["tests"].array_range()) 
@@ -64,7 +64,7 @@ namespace {
                     //std::cout << "  Test case " << count << "." << count_test << ": " << test_case["description"] << "\n";
                     ++count_test;
                     std::size_t errors = 0;
-                    auto reporter = [&](const jsonschema::validation_output& o)
+                    auto reporter = [&](const jsonschema::validation_message& o)
                     {
                         ++errors;
                         CHECK_FALSE(test_case["valid"].as<bool>());
@@ -72,14 +72,14 @@ namespace {
                         {
                             std::cout << "  File: " << fpath << "\n";
                             std::cout << "  Test case " << count << "." << count_test << ": " << test_case["description"] << "\n";
-                            std::cout << "  Failed: " << o.instance_location() << ": " << o.message() << "\n";
-                            for (const auto& err : o.nested_errors())
+                            std::cout << "  Failed: " << o.instance_location().string() << ": " << o.message() << "\n";
+                            for (const auto& err : o.details())
                             {
-                                std::cout << "  Nested error: " << err.instance_location() << ": " << err.message() << "\n";
+                                std::cout << "  Nested error: " << err.instance_location().string() << ": " << err.message() << "\n";
                             }
                         }
                     };
-                    validator.validate(test_case.at("data"), reporter);
+                    compiled.validate(test_case.at("data"), reporter);
                     if (errors == 0)
                     {
                         CHECK(test_case["valid"].as<bool>());
@@ -110,10 +110,8 @@ TEST_CASE("jsonschema draft2020-12 tests")
         //jsonschema_tests("./jsonschema/issues/draft2020-12/issue-dynamicRef.json");
         //jsonschema_tests("./jsonschema/issues/draft2020-12/issue-unevaluatedProperties.json");
         //jsonschema_tests("./jsonschema/issues/draft2020-12/issue-unevaluatedItems.json");
-        jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft2020-12/unevaluatedProperties.json");
-        jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft2020-12/unevaluatedItems.json");
     }
-#if 0
+//#if 0
     SECTION("tests")
     {
 
@@ -131,14 +129,14 @@ TEST_CASE("jsonschema draft2020-12 tests")
         jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft2020-12/default.json");
 
         jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft2020-12/defs.json");  
-        //jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft2020-12/dynamicRef.json");
+        jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft2020-12/dynamicRef.json");
 
         jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft2020-12/enum.json");
         jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft2020-12/exclusiveMaximum.json");
         jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft2020-12/exclusiveMinimum.json");
 
 #ifdef JSONCONS_HAS_STD_REGEX
-        //jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft2020-12/format.json");
+        jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft2020-12/format.json");
 #endif
 
         jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft2020-12/if-then-else.json");
@@ -167,7 +165,6 @@ TEST_CASE("jsonschema draft2020-12 tests")
         
         jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft2020-12/unevaluatedItems.json");
 
-/*
         jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft2020-12/refRemote.json");
 
         jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft2020-12/required.json");
@@ -175,6 +172,7 @@ TEST_CASE("jsonschema draft2020-12 tests")
         jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft2020-12/type.json");
 
         jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft2020-12/uniqueItems.json"); 
+/*
         // format tests
         jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft2020-12/optional/format/date.json");
         jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft2020-12/optional/format/date-time.json");
@@ -197,5 +195,5 @@ TEST_CASE("jsonschema draft2020-12 tests")
         //jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft2020-12/optional/format/uri-template.json");
 */
     }
-#endif
+//#endif
 }

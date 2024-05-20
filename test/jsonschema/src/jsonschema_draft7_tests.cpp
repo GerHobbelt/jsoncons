@@ -1,4 +1,4 @@
-// Copyright 2013-2023 Daniel Parker
+// Copyright 2013-2024 Daniel Parker
 // Distributed under the Boost license, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
@@ -54,8 +54,9 @@ namespace {
             ++count;
             try
             {
-                auto schema = jsonschema::make_schema(test_group.at("schema"), resolver);
-                jsonschema::json_validator<json> validator(schema);
+                jsonschema::json_schema<json> compiled = jsonschema::make_json_schema(test_group.at("schema"), resolver, 
+                    jsonschema::evaluation_options{}.default_version(jsonschema::schema::draft07())
+                    .require_format_validation(true));
 
                 int count_test = 0;
                 for (const auto& test_case : test_group["tests"].array_range()) 
@@ -63,7 +64,7 @@ namespace {
                     //std::cout << "  Test case " << count << "." << count_test << ": " << test_case["description"] << "\n";
                     ++count_test;
                     std::size_t errors = 0;
-                    auto reporter = [&](const jsonschema::validation_output& o)
+                    auto reporter = [&](const jsonschema::validation_message& o)
                     {
                         ++errors;
                         CHECK_FALSE(test_case["valid"].as<bool>());
@@ -71,14 +72,14 @@ namespace {
                         {
                             std::cout << "  File: " << fpath << "\n";
                             std::cout << "  Test case " << count << "." << count_test << ": " << test_case["description"] << "\n";
-                            std::cout << "  Failed: " << o.instance_location() << ": " << o.message() << "\n";
-                            for (const auto& err : o.nested_errors())
+                            std::cout << "  Failed: " << o.instance_location().string() << ": " << o.message() << "\n";
+                            for (const auto& err : o.details())
                             {
-                                std::cout << "  Nested error: " << err.instance_location() << ": " << err.message() << "\n";
+                                std::cout << "  Nested error: " << err.instance_location().string() << ": " << err.message() << "\n";
                             }
                         }
                     };
-                    validator.validate(test_case.at("data"), reporter);
+                    compiled.validate(test_case.at("data"), reporter);
                     if (errors == 0)
                     {
                         CHECK(test_case["valid"].as<bool>());
@@ -104,10 +105,8 @@ TEST_CASE("jsonschema draft7 tests")
 {
     SECTION("issues")
     {
-        //jsonschema_tests("./jsonschema/issues/draft7/issue-dependencies.json");
-        //jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft7/ref.json"); // *
+        //jsonschema_tests("./jsonschema/issues/draft7/issue-content.json");
     }
-//#if 0
     SECTION("tests")
     {
         jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft7/additionalItems.json");
@@ -162,21 +161,21 @@ TEST_CASE("jsonschema draft7 tests")
 
         jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft7/uniqueItems.json"); 
         // format tests
-        //jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft7/optional/format/date.json");
-        //jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft7/optional/format/date-time.json"); // REVISIT
+        jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft7/optional/format/date.json");
+        jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft7/optional/format/date-time.json"); 
         //jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft7/optional/format/ecmascript-regex.json");
-        //jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft7/optional/format/email.json");
-        //jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft7/optional/format/hostname.json");
+        jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft7/optional/format/email.json");
+        jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft7/optional/format/hostname.json");
         //jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft7/optional/format/idn-email.json");
         //jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft7/optional/format/idn-hostname.json");
-        //jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft7/optional/format/ipv4.json"); // REVISIT
-        //jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft7/optional/format/ipv6.json");
+        jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft7/optional/format/ipv4.json"); 
+        jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft7/optional/format/ipv6.json");
         //jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft7/optional/format/iri.json");
         //jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft7/optional/format/iri-reference.json");
         //jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft7/optional/format/json-pointer.json");
         //jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft7/optional/format/regex.json");
         //jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft7/optional/format/relative-json-pointer.json");
-        //jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft7/optional/format/time.json"); // REVISIT
+        jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft7/optional/format/time.json"); 
  
         //jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft7/optional/format/uri.json");
         //jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft7/optional/format/uri-reference.json");
@@ -221,10 +220,8 @@ TEST_CASE("jsonschema draft7 tests")
     ]
  )");
 
-        auto sch = jsoncons::jsonschema::make_schema(schema);
-        jsoncons::jsonschema::json_validator<jsoncons::json> validator(sch);
+        jsonschema::json_schema<json> compiled = jsoncons::jsonschema::make_json_schema(schema);
 
-        CHECK_FALSE(validator.is_valid(instance));
+        CHECK_FALSE(compiled.is_valid(instance));
     }
-//#endif
 }

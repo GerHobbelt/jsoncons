@@ -1,4 +1,4 @@
-// Copyright 2013-2023 Daniel Parker
+// Copyright 2013-2024 Daniel Parker
 // Distributed under the Boost license, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
@@ -55,14 +55,13 @@ TEST_CASE("jsonschema output format tests")
 ]
         )");
 
-        auto sch = jsonschema::make_schema(schema);
-        jsonschema::json_validator<json> validator(sch);
+        jsonschema::json_schema<json> compiled = jsonschema::make_json_schema(schema);
 
-        auto reporter = [](const jsonschema::validation_output& o)
+        auto reporter = [](const jsonschema::validation_message& o)
         {
             std::cout << o.keyword() << ", " << o.keyword_location() << ", " << o.absolute_keyword_location() << "\n";
 
-            for (auto& item : o.nested_errors())
+            for (auto& item : o.details())
             {
                 std::cout << "    " << item.keyword() << ", " << item.keyword_location()  << ", " << item.absolute_keyword_location() << "\n";
             }
@@ -85,15 +84,15 @@ TEST_CASE("jsonschema output format tests")
             }
             else
             {
-                //std::cout << o.keyword() << ", " << o.instance_location() << ": " << o.message() << ", " << o.schema_path() << "\n";
-                //for (const auto& nested : o.nested_errors())
+                //std::cout << o.keyword() << ", " << o.instance_location().string() << ": " << o.message() << ", " << o.schema_path() << "\n";
+                //for (const auto& nested : o.details())
                 //{
                 //    std::cout << "    " << nested.message() << "\n";
                 //}
             }
  */
         };
-        validator.validate(instance, reporter);
+        compiled.validate(instance, reporter);
 
     }
 }
@@ -163,14 +162,13 @@ TEST_CASE("jsonschema output format tests 2")
 }
 )");
 
-        auto sch = jsonschema::make_schema(schema);
-        jsonschema::json_validator<json> validator(sch);
+        jsonschema::json_schema<json> validator = jsonschema::make_json_schema(schema);
 
-        auto reporter = [](const jsonschema::validation_output& o)
+        auto reporter = [](const jsonschema::validation_message& o)
         {
             std::cout << o.keyword() << ", " << o.keyword_location() << ", " << o.absolute_keyword_location() << "\n";
 
-            for (auto& item : o.nested_errors())
+            for (auto& item : o.details())
             {
                 std::cout << "    " << item.keyword() << ", " << item.keyword_location()  << ", " << item.absolute_keyword_location() << "\n";
             }
