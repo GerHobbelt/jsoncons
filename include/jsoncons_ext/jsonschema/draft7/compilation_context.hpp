@@ -4,8 +4,8 @@
 
 // See https://github.com/danielaparker/jsoncons for latest version
 
-#ifndef JSONCONS_JSONSCHEMA_COMMON_COMPILATION_CONTEXT_HPP
-#define JSONCONS_JSONSCHEMA_COMMON_COMPILATION_CONTEXT_HPP
+#ifndef JSONCONS_JSONSCHEMA_DRAFT7_COMPILATION_CONTEXT_HPP
+#define JSONCONS_JSONSCHEMA_DRAFT7_COMPILATION_CONTEXT_HPP
 
 #include <jsoncons/config/jsoncons_config.hpp>
 #include <jsoncons/uri.hpp>
@@ -16,6 +16,7 @@
 
 namespace jsoncons {
 namespace jsonschema {
+namespace draft7 {
 
     class compilation_context
     {
@@ -76,65 +77,28 @@ namespace jsonschema {
         }
 
         template <class Json>
-        compilation_context update_uris(const Json& schema, const std::string& key) const
+        compilation_context update_uris(const Json& sch, const std::string& key) const
         {
-            return update_uris(schema, std::vector<std::string>{{key}});
+            std::string sub_keys[] = {key};
+            return update_uris(sch, sub_keys);
         }
 
         template <class Json>
-        compilation_context update_base_uri(const Json& schema) const
+        compilation_context update_uris(const Json& sch, jsoncons::span<const std::string> keys) const
         {
-            if (schema.type() == json_type::object_value)
-            {
-                auto it = schema.find("$ref");
-                if (it == schema.object_range().end()) // this schema is not a reference
-                { 
-                    it = schema.find("$id"); // If $id is found, this schema can be referenced by the id
-                    if (it != schema.object_range().end()) 
-                    {
-                        std::string id = it->value().template as<std::string>(); 
-                        schema_location relative(id); 
-                        schema_location new_uri = relative.resolve(get_base_uri());
-                        return compilation_context(new_uri); 
-                    }
-                }
-            }
-
-            return *this;
-        }
-
-        template <class Json>
-        compilation_context update_uris(const Json& schema, const std::vector<std::string>& keys) const
-        {
-            bool has_plain_name_fragment = false;
             // Exclude uri's that are not plain name identifiers
             std::vector<schema_location> new_uris;
             for (const auto& uri : uris_)
             {
-                if (!uri.has_plain_name_fragment())
+                if (uri.is_absolute())
                 {
                     new_uris.push_back(uri);
                 }
-                else
-                {
-                    has_plain_name_fragment = true;
-                }
             }
 
-            if (has_plain_name_fragment)
+            if (new_uris.empty())
             {
-                //std::cout << "update_uris\n";
-                for (const auto& uri : uris_)
-                {
-                    if (!uri.has_plain_name_fragment())
-                    {
-                        //std::cout << "    not has_plain_name_fragment " << uri.string() << std::endl;
-                    }
-                    else
-                    {
-                        //std::cout << "    has_plain_name_fragment " << uri.string() << std::endl;
-                    }
-                }
+                new_uris.emplace_back("#");
             }
 
             // Append the keys for this sub-schema to the uri's
@@ -146,32 +110,64 @@ namespace jsonschema {
                     uri = schema_location(new_u);
                 }
             }
-            if (schema.type() == json_type::object_value)
+            if (sch.is_object())
             {
-                auto it = schema.find("$ref");
-                if (it == schema.object_range().end()) // this schema is not a reference
-                { 
-                    it = schema.find("$id"); // If $id is found, this schema can be referenced by the id
-                    if (it != schema.object_range().end()) 
+                auto it = sch.find("$id"); // If $id is found, this schema can be referenced by the id
+                if (it != sch.object_range().end()) 
+                {
+                    std::string id = it->value().template as<std::string>(); 
+                    // Add it to the list if it is not already there
+                    if (std::find(new_uris.begin(), new_uris.end(), id) == new_uris.end())
                     {
-                        std::string id = it->value().template as<std::string>(); 
-                        // Add it to the list if it is not already there
-                        if (std::find(new_uris.begin(), new_uris.end(), id) == new_uris.end())
-                        {
-                            schema_location relative(id); 
-                            schema_location new_uri = relative.resolve(new_uris.back());
-                            new_uris.emplace_back(new_uri); 
-                        }
+                        schema_location relative(id); 
+                        schema_location new_uri = relative.resolve(new_uris.back());
+                        new_uris.emplace_back(new_uri); 
                     }
                 }
             }
 
+            /*std::cout << "\ncontext\n";
+            for (const auto& uri : new_uris)
+            {
+                std::cout << "    " << uri.string() << "\n";
+            }*/
+
             return compilation_context(new_uris);
         }
 
-        schema_location resolve_back(const schema_location& relative) const
+        compilation_context update_uris(jsoncons::span<const std::string> keys) const
         {
-            return relative.resolve(uris_.back());
+            // Exclude uri's that are not plain name identifiers
+            std::vector<schema_location> new_uris;
+            for (const auto& uri : uris_)
+            {
+                if (uri.is_absolute())
+                {
+                    new_uris.push_back(uri);
+                }
+            }
+
+            if (new_uris.empty())
+            {
+                new_uris.emplace_back("#");
+            }
+
+            // Append the keys for this sub-schema to the uri's
+            for (const auto& key : keys)
+            {
+                for (auto& uri : new_uris)
+                {
+                    auto new_u = uri.append(key);
+                    uri = schema_location(new_u);
+                }
+            }
+
+            //for (const auto& uri : new_uris)
+            //{
+            //    std::cout << "    " << uri.string() << "\n";
+            //}
+
+            return compilation_context(new_uris);
         }
 
         std::string make_schema_path_with(const std::string& keyword) const
@@ -187,6 +183,7 @@ namespace jsonschema {
         }
     };
 
+} // namespace draft7
 } // namespace jsonschema
 } // namespace jsoncons
 

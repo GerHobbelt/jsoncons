@@ -13,6 +13,7 @@
 #include <jsoncons_ext/jsonpointer/jsonpointer.hpp>
 #include <jsoncons_ext/jsonschema/jsonschema_error.hpp>
 #include <jsoncons_ext/jsonschema/common/keyword_validator.hpp>
+#include <unordered_set>
 
 namespace jsoncons {
 namespace jsonschema {
@@ -20,12 +21,14 @@ namespace jsonschema {
     template <class Json>
     class json_schema
     {
-        using validator_type = typename std::unique_ptr<keyword_validator<Json>>;
+        using validator_type = std::unique_ptr<validator_base<Json>>;
+        using keyword_validator_type = std::unique_ptr<keyword_validator<Json>>;
+        using schema_validator_type = std::unique_ptr<schema_validator<Json>>;
 
         std::vector<validator_type> subschemas_;
-        validator_type root_;
+        schema_validator_type root_;
     public:
-        json_schema(std::vector<validator_type>&& subschemas, validator_type&& root)
+        json_schema(std::vector<validator_type>&& subschemas, schema_validator_type&& root)
             : subschemas_(std::move(subschemas)), root_(std::move(root))
         {
             if (root_ == nullptr)
@@ -38,12 +41,13 @@ namespace jsonschema {
         json_schema& operator=(json_schema&&) = default;
 
         void validate(const Json& instance, 
-                      const jsonpointer::json_pointer& instance_location, 
-                      error_reporter& reporter, 
-                      Json& patch) const 
+            const jsonpointer::json_pointer& instance_location,
+            std::unordered_set<std::string>& evaluated_properties,
+            error_reporter& reporter, 
+            Json& patch) const 
         {
             JSONCONS_ASSERT(root_ != nullptr);
-            root_->validate(instance, instance_location, reporter, patch);
+            root_->validate(instance, instance_location, evaluated_properties, reporter, patch);
         }
     };
 

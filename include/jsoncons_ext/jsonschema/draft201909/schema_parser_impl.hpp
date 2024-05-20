@@ -1,20 +1,22 @@
 // Copyright 2013-2023 Daniel Parker
+// 
+// 23 Daniel Parker
 // Distributed under the Boost license, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
 // See https://github.com/danielaparker/jsoncons for latest version
 
-#ifndef JSONCONS_JSONSCHEMA_DRAFT7_SCHEMA_PARSER_IMPL_HPP
-#define JSONCONS_JSONSCHEMA_DRAFT7_SCHEMA_PARSER_IMPL_HPP
+#ifndef JSONCONS_JSONSCHEMA_DRAFT201909_SCHEMA_PARSER_IMPL_HPP
+#define JSONCONS_JSONSCHEMA_DRAFT201909_SCHEMA_PARSER_IMPL_HPP
 
 #include <jsoncons/uri.hpp>
 #include <jsoncons/json.hpp>
 #include <jsoncons_ext/jsonpointer/jsonpointer.hpp>
-#include <jsoncons_ext/jsonschema/draft7/compilation_context.hpp>
 #include <jsoncons_ext/jsonschema/json_schema.hpp>
 #include <jsoncons_ext/jsonschema/common/keywords.hpp>
 #include <jsoncons_ext/jsonschema/common/schema_parser.hpp>
-#include <jsoncons_ext/jsonschema/draft7/schema_draft7.hpp>
+#include <jsoncons_ext/jsonschema/draft201909/compilation_context.hpp>
+#include <jsoncons_ext/jsonschema/draft201909/schema_draft201909.hpp>
 #include <cassert>
 #include <set>
 #include <sstream>
@@ -26,16 +28,17 @@
 
 namespace jsoncons {
 namespace jsonschema {
-namespace draft7 {
+namespace draft201909 {
 
     template <class Json>
     struct default_uri_resolver
     {
         Json operator()(const jsoncons::uri& uri)
         {
-            if (uri.path() == "/draft-07/schema") 
+            if (uri.string() == "https://json-schema.org/draft/2019-09/schema") 
             {
-                return schema_draft7<Json>::get_schema();
+                JSONCONS_THROW(jsonschema::schema_error(std::string("Don't currently support") + "https://json-schema.org/draft/2019-09/schema"));
+                //return jsoncons::jsonschema::draft7::schema_draft7<Json>::get_schema();
             }
 
             JSONCONS_THROW(jsonschema::schema_error("Don't know how to load JSON Schema " + uri.base().string()));
@@ -67,7 +70,7 @@ namespace draft7 {
         std::vector<validator_type> subschemas_;
 
         // Map location to subschema_registry
-        std::map<std::string, subschema_registry> subschema_registries_;
+        std::map<std::string, subschema_registry> schema_documents_;
 
     public:
         schema_parser_impl(const uri_resolver<Json>& resolver = default_uri_resolver<Json>()) noexcept
@@ -92,16 +95,29 @@ namespace draft7 {
             return std::make_shared<json_schema<Json>>(std::move(subschemas_), std::move(root_));
         }
 
+        std::string key_string(jsoncons::span<const std::string> keys) const
+        {
+            std::string s;
+            for (std::size_t i = 0; i < keys.size(); ++i)
+            {
+                if (i > 0)
+                {
+                    s.push_back(' ');
+                }
+                s.insert(s.end(), keys[i].begin(),keys[i].end());
+            }
+            return s;
+        }
+
         schema_validator_type make_schema_validator(const Json& sch,
             const compilation_context& context,
-            jsoncons::span<const std::string> keys) //override
+            jsoncons::span<const std::string> keys) 
         {
+            //std::cout << "make_schema_validator.update_uris " << key_string(keys) << "\n" << pretty_print(sch) << "\n";
             auto new_context = context.update_uris(sch, keys);
 
             Json default_value{jsoncons::null_type()};
             schema_validator_type schema_validator_ptr;
-
-            bool is_ref = false;
 
             std::vector<keyword_validator_type> validators; 
             switch (sch.type())
@@ -132,89 +148,133 @@ namespace draft7 {
                     {
                         default_value = it->value();
                     }
-                    it = sch.find("$ref");
-                    if (it != sch.object_range().end()) // this schema is a reference
+
+                    it = sch.find("$defs");
+                    if (it != sch.object_range().end()) 
                     {
-                        is_ref = true;
-                        schema_location relative(it->value().template as<std::string>()); 
-                        auto id = relative.resolve(context.get_base_uri()); 
-                        validators.push_back(get_or_create_reference(id));
+                        for (const auto& def : it->value().object_range())
+                        {
+                            std::string sub_keys[] = { "$defs", def.key() };
+                            subschemas_.emplace_back(make_schema_validator(def.value(), new_context, sub_keys));
+                        }
                     }
                     it = sch.find("definitions");
                     if (it != sch.object_range().end()) 
                     {
                         for (const auto& def : it->value().object_range())
                         {
-                            std::string k[] = { "definitions", def.key() };
-                            subschemas_.emplace_back(make_schema_validator(def.value(), new_context, k));
+                            std::string sub_keys[] = { "definitions", def.key() };
+                            subschemas_.emplace_back(make_schema_validator(def.value(), new_context, sub_keys));
                         }
                     }
-                    if (!is_ref)
+                    it = sch.find("$ref");
+                    if (it != sch.object_range().end()) // this schema has a reference
                     {
-                        validators.push_back(make_type_validator(sch, new_context));
+                        schema_location relative(it->value().template as<std::string>()); 
+                        auto id = relative.resolve(new_context.get_base_uri()); 
+                        validators.push_back(get_or_create_reference(id));
+                    }
 
-                        it = sch.find("enum");
-                        if (it != sch.object_range().end()) 
+                    it = sch.find("$recursiveRef");
+                    if (it != sch.object_range().end()) // this schema has a reference
+                    {
+                        schema_location relative(it->value().template as<std::string>()); 
+                        auto base_uri = new_context.get_base_uri(uri_anchor_flags::recursive_anchor);
+                        auto id = relative.resolve(base_uri); // REVISIT
+                        validators.push_back(get_or_create_reference(id));
+                    }
+
+                    validators.push_back(make_type_validator(sch, new_context));
+
+
+                    it = sch.find("enum");
+                    if (it != sch.object_range().end()) 
+                    {
+                        validators.push_back(make_enum_validator(it->value(), new_context));
+                    }
+
+                    it = sch.find("const");
+                    if (it != sch.object_range().end()) 
+                    {
+                        validators.push_back(make_const_validator(it->value(), new_context));
+                    }
+
+                    it = sch.find("not");
+                    if (it != sch.object_range().end()) 
+                    {
+                        validators.push_back(make_not_validator(it->value(), new_context));
+                    }
+
+                    it = sch.find("allOf");
+                    if (it != sch.object_range().end()) 
+                    {
+                        validators.push_back(make_all_of_validator(it->value(), new_context));
+                    }
+
+                    it = sch.find("anyOf");
+                    if (it != sch.object_range().end()) 
+                    {
+                        validators.push_back(make_any_of_validator(it->value(), new_context));
+                    }
+
+                    it = sch.find("oneOf");
+                    if (it != sch.object_range().end()) 
+                    {
+                        validators.push_back(make_one_of_validator(it->value(), new_context));
+                    }
+
+                    it = sch.find("if");
+                    if (it != sch.object_range().end()) 
+                    {
+                        validators.push_back(make_conditional_validator(it->value(), sch, new_context));
+                        // sch["if"] is object and has id, can be looked up
+                    }
+                    else
+                    {
+                        auto then_it = sch.find("then");
+                        if (then_it != sch.object_range().end()) 
                         {
-                            validators.push_back(make_enum_validator(it->value(), new_context));
+                            std::string sub_keys[] = { "then" };
+                            subschemas_.emplace_back(make_schema_validator(then_it->value(), new_context, sub_keys));
                         }
 
-                        it = sch.find("const");
-                        if (it != sch.object_range().end()) 
+                        auto else_it = sch.find("else");
+                        if (else_it != sch.object_range().end()) 
                         {
-                            validators.push_back(make_const_validator(it->value(), new_context));
-                        }
-
-                        it = sch.find("not");
-                        if (it != sch.object_range().end()) 
-                        {
-                            validators.push_back(make_not_validator(it->value(), new_context));
-                        }
-
-                        it = sch.find("allOf");
-                        if (it != sch.object_range().end()) 
-                        {
-                            validators.push_back(make_all_of_validator(it->value(), new_context));
-                        }
-
-                        it = sch.find("anyOf");
-                        if (it != sch.object_range().end()) 
-                        {
-                            validators.push_back(make_any_of_validator(it->value(), new_context));
-                        }
-
-                        it = sch.find("oneOf");
-                        if (it != sch.object_range().end()) 
-                        {
-                            validators.push_back(make_one_of_validator(it->value(), new_context));
-                        }
-
-                        it = sch.find("if");
-                        if (it != sch.object_range().end()) 
-                        {
-                            validators.push_back(make_conditional_validator(it->value(), sch, new_context));
-                            // sch["if"] is object and has id, can be looked up
-                        }
-                        else
-                        {
-                            auto then_it = sch.find("then");
-                            if (then_it != sch.object_range().end()) 
-                            {
-                                std::string sub_keys[] = { "then" };
-                                subschemas_.emplace_back(make_schema_validator(then_it->value(), new_context, sub_keys));
-                            }
-
-                            auto else_it = sch.find("else");
-                            if (else_it != sch.object_range().end()) 
-                            {
-                                std::string sub_keys[] = { "else" };
-                                subschemas_.emplace_back(make_schema_validator(else_it->value(), new_context, sub_keys));
-                            }
+                            std::string sub_keys[] = { "else" };
+                            subschemas_.emplace_back(make_schema_validator(else_it->value(), new_context, sub_keys));
                         }
                     }
+
+                    it = sch.find("unevaluatedProperties"); // must be last
+                    if (it != sch.object_range().end()) 
+                    {
+                        validators.push_back(make_unevaluated_properties_validator(it->value(), new_context));
+                    } 
+
                     schema_validator_ptr = jsoncons::make_unique<object_schema_validator<Json>>(new_context.get_absolute_uri().string(),
                         std::move(validators), std::move(default_value));
                     schema_validator<Json>* p = schema_validator_ptr.get();
+
+                    it = sch.find("$anchor"); // If $anchor is found, this schema can be referenced by the id
+                    if (it != sch.object_range().end()) 
+                    {
+                        std::string anchor = it->value().template as<std::string>(); 
+                        if (!validate_anchor(anchor))
+                        {
+                            std::string message("Invalid anchor ");
+                            message.append(anchor.data(), anchor.size());
+                            JSONCONS_THROW(schema_error(message));
+                        }
+                        schema_location relative("#"+anchor); 
+                        insert_schema(relative, p);
+                        if (new_context.get_base_uri().is_absolute())
+                        {
+                            schema_location new_uri = relative.resolve(new_context.get_base_uri());
+                            insert_schema(new_uri, p);
+                        }
+                    }
+                    
                     for (const auto& uri : new_context.uris()) 
                     { 
                         insert_schema(uri, p);
@@ -294,10 +354,10 @@ namespace draft7 {
             const compilation_context& context)
         {
             std::string schema_path = context.get_absolute_uri().string();
-            std::vector<std::string> expected_types;
 
             std::vector<keyword_validator_type> type_mapping{(uint8_t)(json_type::object_value)+1};
             std::set<std::string> known_keywords;
+            std::vector<std::string> expected_types;
 
             auto it = sch.find("type");
             if (it == sch.object_range().end()) 
@@ -352,6 +412,7 @@ namespace draft7 {
             const compilation_context& context)
         {
             std::string schema_path = context.make_schema_path_with("string");
+            //std::cout << "update_uris 2 string " << sch << "\n";
             auto new_context = context.update_uris(sch, schema_path);
 
             std::vector<keyword_validator_type> validators;
@@ -508,6 +569,7 @@ namespace draft7 {
             const compilation_context& context)
         {
             std::string schema_path = context.make_schema_path_with("array");
+            //std::cout << "update_uris 3 array\n" << pretty_print(sch) << "\n";
             auto new_context = context.update_uris(sch, schema_path);
 
             std::vector<keyword_validator_type> validators;
@@ -602,7 +664,6 @@ namespace draft7 {
             const compilation_context& context)
         {
             std::string schema_path = context.make_schema_path_with("items");
-
             std::string sub_keys[] = {"items"};
 
             return jsoncons::make_unique<items_object_validator<Json>>(schema_path, 
@@ -748,6 +809,7 @@ namespace draft7 {
             const compilation_context& context, std::set<std::string>& keywords)
         {
             std::string schema_path = context.make_schema_path_with("integer");
+            //std::cout << "update_uris 4 integer " << sch << "\n";
             auto new_context = context.update_uris(sch, schema_path);
 
             std::vector<keyword_validator_type> validators;
@@ -795,6 +857,7 @@ namespace draft7 {
             const compilation_context& context, std::set<std::string>& keywords)
         {
             std::string schema_path = context.make_schema_path_with("number");
+            //std::cout << "update_uris 5 number " << sch << "\n";
             auto new_context = context.update_uris(sch, schema_path);
 
             std::vector<keyword_validator_type> validators;
@@ -869,7 +932,6 @@ namespace draft7 {
             return jsoncons::make_unique<required_validator<Json>>(schema_path, items);
         }
 
-
         std::unique_ptr<conditional_validator<Json>> make_conditional_validator(const Json& sch_if, const Json& sch,
             const compilation_context& context)
         {
@@ -903,13 +965,24 @@ namespace draft7 {
             const compilation_context& context)
         {
             std::string schema_path = context.make_schema_path_with("allOf");
+            //std::cout << "update_uris 6 allOf " << sch << "\n";
+            auto new_context2 = context.update_uris(sch, schema_path);
             std::vector<schema_validator_type> subschemas;
 
             size_t c = 0;
             for (const auto& subsch : sch.array_range())
             {
+                //std::cout << "update_uris 7 " << sch << "\n";
+                auto new_context = context.update_uris(subsch, jsoncons::span<const std::string>{});
+
+                /*std::cout << "\nThe context\n";
+                for (const auto& uri : new_context.uris())
+                {
+                    std::cout << "    " << uri.string() << "\n";
+                }*/
                 std::string sub_keys[] = { all_of_criterion<Json>::key(), std::to_string(c++) };
-                subschemas.emplace_back(make_schema_validator(subsch, context, sub_keys));
+
+                subschemas.emplace_back(make_schema_validator(subsch, new_context, sub_keys));
             }
             return jsoncons::make_unique<combining_validator<Json,all_of_criterion<Json>>>(std::move(schema_path), std::move(subschemas));
         }
@@ -938,7 +1011,7 @@ namespace draft7 {
             size_t c = 0;
             for (const auto& subsch : sch.array_range())
             {
-                std::string sub_keys[] = { one_of_criterion<Json>::key(), std::to_string(c++) };
+                std::string sub_keys[] = {one_of_criterion<Json>::key(), std::to_string(c++)};
                 subschemas.emplace_back(make_schema_validator(subsch, context, sub_keys));
             }
             return jsoncons::make_unique<combining_validator<Json,one_of_criterion<Json>>>(std::move(schema_path), std::move(subschemas));
@@ -948,7 +1021,9 @@ namespace draft7 {
             const compilation_context& context)
         {
             std::string schema_path = context.make_schema_path_with("object");
+
             std::vector<keyword_validator_type> general_validators;
+
             std::map<std::string, schema_validator_type> properties;
         #if defined(JSONCONS_HAS_STD_REGEX)
             std::vector<std::pair<std::regex, schema_validator_type>> pattern_properties;
@@ -982,6 +1057,7 @@ namespace draft7 {
             it = sch.find("properties");
             if (it != sch.object_range().end()) 
             {
+                //std::cout << "properties\n";
                 for (const auto& prop : it->value().object_range())
                 {
                     std::string sub_keys[] = {"properties", prop.key()};
@@ -1010,6 +1086,7 @@ namespace draft7 {
             it = sch.find("additionalProperties");
             if (it != sch.object_range().end()) 
             {
+                //std::cout << "additionalProperties\n";
                 std::string sub_keys[] = {"additionalProperties"};
                 additional_properties = make_schema_validator(it->value(), context, sub_keys);
             }
@@ -1044,6 +1121,51 @@ namespace draft7 {
                 }
             }
 
+            it = sch.find("dependentRequired ");
+            if (it != sch.object_range().end()) 
+            {
+                for (const auto& dep : it->value().object_range())
+                {
+                    switch (dep.value().type()) 
+                    {
+                        case json_type::array_value:
+                        {
+                            auto location = context.make_schema_path_with("dependentRequired");
+                            dependent_required.emplace(dep.key(), 
+                                make_required_validator(compilation_context(std::vector<schema_location>{{location}}),
+                                    dep.value().template as<std::vector<std::string>>()));
+                            break;
+                        }
+                        default:
+                        {
+                            break;
+                        }
+                    }
+                }
+            }
+
+            it = sch.find("dependentSchemas");
+            if (it != sch.object_range().end()) 
+            {
+                for (const auto& dep : it->value().object_range())
+                {
+                    switch (dep.value().type()) 
+                    {
+                        case json_type::object_value:
+                        {
+                            std::string sub_keys[] = {"dependentSchemas"};
+                            dependent_schemas.emplace(dep.key(),
+                                make_schema_validator(dep.value(), context, sub_keys));
+                            break;
+                        }
+                        default:
+                        {
+                            break;
+                        }
+                    }
+                }
+            }
+
             auto property_names_it = sch.find("propertyNames");
             if (property_names_it != sch.object_range().end()) 
             {
@@ -1064,6 +1186,17 @@ namespace draft7 {
             );
         }
 
+        std::unique_ptr<unevaluated_properties_validator<Json>> make_unevaluated_properties_validator(const Json& sch,
+            const compilation_context& context)
+        {
+            std::string schema_path = context.make_schema_path_with("object");
+
+            std::string sub_keys[] = {"unevaluatedProperties"};
+
+            return jsoncons::make_unique<unevaluated_properties_validator<Json>>(std::move(schema_path),
+                make_schema_validator(sch, context, sub_keys));
+        }
+
         void parse(const Json& sch) override
         {
             parse(sch, "#");
@@ -1077,7 +1210,7 @@ namespace draft7 {
                 if (it != sch.object_range().end())
                 {
                     auto sv = it->value().as_string_view();
-                    if (sv.find("json-schema.org/draft-07/schema#") == string_view::npos)
+                    if (sv != "https://json-schema.org/draft/2019-09/schema")
                     {
                         std::string message("Unsupported schema version ");
                         message.append(sv.data(), sv.size());
@@ -1090,7 +1223,7 @@ namespace draft7 {
 
         void load(const Json& sch, const compilation_context& context)
         {
-            subschema_registries_.clear();
+            schema_documents_.clear();
             root_ = make_schema_validator(sch, context, {});
 
             // load all external schemas that have not already been loaded
@@ -1101,12 +1234,12 @@ namespace draft7 {
                 loaded_count = 0;
 
                 std::vector<std::string> locations;
-                for (const auto& item : subschema_registries_)
+                for (const auto& item : schema_documents_)
                     locations.push_back(item.first);
 
                 for (const auto& loc : locations) 
                 {
-                    if (subschema_registries_[loc].schemas.empty()) // registry for this file is empty
+                    if (schema_documents_[loc].schemas.empty()) // registry for this file is empty
                     { 
                         if (resolver_) 
                         {
@@ -1123,37 +1256,55 @@ namespace draft7 {
             } 
             while (loaded_count > 0);
 
-            for (const auto &file : subschema_registries_)
+            resolve_references();
+
+            /*for (const auto& doc : schema_documents_)
             {
-                if (!file.second.unresolved.empty())
+                if (!doc.second.unresolved.empty())
                 {
                     JSONCONS_THROW(schema_error("After all files have been parsed, '" +
-                                                (file.first == "" ? "<root>" : file.first) +
+                                                (doc.first == "" ? "<root>" : doc.first) +
                                                 "' has still undefined references."));
                 }
-            }
+            }*/
         }
 
     private:
 
         void insert_schema(const schema_location& uri, schema_validator<Json>* s)
         {
-            auto& file = get_or_create_file(uri.base().string());
-            auto schemas_it = file.schemas.find(std::string(uri.fragment()));
-            if (schemas_it != file.schemas.end()) 
+            auto& doc = get_or_create_document(uri.base().string());
+            auto schemas_it = doc.schemas.find(std::string(uri.fragment()));
+            if (schemas_it != doc.schemas.end()) 
             {
                 //JSONCONS_THROW(schema_error("schema with " + uri.string() + " already inserted"));
                 return;
             }
 
-            file.schemas.insert({std::string(uri.fragment()), s});
+            doc.schemas.insert({std::string(uri.fragment()), s});
 
             // is there an unresolved reference to this newly inserted schema?
-            auto unresolved_it = file.unresolved.find(std::string(uri.fragment()));
-            if (unresolved_it != file.unresolved.end()) 
+            /*auto unresolved_it = doc.unresolved.find(std::string(uri.fragment()));
+            if (unresolved_it != doc.unresolved.end()) 
             {
                 unresolved_it->second->set_referred_schema(s->clone());
-                file.unresolved.erase(unresolved_it);
+                doc.unresolved.erase(unresolved_it);
+            }*/
+        }
+
+        void resolve_references()
+        {
+            for (auto& doc : schema_documents_)
+            {
+                for (auto& ref : doc.second.unresolved)
+                {
+                    auto it = doc.second.schemas.find(ref.first);
+                    if (it == doc.second.schemas.end())
+                    {
+                        JSONCONS_THROW(schema_error(doc.first + " has undefined reference " + ref.first + "."));
+                    }
+                    ref.second->set_referred_schema(it->second->clone());
+                }
             }
         }
 
@@ -1161,7 +1312,7 @@ namespace draft7 {
                                     const std::string& key, 
                                     const Json& value)
         {
-            auto &file = get_or_create_file(uri.base().string());
+            auto &doc = get_or_create_document(uri.base().string());
             auto new_u = uri.append(key);
             schema_location new_uri(new_u);
 
@@ -1169,11 +1320,11 @@ namespace draft7 {
             {
                 auto fragment = std::string(new_uri.fragment());
                 // is there a reference looking for this unknown-keyword, which is thus no longer a unknown keyword but a schema
-                auto unresolved = file.unresolved.find(fragment);
-                if (unresolved != file.unresolved.end())
+                auto it = doc.unresolved.find(fragment);
+                if (it != doc.unresolved.end())
                     subschemas_.emplace_back(make_schema_validator(value, compilation_context(new_uri), {}));
                 else // no, nothing ref'd it, keep for later
-                    file.unprocessed_keywords[fragment] = value;
+                    doc.unprocessed_keywords[fragment] = value;
 
                 // recursively add possible subschemas of unknown keywords
                 if (value.type() == json_type::object_value)
@@ -1186,11 +1337,11 @@ namespace draft7 {
 
         keyword_validator_type get_or_create_reference(const schema_location& uri)
         {
-            auto &file = get_or_create_file(uri.base().string());
+            auto& doc = get_or_create_document(uri.base().string());
 
             // a schema already exists
-            auto sch = file.schemas.find(std::string(uri.fragment()));
-            if (sch != file.schemas.end())
+            auto sch = doc.schemas.find(std::string(uri.fragment()));
+            if (sch != doc.schemas.end())
             {
                 return jsoncons::make_unique<ref_validator_type>(sch->second->clone());
             }
@@ -1202,21 +1353,21 @@ namespace draft7 {
             if (uri.has_fragment() && !uri.has_plain_name_fragment()) 
             {
                 std::string fragment = std::string(uri.fragment());
-                auto unprocessed_keywords_it = file.unprocessed_keywords.find(fragment);
-                if (unprocessed_keywords_it != file.unprocessed_keywords.end()) 
+                auto unprocessed_keywords_it = doc.unprocessed_keywords.find(fragment);
+                if (unprocessed_keywords_it != doc.unprocessed_keywords.end()) 
                 {
                     auto &subsch = unprocessed_keywords_it->second; 
                     auto s = make_schema_validator(subsch, compilation_context(uri), {}); 
                     //auto p = s.get();
                     //subschemas_.emplace_back(std::move(s));
-                    file.unprocessed_keywords.erase(unprocessed_keywords_it);
+                    doc.unprocessed_keywords.erase(unprocessed_keywords_it);
                     return jsoncons::make_unique<ref_validator_type>(std::move(s));
                 }
             }
 
             // get or create a ref_validator
-            auto it = file.unresolved.find(std::string(uri.fragment()));
-            if (it != file.unresolved.end()) 
+            auto it = doc.unresolved.find(std::string(uri.fragment()));
+            if (it != doc.unresolved.end()) 
             {
                 return jsoncons::make_unique<keyword_validator_wrapper_type>(it->second);
             }
@@ -1224,29 +1375,56 @@ namespace draft7 {
             {
                 auto orig = jsoncons::make_unique<ref_validator_type>(uri.string());
                 auto p = orig.get();
-                file.unresolved.insert(it, {std::string(uri.fragment()), p});
-
+                doc.unresolved.insert(it, {std::string(uri.fragment()), p});
+                
                 subschemas_.emplace_back(std::move(orig));
                 return jsoncons::make_unique<keyword_validator_wrapper_type>(p);
             }
         }
 
-        subschema_registry& get_or_create_file(const std::string& loc)
+        subschema_registry& get_or_create_document(const std::string& loc)
         {
-            auto file = subschema_registries_.find(loc);
-            if (file != subschema_registries_.end())
+            auto it = schema_documents_.find(loc);
+            if (it != schema_documents_.end())
             {
-                return file->second;
+                return it->second;
             }
             else
             {
-                return subschema_registries_.insert(file, {loc, {}})->second;
+                return schema_documents_.insert(it, {loc, {}})->second;
             }
+        }
+
+        static bool validate_anchor(const std::string& anchor)
+        {
+            bool is_valid = !anchor.empty();
+            for (std::size_t i = 0; is_valid && i < anchor.size(); ++i)
+            {
+                switch (anchor[i])
+                {
+                case 'a':case 'b':case 'c':case 'd':case 'e':case 'f':case 'g':case 'h':case 'i':case 'j':case 'k':case 'l':case 'm':case 'n':case 'o':case 'p':case 'q':case 'r':case 's':case 't':case 'u':case 'v':case 'w':case 'x':case 'y':case 'z':
+                case 'A':case 'B':case 'C':case 'D':case 'E':case 'F':case 'G':case 'H':case 'I':case 'J':case 'K':case 'L':case 'M':case 'N':case 'O':case 'P':case 'Q':case 'R':case 'S':case 'T':case 'U':case 'V':case 'W':case 'X':case 'Y':case 'Z':
+                case '_':
+                    break;
+                case '0':case '1':case '2':case '3':case '4':case '5':case '6':case '7':case '8':case '9':
+                case '-':
+                case '.':
+                    if (i == 0)
+                    {
+                        is_valid = false;
+                    }
+                    break;
+                default:                    
+                    is_valid = false;
+                    break;
+                }
+            }
+            return is_valid;
         }
 
     };
 
-} // namespace draft7
+} // namespace draft201909
 } // namespace jsonschema
 } // namespace jsoncons
 

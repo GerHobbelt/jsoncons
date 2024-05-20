@@ -12,6 +12,7 @@
 #include <jsoncons/json.hpp>
 #include <jsoncons_ext/jsonpointer/jsonpointer.hpp>
 #include <jsoncons_ext/jsonschema/jsonschema_error.hpp>
+#include <unordered_set>
 
 namespace jsoncons {
 namespace jsonschema {
@@ -50,76 +51,122 @@ namespace jsonschema {
     };
 
     template <class Json>
-    class keyword_validator 
+    class validator_base 
     {
-        std::string schema_path_;
     public:
-        using validator_type = std::unique_ptr<keyword_validator<Json>>;
-        using self_pointer = keyword_validator<Json>*;
+        virtual ~validator_base() = default;
 
-        keyword_validator(const std::string& schema_path)
-            : schema_path_(schema_path)
-        {
-        }
-
-        keyword_validator(const keyword_validator&) = delete;
-        keyword_validator(keyword_validator&&) = default;
-        keyword_validator& operator=(const keyword_validator&) = delete;
-        keyword_validator& operator=(keyword_validator&&) = default;
-
-        virtual ~keyword_validator() = default;
-
-        const std::string& schema_path() const
-        {
-            return schema_path_;
-        }
+        virtual const std::string& schema_path() const = 0;
 
         void validate(const Json& instance, 
-                      const jsonpointer::json_pointer& instance_location, 
-                      error_reporter& reporter, 
-                      Json& patch) const 
+            const jsonpointer::json_pointer& instance_location,
+            std::unordered_set<std::string>& evaluated_properties, 
+            error_reporter& reporter, 
+            Json& patch) const 
         {
-            do_validate(instance, 
-                        instance_location,
-                        reporter,
-                        patch);
-        }
-
-        virtual jsoncons::optional<Json> get_default_value(const jsonpointer::json_pointer&, const Json&, error_reporter&) const
-        {
-            return jsoncons::optional<Json>();
+            do_validate(instance, instance_location, evaluated_properties, reporter, patch);
         }
 
     private:
         virtual void do_validate(const Json& instance, 
-                                 const jsonpointer::json_pointer& instance_location, 
-                                 error_reporter& reporter, 
-                                 Json& patch) const = 0;
+            const jsonpointer::json_pointer& instance_location,
+            std::unordered_set<std::string>& evaluated_properties, 
+            error_reporter& reporter, 
+            Json& patch) const = 0;
+    };
+
+    template <class Json>
+    class keyword_validator : public validator_base<Json> 
+    {
+    public:
+        using keyword_validator_type = std::unique_ptr<keyword_validator<Json>>;
+
+        virtual keyword_validator_type clone() const = 0;
+    };
+
+    template <class Json>
+    class keyword_validator_base : public keyword_validator<Json>
+    {
+        std::string schema_path_;
+    public:
+        using keyword_validator_type = std::unique_ptr<keyword_validator<Json>>;
+
+        keyword_validator_base(const std::string& schema_path)
+            : schema_path_(schema_path)
+        {
+        }
+
+        keyword_validator_base(const keyword_validator_base&) = delete;
+        keyword_validator_base(keyword_validator_base&&) = default;
+        keyword_validator_base& operator=(const keyword_validator_base&) = delete;
+        keyword_validator_base& operator=(keyword_validator_base&&) = default;
+
+        const std::string& schema_path() const override
+        {
+            return schema_path_;
+        }
     };
 
     template <class Json>
     using uri_resolver = std::function<Json(const jsoncons::uri & /*id*/)>;
 
     template <class Json>
-    class reference_schema : public keyword_validator<Json>
+    class schema_validator : public validator_base<Json>
     {
-        using validator_type = typename std::unique_ptr<keyword_validator<Json>>;
-        using validator_pointer = typename keyword_validator<Json>::self_pointer;
-
-        validator_pointer referred_schema_;
+    public:
+        using schema_validator_type = typename std::unique_ptr<schema_validator<Json>>;
+        using keyword_validator_type = typename std::unique_ptr<keyword_validator<Json>>;
 
     public:
-        reference_schema(const std::string& id)
-            : keyword_validator<Json>(id), referred_schema_(nullptr) {}
+        schema_validator()
+        {}
 
-        void set_referred_schema(validator_pointer target) { referred_schema_ = target; }
+        virtual jsoncons::optional<Json> get_default_value() const = 0;
+
+        virtual schema_validator_type clone() const = 0;
+    };
+
+    template <class Json>
+    class ref_validator : public keyword_validator<Json>
+    {
+        using keyword_validator_type = std::unique_ptr<keyword_validator<Json>>;
+        using schema_validator_type = std::unique_ptr<schema_validator<Json>>;
+
+        schema_validator_type referred_schema_;
+
+    public:
+        ref_validator(const std::string& /*id*/)
+        {}
+
+        ref_validator(schema_validator_type&& target)
+            : referred_schema_(std::move(target)) {}
+
+        void set_referred_schema(schema_validator_type&& target) { referred_schema_ = std::move(target); }
+
+        const std::string& schema_path() const override
+        {
+            static std::string s = "#";
+            return referred_schema_ ? referred_schema_->schema_path() : s;
+        }
+
+        keyword_validator_type clone() const override 
+        {
+            schema_validator_type referred_schema;
+            if (referred_schema_)
+            {
+                referred_schema = referred_schema_->clone();
+            }
+
+            return jsoncons::make_unique<ref_validator>(std::move(referred_schema));
+        }
 
     private:
 
         void do_validate(const Json& instance, 
-                         const jsonpointer::json_pointer& instance_location, 
-                         error_reporter& reporter, 
-                         Json& patch) const override
+            const jsonpointer::json_pointer& instance_location,
+            std::unordered_set<std::string>& evaluated_properties, 
+            error_reporter& reporter, 
+            Json& patch) const override
         {
             if (!referred_schema_)
             {
@@ -130,23 +177,155 @@ namespace jsonschema {
                 return;
             }
 
-            referred_schema_->validate(instance, instance_location, reporter, patch);
+            referred_schema_->validate(instance, instance_location, evaluated_properties, reporter, patch);
+        }
+    };
+
+    template <class Json>
+    class boolean_schema_validator : public schema_validator<Json>
+    {
+    public:
+        using schema_validator_type = typename std::unique_ptr<schema_validator<Json>>;
+        using keyword_validator_type = typename std::unique_ptr<keyword_validator<Json>>;
+
+        std::string schema_path_;
+        bool value_;
+
+    public:
+        boolean_schema_validator(const std::string& schema_path, bool value)
+            : schema_path_(schema_path), value_(value)
+        {
         }
 
-        jsoncons::optional<Json> get_default_value(const jsonpointer::json_pointer& instance_location, 
-                                                   const Json& instance, 
-                                                   error_reporter& reporter) const override
+        jsoncons::optional<Json> get_default_value() const override
         {
-            if (!referred_schema_)
+            return jsoncons::optional<Json>{};
+        }
+
+        const std::string& schema_path() const override
+        {
+            return schema_path_;
+        }
+
+        schema_validator_type clone() const final
+        {
+            return jsoncons::make_unique<boolean_schema_validator>(schema_path_, value_);
+        }
+
+    private:
+        void do_validate(const Json&, 
+            const jsonpointer::json_pointer& instance_location,
+            std::unordered_set<std::string>&, 
+            error_reporter& reporter, 
+            Json&) const final
+        {
+            if (!value_)
             {
-                reporter.error(validation_output("", 
-                                                 this->schema_path(), 
-                                                 instance_location.to_uri_fragment(), 
-                                                 "Unresolved schema reference " + this->schema_path()));
-                return jsoncons::optional<Json>();
+                reporter.error(validation_output("false", 
+                    this->schema_path(), 
+                    instance_location.to_uri_fragment(), 
+                    "False schema always fails"));
+            }
+        }
+    };
+
+    template <class Json>
+    class object_schema_validator : public schema_validator<Json>
+    {
+    public:
+        using schema_validator_type = typename std::unique_ptr<schema_validator<Json>>;
+        using keyword_validator_type = typename std::unique_ptr<keyword_validator<Json>>;
+
+        std::string schema_path_;
+        std::vector<keyword_validator_type> validators_;
+        Json default_value_;
+
+    public:
+        object_schema_validator(const std::string& schema_path, std::vector<keyword_validator_type>&& validators, Json&& default_value)
+            : schema_path_(schema_path),
+              validators_(std::move(validators)),
+              default_value_(std::move(default_value))
+        {
+        }
+
+        jsoncons::optional<Json> get_default_value() const override
+        {
+            return default_value_;
+        }
+
+        const std::string& schema_path() const override
+        {
+            return schema_path_;
+        }
+
+        schema_validator_type clone() const final
+        {
+            std::vector<keyword_validator_type> validators;
+            for (auto& validator : validators_)
+            {
+                validators.push_back(validator->clone());
             }
 
-            return referred_schema_->get_default_value(instance_location, instance, reporter);
+            return jsoncons::make_unique<object_schema_validator>(schema_path_, std::move(validators), Json(default_value_));
+        }
+
+    private:
+        void do_validate(const Json& instance, 
+            const jsonpointer::json_pointer& instance_location,
+            std::unordered_set<std::string>& evaluated_properties, 
+            error_reporter& reporter, 
+            Json& patch) const final
+        {
+            std::unordered_set<std::string> local_evaluated_properties;
+
+            for (auto& validator : validators_)
+            {
+                validator->validate(instance, instance_location, local_evaluated_properties, reporter, patch);
+                if (reporter.error_count() > 0 && reporter.fail_early())
+                {
+                    return;
+                }
+            }
+
+            for (auto&& name : local_evaluated_properties)
+            {
+                evaluated_properties.emplace(std::move(name));
+            }
+        }
+    };
+
+    // keyword_validator_wrapper
+
+    template <class Json>
+    class keyword_validator_wrapper : public keyword_validator<Json>
+    {
+        using keyword_validator_type = typename keyword_validator<Json>::keyword_validator_type;
+        const keyword_validator<Json>* validator_;
+    public:
+        keyword_validator_wrapper(const keyword_validator<Json>* validator)
+            : validator_(validator)
+        {
+        }
+
+        const std::string& schema_path() const override
+        {
+            static std::string s("#");
+            return validator_ != nullptr ? validator_->schema_path() : s;
+        }
+
+        keyword_validator_type clone() const final 
+        {
+            return jsoncons::make_unique<keyword_validator_wrapper>(validator_);
+        }
+
+    private:
+        void do_validate(const Json& instance, 
+            const jsonpointer::json_pointer& instance_location, 
+            std::unordered_set<std::string>& evaluated_properties, 
+            error_reporter& reporter,
+            Json& patch) const override
+        {
+            validator_->validate(instance, instance_location, evaluated_properties, reporter, patch);
         }
     };
 

@@ -18,6 +18,7 @@
 #include <iostream>
 #include <cassert>
 #include <functional>
+#include <unordered_set>
 
 namespace jsoncons {
 namespace jsonschema {
@@ -85,7 +86,8 @@ namespace jsonschema {
             jsonpointer::json_pointer instance_location("#");
             Json patch(json_array_arg);
 
-            root_->validate(instance, instance_location, reporter, patch);
+            std::unordered_set<std::string> evaluated_properties;
+            root_->validate(instance, instance_location, evaluated_properties, reporter, patch);
             return patch;
         }
 
@@ -96,7 +98,8 @@ namespace jsonschema {
             jsonpointer::json_pointer instance_location("#");
             Json patch(json_array_arg);
 
-            root_->validate(instance, instance_location, reporter, patch);
+            std::unordered_set<std::string> evaluated_properties;
+            root_->validate(instance, instance_location, evaluated_properties, reporter, patch);
             return reporter.error_count() == 0;
         }
 
@@ -109,7 +112,8 @@ namespace jsonschema {
             Json patch(json_array_arg);
 
             error_reporter_adaptor adaptor(reporter);
-            root_->validate(instance, instance_location, adaptor, patch);
+            std::unordered_set<std::string> evaluated_properties;
+            root_->validate(instance, instance_location, evaluated_properties, adaptor, patch);
             return patch;
         }
     };
