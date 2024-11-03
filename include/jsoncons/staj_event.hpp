@@ -44,9 +44,6 @@ enum class staj_event_type
     uint64_value,
     half_value,
     double_value
-#if !defined(JSONCONS_NO_DEPRECATED)
-    ,name = key
-#endif
 };
 
 template <class CharT>
@@ -340,7 +337,7 @@ public:
     }
 
     template<class T, class Allocator>
-    typename std::enable_if<extension_traits::is_list_like<T>::value &&
+    typename std::enable_if<extension_traits::is_array_like<T>::value &&
                             std::is_same<typename T::value_type,uint8_t>::value,T>::type
     get_(Allocator, std::error_code& ec) const
     {
@@ -408,16 +405,6 @@ public:
     {
         return as_bool(ec);
     }
-
-#if !defined(JSONCONS_NO_DEPRECATED)
-    template<class T>
-    JSONCONS_DEPRECATED_MSG("Instead, use get<T>()")
-    T as() const
-    {
-        return get<T>();
-    }
-    semantic_tag get_semantic_tag() const noexcept { return tag_; }
-#endif
 
     staj_event_type event_type() const noexcept { return event_type_; }
 

@@ -77,8 +77,6 @@ namespace jsonschema {
                 }
             }
 
-            //std::cout << "recursive_ref_validator.do_validate " << "keywordLocation: << " << this->schema_location().string() << ", instanceLocation:" << instance_location.string() << "\n";
-
             evaluation_context<Json> this_context(context, this->keyword_name());
             if (schema_ptr == nullptr)
             {
@@ -415,7 +413,7 @@ namespace jsonschema {
                 walk_result result = format_check_(this_context.eval_path(), this->schema_location(), instance_location, s, reporter);
                 if (result == walk_result::abort)
                 {
-                    return walk_result::abort;
+                    return result;
                 }
             }
             return walk_result::advance;
@@ -1357,43 +1355,69 @@ namespace jsonschema {
         {
             evaluation_context<Json> this_context(context, this->keyword_name());
 
-            switch (instance.type())
+            if (instance.is_int64() && value_.is_int64())
             {
-                case json_type::int64_value:
-                case json_type::uint64_value:
+                if (instance.template as<int64_t>() > value_.template as<int64_t>())
                 {
-                    if (instance.template as<int64_t>() > value_.template as<int64_t>())
+                    walk_result result = reporter.error(validation_message(this->keyword_name(),
+                        this_context.eval_path(), 
+                        this->schema_location(), 
+                        instance_location, 
+                        message_ + instance.template as<std::string>()));
+                    if (result == walk_result::abort)
                     {
-                        walk_result result = reporter.error(validation_message(this->keyword_name(),
-                            this_context.eval_path(), 
-                            this->schema_location(), 
-                            instance_location, 
-                            message_ + instance.template as<std::string>()));
-                        if (result == walk_result::abort)
-                        {
-                            return result;
-                        }
+                        return result;
                     }
-                    break;
                 }
-                case json_type::double_value:
+            }
+            else if (instance.is_uint64() && value_.is_uint64())
+            {
+                if (instance.template as<uint64_t>() > value_.template as<uint64_t>())
                 {
-                    if (instance.template as<double>() > value_.template as<double>())
+                    walk_result result = reporter.error(validation_message(this->keyword_name(),
+                        this_context.eval_path(), 
+                        this->schema_location(), 
+                        instance_location, 
+                        message_ + instance.template as<std::string>()));
+                    if (result == walk_result::abort)
                     {
-                        walk_result result = reporter.error(validation_message(this->keyword_name(),
-                            this_context.eval_path(), 
-                            this->schema_location(), 
-                            instance_location, 
-                            message_ + instance.template as<std::string>()));
-                        if (result == walk_result::abort)
-                        {
-                            return result;
-                        }
+                        return result;
                     }
-                    break;
                 }
-                default:
-                    break;
+            }
+            else if (instance.is_string_view() && instance.tag() == semantic_tag::bigint)
+            {
+                auto sv1 = instance.as_string_view();
+                bigint n1 = bigint::from_string(sv1.data(), sv1.length());
+                auto s2 = value_.as_string();
+                bigint n2 = bigint::from_string(s2.data(), s2.length());
+                if (n1 > n2)
+                {
+                    walk_result result = reporter.error(validation_message(this->keyword_name(),
+                        this_context.eval_path(), 
+                        this->schema_location(), 
+                        instance_location, 
+                        message_ + instance.template as<std::string>()));
+                    if (result == walk_result::abort)
+                    {
+                        return result;
+                    }
+                }
+            }
+            else if (instance.is_number())
+            {
+                if (instance.template as<double>() > value_.template as<double>())
+                {
+                    walk_result result = reporter.error(validation_message(this->keyword_name(),
+                        this_context.eval_path(), 
+                        this->schema_location(), 
+                        instance_location, 
+                        message_ + instance.template as<std::string>()));
+                    if (result == walk_result::abort)
+                    {
+                        return result;
+                    }
+                }
             }
             return walk_result::advance;
         }
@@ -1431,43 +1455,69 @@ namespace jsonschema {
         {
             evaluation_context<Json> this_context(context, this->keyword_name());
 
-            switch (instance.type())
+            if (instance.is_int64() && value_.is_int64())
             {
-                case json_type::int64_value:
-                case json_type::uint64_value:
+                if (instance.template as<int64_t>() >= value_.template as<int64_t>())
                 {
-                    if (instance.template as<int64_t>() >= value_.template as<int64_t>())
+                    walk_result result = reporter.error(validation_message(this->keyword_name(),
+                        this_context.eval_path(), 
+                        this->schema_location(), 
+                        instance_location, 
+                        message_ + instance.template as<std::string>()));
+                    if (result == walk_result::abort)
                     {
-                        walk_result result = reporter.error(validation_message(this->keyword_name(),
-                            this_context.eval_path(), 
-                            this->schema_location(), 
-                            instance_location, 
-                            message_ + instance.template as<std::string>()));
-                        if (result == walk_result::abort)
-                        {
-                            return result;
-                        }
+                        return result;
                     }
-                    break;
                 }
-                case json_type::double_value:
+            }
+            else if (instance.is_uint64() && value_.is_uint64())
+            {
+                if (instance.template as<uint64_t>() >= value_.template as<uint64_t>())
                 {
-                    if (instance.template as<double>() >= value_.template as<double>())
+                    walk_result result = reporter.error(validation_message(this->keyword_name(),
+                        this_context.eval_path(), 
+                        this->schema_location(), 
+                        instance_location, 
+                        message_ + instance.template as<std::string>()));
+                    if (result == walk_result::abort)
                     {
-                        walk_result result = reporter.error(validation_message(this->keyword_name(),
-                            this_context.eval_path(), 
-                            this->schema_location(), 
-                            instance_location, 
-                            message_ + instance.template as<std::string>()));
-                        if (result == walk_result::abort)
-                        {
-                            return result;
-                        }
+                        return result;
                     }
-                    break;
                 }
-                default:
-                    break;
+            }
+            else if (instance.is_string_view() && instance.tag() == semantic_tag::bigint)
+            {
+                auto sv1 = instance.as_string_view();
+                bigint n1 = bigint::from_string(sv1.data(), sv1.length());
+                auto s2 = value_.as_string();
+                bigint n2 = bigint::from_string(s2.data(), s2.length());
+                if (n1 >= n2)
+                {
+                    walk_result result = reporter.error(validation_message(this->keyword_name(),
+                        this_context.eval_path(), 
+                        this->schema_location(), 
+                        instance_location, 
+                        message_ + instance.template as<std::string>()));
+                    if (result == walk_result::abort)
+                    {
+                        return result;
+                    }
+                }
+            }
+            else if (instance.is_number())
+            {
+                if (instance.template as<double>() >= value_.template as<double>())
+                {
+                    walk_result result = reporter.error(validation_message(this->keyword_name(),
+                        this_context.eval_path(), 
+                        this->schema_location(), 
+                        instance_location, 
+                        message_ + instance.template as<std::string>()));
+                    if (result == walk_result::abort)
+                    {
+                        return result;
+                    }
+                }
             }
             return walk_result::advance;
         }
@@ -1505,43 +1555,69 @@ namespace jsonschema {
         {
             evaluation_context<Json> this_context(context, this->keyword_name());
 
-            switch (instance.type())
+            if (instance.is_int64() && value_.is_int64())
             {
-                case json_type::int64_value:
-                case json_type::uint64_value:
+                if (instance.template as<int64_t>() < value_.template as<int64_t>())
                 {
-                    if (instance.template as<int64_t>() < value_.template as<int64_t>())
+                    walk_result result = reporter.error(validation_message(this->keyword_name(),
+                        this_context.eval_path(), 
+                        this->schema_location(), 
+                        instance_location, 
+                        message_ + instance.template as<std::string>()));
+                    if (result == walk_result::abort)
                     {
-                        walk_result result = reporter.error(validation_message(this->keyword_name(),
-                            this_context.eval_path(), 
-                            this->schema_location(), 
-                            instance_location, 
-                            message_ + instance.template as<std::string>()));
-                        if (result == walk_result::abort)
-                        {
-                            return result;
-                        }
+                        return result;
                     }
-                    break;
                 }
-                case json_type::double_value:
+            }
+            else if (instance.is_uint64() && value_.is_uint64())
+            {
+                if (instance.template as<uint64_t>() < value_.template as<uint64_t>())
                 {
-                    if (instance.template as<double>() < value_.template as<double>())
+                    walk_result result = reporter.error(validation_message(this->keyword_name(),
+                        this_context.eval_path(), 
+                        this->schema_location(), 
+                        instance_location, 
+                        message_ + instance.template as<std::string>()));
+                    if (result == walk_result::abort)
                     {
-                        walk_result result = reporter.error(validation_message(this->keyword_name(),
-                            this_context.eval_path(), 
-                            this->schema_location(), 
-                            instance_location, 
-                            message_ + instance.template as<std::string>()));
-                        if (result == walk_result::abort)
-                        {
-                            return result;
-                        }
+                        return result;
                     }
-                    break;
                 }
-                default:
-                    break;
+            }
+            else if (instance.is_string_view() && instance.tag() == semantic_tag::bigint)
+            {
+                auto sv1 = instance.as_string_view();
+                bigint n1 = bigint::from_string(sv1.data(), sv1.length());
+                auto s2 = value_.as_string();
+                bigint n2 = bigint::from_string(s2.data(), s2.length());
+                if (n1 < n2)
+                {
+                    walk_result result = reporter.error(validation_message(this->keyword_name(),
+                        this_context.eval_path(), 
+                        this->schema_location(), 
+                        instance_location, 
+                        message_ + instance.template as<std::string>()));
+                    if (result == walk_result::abort)
+                    {
+                        return result;
+                    }
+                }
+            }
+            else if (instance.is_number())
+            {
+                if (instance.template as<double>() < value_.template as<double>())
+                {
+                    walk_result result = reporter.error(validation_message(this->keyword_name(),
+                        this_context.eval_path(), 
+                        this->schema_location(), 
+                        instance_location, 
+                        message_ + instance.template as<std::string>()));
+                    if (result == walk_result::abort)
+                    {
+                        return result;
+                    }
+                }
             }
             return walk_result::advance;
         }
@@ -1579,43 +1655,69 @@ namespace jsonschema {
         {
             evaluation_context<Json> this_context(context, this->keyword_name());
 
-            switch (instance.type())
+            if (instance.is_int64() && value_.is_int64())
             {
-                case json_type::int64_value:
-                case json_type::uint64_value:
+                if (instance.template as<int64_t>() <= value_.template as<int64_t>())
                 {
-                    if (instance.template as<int64_t>() <= value_.template as<int64_t>())
+                    walk_result result = reporter.error(validation_message(this->keyword_name(),
+                        this_context.eval_path(), 
+                        this->schema_location(), 
+                        instance_location, 
+                        message_ + instance.template as<std::string>()));
+                    if (result == walk_result::abort)
                     {
-                        walk_result result = reporter.error(validation_message(this->keyword_name(),
-                            this_context.eval_path(), 
-                            this->schema_location(), 
-                            instance_location, 
-                            message_ + instance.template as<std::string>()));
-                        if (result == walk_result::abort)
-                        {
-                            return result;
-                        }
+                        return result;
                     }
-                    break;
                 }
-                case json_type::double_value:
+            }
+            else if (instance.is_uint64() && value_.is_uint64())
+            {
+                if (instance.template as<uint64_t>() <= value_.template as<uint64_t>())
                 {
-                    if (instance.template as<double>() <= value_.template as<double>())
+                    walk_result result = reporter.error(validation_message(this->keyword_name(),
+                        this_context.eval_path(), 
+                        this->schema_location(), 
+                        instance_location, 
+                        message_ + instance.template as<std::string>()));
+                    if (result == walk_result::abort)
                     {
-                        walk_result result = reporter.error(validation_message(this->keyword_name(),
-                            this_context.eval_path(), 
-                            this->schema_location(), 
-                            instance_location, 
-                            message_ + instance.template as<std::string>()));
-                        if (result == walk_result::abort)
-                        {
-                            return result;
-                        }
+                        return result;
                     }
-                    break;
                 }
-                default:
-                    break;
+            }
+            else if (instance.is_string_view() && instance.tag() == semantic_tag::bigint)
+            {
+                auto sv1 = instance.as_string_view();
+                bigint n1 = bigint::from_string(sv1.data(), sv1.length());
+                auto s2 = value_.as_string();
+                bigint n2 = bigint::from_string(s2.data(), s2.length());
+                if (n1 <= n2)
+                {
+                    walk_result result = reporter.error(validation_message(this->keyword_name(),
+                        this_context.eval_path(), 
+                        this->schema_location(), 
+                        instance_location, 
+                        message_ + instance.template as<std::string>()));
+                    if (result == walk_result::abort)
+                    {
+                        return result;
+                    }
+                }
+            }
+            else if (instance.is_number())
+            {
+                if (instance.template as<double>() <= value_.template as<double>())
+                {
+                    walk_result result = reporter.error(validation_message(this->keyword_name(),
+                        this_context.eval_path(), 
+                        this->schema_location(), 
+                        instance_location, 
+                        message_ + instance.template as<std::string>()));
+                    if (result == walk_result::abort)
+                    {
+                        return result;
+                    }
+                }
             }
             return walk_result::advance;
         }
@@ -2024,7 +2126,7 @@ namespace jsonschema {
                     "'" + instance.template as<std::string>() + "' is not a valid enum value."));
                 if (result == walk_result::abort)
                 {
-                    return walk_result::abort;
+                    return result;
                 }
             }
             return walk_result::advance;
@@ -2175,7 +2277,7 @@ namespace jsonschema {
                         }
                         break;
                     case json_schema_type::string:  // OK
-                        if (instance.is_string())
+                        if (instance.is_string() && instance.tag() != semantic_tag::bigint)
                         {
                             is_type_found = true;
                         }
@@ -2187,12 +2289,17 @@ namespace jsonschema {
                         }
                         break;
                     case json_schema_type::integer:
-                        if (instance.is_number())
+                        if (instance.is_int64() || instance.is_uint64())
                         {
-                            if (instance.template is_integer<int64_t>() || (instance.is_double() && static_cast<double>(instance.template as<int64_t>()) == instance.template as<double>()))
-                            {
-                                is_type_found = true;
-                            }
+                            is_type_found = true;
+                        }
+                        else if (instance.is_double() && static_cast<double>(instance.template as<int64_t>()) == instance.template as<double>())
+                        {
+                            is_type_found = true;
+                        }
+                        else if (instance.is_string() && instance.tag() == semantic_tag::bigint)
+                        {
+                            is_type_found = true;
                         }
                         break;
                     case json_schema_type::number:

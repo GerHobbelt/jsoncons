@@ -363,16 +363,6 @@ namespace jsoncons { namespace jsonpointer {
         return ptr.to_string();
     }
 
-    #if !defined(JSONCONS_NO_DEPRECATED)
-    template<class CharT>
-    using basic_address = basic_json_pointer<CharT>;
-    template<class CharT>
-    using basic_json_ptr = basic_json_pointer<CharT>;
-    JSONCONS_DEPRECATED_MSG("Instead, use json_pointer") typedef json_pointer address;
-    JSONCONS_DEPRECATED_MSG("Instead, use json_pointer") typedef json_pointer json_ptr;
-    JSONCONS_DEPRECATED_MSG("Instead, use wjson_pointer") typedef wjson_pointer wjson_ptr;
-    #endif
-
     namespace detail {
 
     template <class Json>
@@ -386,7 +376,7 @@ namespace jsoncons { namespace jsonpointer {
                 return current;
             }
             std::size_t index{0};
-            auto result = jsoncons::detail::to_integer_decimal(buffer.data(), buffer.length(), index);
+            auto result = jsoncons::detail::decimal_to_integer(buffer.data(), buffer.length(), index);
             if (!result)
             {
                 ec = jsonpointer_errc::invalid_index;
@@ -427,7 +417,7 @@ namespace jsoncons { namespace jsonpointer {
                 return current;
             }
             std::size_t index{0};
-            auto result = jsoncons::detail::to_integer_decimal(buffer.data(), buffer.length(), index);
+            auto result = jsoncons::detail::decimal_to_integer(buffer.data(), buffer.length(), index);
             if (!result)
             {
                 ec = jsonpointer_errc::invalid_index;
@@ -671,7 +661,7 @@ namespace jsoncons { namespace jsonpointer {
             else
             {
                 std::size_t index{0};
-                auto result = jsoncons::detail::to_integer_decimal(buffer.data(), buffer.length(), index);
+                auto result = jsoncons::detail::decimal_to_integer(buffer.data(), buffer.length(), index);
                 if (!result)
                 {
                     ec = jsonpointer_errc::invalid_index;
@@ -807,7 +797,7 @@ namespace jsoncons { namespace jsonpointer {
             else
             {
                 std::size_t index{0};
-                auto result = jsoncons::detail::to_integer_decimal(buffer.data(), buffer.length(), index);
+                auto result = jsoncons::detail::decimal_to_integer(buffer.data(), buffer.length(), index);
                 if (!result)
                 {
                     ec = jsonpointer_errc::invalid_index;
@@ -946,7 +936,7 @@ namespace jsoncons { namespace jsonpointer {
             else
             {
                 std::size_t index{0};
-                auto result = jsoncons::detail::to_integer_decimal(buffer.data(), buffer.length(), index);
+                auto result = jsoncons::detail::decimal_to_integer(buffer.data(), buffer.length(), index);
                 if (!result)
                 {
                     ec = jsonpointer_errc::invalid_index;
@@ -1050,7 +1040,7 @@ namespace jsoncons { namespace jsonpointer {
             else
             {
                 std::size_t index{};
-                auto result = jsoncons::detail::to_integer_decimal(buffer.data(), buffer.length(), index);
+                auto result = jsoncons::detail::decimal_to_integer(buffer.data(), buffer.length(), index);
                 if (!result)
                 {
                     ec = jsonpointer_errc::invalid_index;
@@ -1282,9 +1272,6 @@ namespace jsoncons { namespace jsonpointer {
     // unflatten
 
     enum class unflatten_options {none,assume_object = 1
-    #if !defined(JSONCONS_NO_DEPRECATED)
-,object = assume_object
-#endif
 };
 
     template<class Json>
@@ -1299,7 +1286,7 @@ namespace jsoncons { namespace jsonpointer {
         for (const auto& item : value.object_range())
         {
             std::size_t n;
-            auto r = jsoncons::detail::to_integer_decimal(item.key().data(),item.key().size(), n);
+            auto r = jsoncons::detail::decimal_to_integer(item.key().data(),item.key().size(), n);
             if (!r || (index++ != n))
             {
                 safe = false;
@@ -1353,7 +1340,7 @@ namespace jsoncons { namespace jsonpointer {
             {
                 auto s = *it;
                 size_t n{0};
-                auto r = jsoncons::detail::to_integer_decimal(s.data(), s.size(), n);
+                auto r = jsoncons::detail::decimal_to_integer(s.data(), s.size(), n);
                 if (r.ec == jsoncons::detail::to_integer_errc() && (index++ == n))
                 {
                     if (!part->is_array())
@@ -1448,50 +1435,6 @@ namespace jsoncons { namespace jsonpointer {
             return unflatten_to_object(value,options);
         }
     }
-
-#if !defined(JSONCONS_NO_DEPRECATED)
-
-    template<class Json>
-    JSONCONS_DEPRECATED_MSG("Instead, use add(Json&, const typename Json::string_view_type&, const Json&)")
-    void insert_or_assign(Json& root, const std::basic_string<typename Json::char_type>& location, const Json& value)
-    {
-        add(root, location, value);
-    }
-
-    template<class Json>
-    JSONCONS_DEPRECATED_MSG("Instead, use add(Json&, const typename Json::string_view_type&, const Json&, std::error_code&)")
-    void insert_or_assign(Json& root, const std::basic_string<typename Json::char_type>& location, const Json& value, std::error_code& ec)
-    {
-        add(root, location, value, ec);
-    }
-    template<class Json, class T>
-    void insert(Json& root, 
-                const std::basic_string<typename Json::char_type>& location, 
-                T&& value, 
-                bool create_if_missing,
-                std::error_code& ec)
-    {
-        add_if_absent(root,location,std::forward<T>(value),create_if_missing,ec);
-    }
-
-    template<class Json, class T>
-    void insert(Json& root, 
-                const std::basic_string<typename Json::char_type>& location, 
-                T&& value, 
-                std::error_code& ec)
-    {
-        add_if_absent(root, location, std::forward<T>(value), ec);
-    }
-
-    template<class Json, class T>
-    void insert(Json& root, 
-                const std::basic_string<typename Json::char_type>& location, 
-                T&& value,
-                bool create_if_missing = false)
-    {
-        add_if_absent(root, location, std::forward<T>(value), create_if_missing);
-    }
-#endif
 
 } // namespace jsonpointer
 } // namespace jsoncons
