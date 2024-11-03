@@ -214,6 +214,46 @@ namespace jsoncons {
         }
     };
 
+    // Structured Bindings Support
+    // See https://blog.tartanllama.xyz/structured-bindings/
+    template<std::size_t N, class Key, class Value, typename std::enable_if<N == 0, int>::type = 0>
+    auto get(const key_value<Key,Value>& i) -> decltype(i.key())
+    {
+        return i.key();
+    }
+    // Structured Bindings Support
+    // See https://blog.tartanllama.xyz/structured-bindings/
+    template<std::size_t N, class Key, class Value, typename std::enable_if<N == 1, int>::type = 0>
+    auto get(const key_value<Key,Value>& i) -> decltype(i.value())
+    {
+        return i.value();
+    }
+
+} // jsoncons
+
+namespace std
+{
+#if defined(__clang__)
+    // Fix: https://github.com/nlohmann/json/issues/1401
+    #pragma clang diagnostic push
+    #pragma clang diagnostic ignored "-Wmismatched-tags"
+#endif
+
+    template<class Key, class Value>
+    struct tuple_size<jsoncons::key_value<Key,Value>>
+        : public std::integral_constant<std::size_t, 2> {};
+
+    template<class Key, class Value> struct tuple_element<0, jsoncons::key_value<Key,Value>> { using type = Key; };
+    template<class Key, class Value> struct tuple_element<1, jsoncons::key_value<Key,Value>> { using type = Value; };
+
+#if defined(__clang__)
+    #pragma clang diagnostic pop
+#endif
+
+}  // namespace std
+
+namespace jsoncons {
+
     template <class KeyT, class ValueT>
     struct get_key_value
     {
@@ -353,7 +393,7 @@ namespace jsoncons {
             {
                 members_.emplace_back(key_type(s->first,get_allocator()), s->second);
             }
-            std::stable_sort(members_.begin(),members_.end(),
+            std::stable_sort(members_.begin(), members_.end(),
                              [](const key_value_type& a, const key_value_type& b) -> bool {return a.key().compare(b.key()) < 0;});
             auto it = std::unique(members_.begin(), members_.end(),
                                   [](const key_value_type& a, const key_value_type& b) -> bool { return !(a.key().compare(b.key()));});
@@ -458,23 +498,12 @@ namespace jsoncons {
 
         iterator erase(const_iterator pos) 
         {
-    #if defined(JSONCONS_NO_VECTOR_ERASE_TAKES_CONST_ITERATOR)
-            iterator it = members_.begin() + (pos - members_.begin());
-            return members_.erase(it);
-    #else
             return members_.erase(pos);
-    #endif
         }
 
         iterator erase(const_iterator first, const_iterator last) 
         {
-    #if defined(JSONCONS_NO_VECTOR_ERASE_TAKES_CONST_ITERATOR)
-            iterator it1 = members_.begin() + (first - members_.begin());
-            iterator it2 = members_.begin() + (last - members_.begin());
-            return members_.erase(it1,it2);
-    #else
             return members_.erase(first,last);
-    #endif
         }
 
         void erase(const string_view_type& name) 
@@ -1224,12 +1253,7 @@ namespace jsoncons {
         {
             if (pos != members_.end())
             {
-    #if defined(JSONCONS_NO_VECTOR_ERASE_TAKES_CONST_ITERATOR)
-                iterator it = members_.begin() + (pos - members_.begin());
-                return members_.erase(it);
-    #else
                 return members_.erase(pos);
-    #endif
             }
             else
             {
@@ -1245,13 +1269,7 @@ namespace jsoncons {
             if (pos1 < members_.size() && pos2 <= members_.size())
             {
 
-    #if defined(JSONCONS_NO_VECTOR_ERASE_TAKES_CONST_ITERATOR)
-                iterator it1 = members_.begin() + (first - members_.begin());
-                iterator it2 = members_.begin() + (last - members_.begin());
-                return members_.erase(it1,it2);
-    #else
                 return members_.erase(first,last);
-    #endif
             }
             else
             {
@@ -1264,12 +1282,7 @@ namespace jsoncons {
             auto pos = find(name);
             if (pos != members_.end())
             {
-    #if defined(JSONCONS_NO_VECTOR_ERASE_TAKES_CONST_ITERATOR)
-                iterator it = members_.begin() + (pos - members_.begin());
-                members_.erase(it);
-    #else
                 members_.erase(pos);
-    #endif
             }
         }
 
