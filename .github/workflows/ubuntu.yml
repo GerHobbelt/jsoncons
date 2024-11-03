@@ -21,7 +21,7 @@ jobs:
       CXX: ${{ matrix.compiler }}
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - name: cmake
       run: cmake -S . -B build -DCMAKE_CXX_STANDARD=20 -DCMAKE_CXX_STANDARD_REQUIRED=ON -DJSONCONS_BUILD_TESTS=On
 
@@ -166,12 +166,12 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        compiler: ['6','7','8','9','10','11','12','latest']
+        compiler: ['8','9','10','11','12','latest']
     container: gcc:${{ matrix.compiler }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Get latest CMake and ninja
-        uses: lukka/get-cmake@v3.27.7
+        uses: lukka/get-cmake@v3.30.2
       - name: cmake
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DJSONCONS_BUILD_TESTS=On 
       - name: build
@@ -188,9 +188,9 @@ jobs:
         compiler: ['12','latest']
     container: gcc:${{ matrix.compiler }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Get latest CMake and ninja
-        uses: lukka/get-cmake@v3.27.7
+        uses: lukka/get-cmake@v3.30.2
       - name: cmake
         run: cmake -S . -B build -DJSONCONS_SANITIZE=ON -DCMAKE_BUILD_TYPE=Debug -DJSONCONS_BUILD_TESTS=On 
       - name: build
@@ -204,15 +204,14 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        # compiler: ['3.5', '3.6', '3.7', '3.8', '3.9', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '15-bullseye', 'latest']
         compiler: ['3.8', '3.9', '4', '5', '6', '7','8','9', '10', '11', '12', '13', '14', '15-bullseye']
     container: silkeh/clang:${{ matrix.compiler }}
     steps:
       - name: Install unzip and git
         run: apt-get update ; apt-get install -y unzip git
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Get latest CMake and ninja
-        uses: lukka/get-cmake@v3.27.7
+        uses: lukka/get-cmake@v3.30.2
       - name: cmake
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DJSONCONS_BUILD_TESTS=On 
       - name: build
@@ -231,9 +230,9 @@ jobs:
     steps:
       - name: Install unzip and git
         run: apt-get update ; apt-get install -y unzip git
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Get latest CMake and ninja
-        uses: lukka/get-cmake@v3.27.7
+        uses: lukka/get-cmake@v3.30.2
       - name: cmake
         run: cmake -S . -B build -DJSONCONS_SANITIZE=ON -DCMAKE_BUILD_TYPE=Debug -DJSONCONS_BUILD_TESTS=On 
       - name: build
