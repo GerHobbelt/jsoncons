@@ -51,9 +51,9 @@ old names but continues to support many of them. The deprecated names can be sup
 
 _"Apache Kvrocks consistently utilizes jsoncons to offer support for JSON data structures to users. We find the development experience with jsoncons outstanding!"_
 
-_"I have been using your library in my native language – R – and have created an R package making it easy for (a) JMESpath and JSONpath queries on JSON strings or R objects and (b) for other R developers to link to your library."_
+_"I have been using your library in my native language â€“ R â€“ and have created an R package making it easy for (a) JMESpath and JSONpath queries on JSON strings or R objects and (b) for other R developers to link to your library."_
 
-_"I’m using your library for an external interface to pass data, as well as using the conversions from csv to json, which are really helpful for converting data for use in javascript"_
+_"Iâ€™m using your library for an external interface to pass data, as well as using the conversions from csv to json, which are really helpful for converting data for use in javascript"_
 
 _"Verified that, for my needs in JSON and CBOR, it is working perfectly"_
 
@@ -66,6 +66,16 @@ _"We love your JSON Schema validator. We are using it in ER/Studio our data mode
 _"the serialization lib of choice with its beautiful mappings and ease of use"_
 
 _"really good"_ _"awesome project"_ _"very solid and very dependable"_ _"my team loves it"_ _"Your repo rocks!!!!!"_
+
+## Mentions on the web
+
+[Get started with HealthImaging image sets and image frames using an AWS SDK](https://docs.aws.amazon.com/healthimaging/latest/devguide/example_medical-imaging_Scenario_ImageSetsAndFrames_section.html)
+
+[RubyGems.org](https://rubygems.org/gems/jsoncons/versions/0.1.3?locale=en)
+
+[rjsoncons](https://cran.rstudio.com/web/packages/rjsoncons/index.html)
+
+[coppeliarobotics](https://manual.coppeliarobotics.com/en/zmqRemoteApiOverview.htm)
 
 ## Get jsoncons
 
