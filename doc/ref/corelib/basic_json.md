@@ -20,17 +20,18 @@ namespace pmr {
 ```
 
 A `basic_json` is a union type that can hold one of a number of possible data members, 
-some that require an allocator (a pointer to a long string, byte string, array, or object), 
-and others that do not (an empty object, short string, number, boolean, or null). 
+some that require an allocator (a long string, byte string, array, or object), 
+and other trivially copyable ones that do not (an empty object, short string, number, boolean, or null). 
 The data member may be tagged with a [semantic_tag](semantic_tag.md) that provides additional 
 information about its value. The sizeof a `basic_json` regardless of its template parameters 
-is 16 bytes.
+is normally 16 bytes.
 
 A `basic_json` is allocator-aware, and supports allocator propagation to allocator-aware arrays
 or objects. Every constructor has a version that accepts an allocator argument. 
-The allocator is used to allocate memory for a long string, byte string, array, or object,
-and it is retained in the long string, byte string, array, or object itself.
-For other data members the allocator argument is ignored. 
+A long string, byte string, array or object contains a pointer to underlying storage,
+the allocator is used to allocate that storage, and it is retained in that storage.
+For other data members the allocator argument is ignored. For more about allocators,
+see <a href=json/allocators.md>Allocators</a>.
 
 When assigned a new `basic_json` value, the old value is overwritten. The member data type of the new value may be different 
 from the old value. 
@@ -66,7 +67,7 @@ Type                |Definition
     <td>Allocator</td>
     <td>Allocator type for allocating internal storage for long strings, byte strings, arrays and objects.
     The allocator type may be a stateless allocator, a <a href=https://en.cppreference.com/w/cpp/memory/polymorphic_allocator>std::pmr::polymorphic_allocator</a>, 
-or a <a href=https://en.cppreference.com/w/cpp/memory/scoped_allocator_adaptor>std::scoped_allocator_adaptor</a>, see <a href=json/allocators.md>allocators</a>.
+or a <a href=https://en.cppreference.com/w/cpp/memory/scoped_allocator_adaptor>std::scoped_allocator_adaptor</a>.
 Non-propagating stateful allocators, such as the <a href=https://www.boost.org/doc/libs/1_82_0/doc/html/interprocess/allocators_containers.html#interprocess.allocators_containers.allocator_introduction>Boost.Interprocess allocators</a>,
 must be wrapped by a <code>std::scoped_allocator_adaptor</code>.</td>
   </tr>
@@ -134,7 +135,7 @@ Member type                         |Definition
 
     allocator_type get_allocator() const
 For a long string, byte string, array, or object, returns the retained allocator used to allocate memory
-for that instance, otherwise attempts to return a default constructed allocator. 
+for their storage, otherwise attempts to return a default constructed allocator. 
 
 #### Ranges and Iterators
 
