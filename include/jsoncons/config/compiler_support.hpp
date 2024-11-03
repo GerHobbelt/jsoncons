@@ -13,8 +13,26 @@
 #include <exception>
 #include <ostream>
 
-#if defined (__clang__)
-#define JSONCONS_CLANG_VERSION (__clang_major__ * 10000 + __clang_minor__ * 100 + __clang_patchlevel__)
+#if defined(__GNUC__)
+#   if defined(__GNUC_PATCHLEVEL__)
+#       define JSONCONS_GCC_AVAILABLE(major, minor, patch) \
+            ((__GNUC__ * 10000 + __GNUC_MINOR__ * 100 + __GNUC_PATCHLEVEL__) \
+            >= (major * 10000 + minor * 100 + patch))
+#   else
+#       define JSONCONS_GCC_AVAILABLE(major, minor, patch) \
+            ((__GNUC__ * 10000 + __GNUC_MINOR__ * 100) \
+            >= (major * 10000 + minor * 100 + patch))
+#   endif
+#   else
+#       define JSONCONS_GCC_AVAILABLE(major, minor, patch) 0
+#endif
+
+#if defined(__clang__)
+#   define JSONCONS_CLANG_AVAILABLE(major, minor, patch) \
+            ((__clang_major__ * 10000 + __clang_minor__ * 100 + __clang_patchlevel__) \
+            >= (major * 10000 + minor * 100 + patch))
+#   else
+#       define JSONCONS_CLANG_AVAILABLE(major, minor, patch) 0
 #endif
 
 // Uncomment the following line to suppress deprecated names (recommended for new code)
@@ -189,8 +207,8 @@
 #  if (defined JSONCONS_HAS_2017)
 #    if defined(__clang__)
 #      if defined(__APPLE__)
-#        if JSONCONS_CLANG_VERSION >=  100001
-#        define JSONCONS_HAS_STD_VARIANT 1
+#        if JSONCONS_CLANG_AVAILABLE(10,0,1)
+#          define JSONCONS_HAS_STD_VARIANT 1
 #        endif
 #      elif __has_include(<variant>)
 #        define JSONCONS_HAS_STD_VARIANT 1
@@ -345,10 +363,10 @@ namespace jsoncons {
     #define JSONCONS_COPY(first,last,d_first) std::copy(first, last, d_first)
 #endif
 
-#if defined(_MSC_VER) && _MSC_VER <= 1900 
-#define JSONCONS_CONSTEXPR
-#else
+#if defined(JSONCONS_HAS_CP14)
 #define JSONCONS_CONSTEXPR constexpr
+#else
+#define JSONCONS_CONSTEXPR
 #endif
 
 #if !defined(JSONCONS_HAS_STD_REGEX)
@@ -362,11 +380,8 @@ namespace jsoncons {
 #endif
 
 #if !defined(JSONCONS_HAS_STATEFUL_ALLOCATOR)
-#if defined(__clang__) 
-#define JSONCONS_HAS_STATEFUL_ALLOCATOR 1
-#elif (defined(__GNUC__) && (__GNUC__ == 4)) && (defined(__GNUC__) && __GNUC_MINOR__ < 9)
-// gcc 4.8 basic_string doesn't satisfy C++11 allocator requirements
-// and gcc doesn't support allocators with no default constructor
+#if defined(__clang__) && !JSONCONS_CLANG_AVAILABLE(11,0,0)
+#elif defined(__GNUC__) && !JSONCONS_GCC_AVAILABLE(10,0,0)
 #else
 #define JSONCONS_HAS_STATEFUL_ALLOCATOR 1
 #endif
