@@ -7,13 +7,13 @@
 #include <map>
 #include <fstream>
 #include <jsoncons/json.hpp>
-#include "FreeListAllocator.hpp"
+#include "free_list_allocator.hpp"
 #include <scoped_allocator>
 
 using namespace jsoncons;
 
 template <typename T>
-using MyScopedAllocator = std::scoped_allocator_adaptor<FreeListAllocator<T>>;
+using MyScopedAllocator = std::scoped_allocator_adaptor<free_list_allocator<T>>;
 
 class MyIterator
 {
@@ -121,7 +121,7 @@ void read_json_lines()
 
 void read_with_stateful_allocator()
 {
-    using custom_json = basic_json<char,sorted_policy, MyScopedAllocator<char>>;
+    using cust_json = basic_json<char,sorted_policy, MyScopedAllocator<char>>;
     std::string input = R"(
 [ 
   { 
@@ -144,11 +144,11 @@ void read_with_stateful_allocator()
 )";
 
     // Until 0.171.0
-    //json_decoder<custom_json, MyScopedAllocator<char>> decoder(result_allocator_arg, MyScopedAllocator<char>(1),
+    //json_decoder<cust_json, MyScopedAllocator<char>> decoder(result_allocator_arg, MyScopedAllocator<char>(1),
     //    MyScopedAllocator<char>(2));
 
     // Since 0.171.0
-    json_decoder<custom_json, MyScopedAllocator<char>> decoder(MyScopedAllocator<char>(1),
+    json_decoder<cust_json, MyScopedAllocator<char>> decoder(MyScopedAllocator<char>(1),
         MyScopedAllocator<char>(2));
 
     auto myAlloc = MyScopedAllocator<char>(3);
@@ -156,7 +156,7 @@ void read_with_stateful_allocator()
     basic_json_reader<char,string_source<char>, MyScopedAllocator<char>> reader(input, decoder, myAlloc);
     reader.read();
 
-    custom_json j = decoder.get_result();
+    cust_json j = decoder.get_result();
     std::cout << pretty_print(j) << "\n";
 }
 

@@ -235,9 +235,13 @@ namespace jsoncons {
         {
             return elements_ < rhs.elements_;
         }
-    private:
 
-        json_array& operator=(const json_array&) = delete;
+        json_array& operator=(const json_array& other)
+        {
+            elements_ = other.elements_;
+            return *this;
+        }
+    private:
 
         void flatten_and_destroy() noexcept
         {

@@ -19,24 +19,24 @@ namespace pmr {
 }
 ```
 
-The class `basic_json` resembles a union. A `basic_json` holds a data item of one of its alternative types:
-null, `bool`, `int64_t`, `uint64_t`, `double`, text string, byte string, array, and object. The data item may be tagged with a 
-[semantic_tag](semantic_tag.md) that provides additional information about the data item.
+A `basic_json` is a union type that can hold one of a number of possible data members, 
+some that require an allocator (a pointer to a long string, byte string, array, or object), 
+and others that do not (an empty object, short string, number, boolean, or null). 
+The data member may be tagged with a [semantic_tag](semantic_tag.md) that provides additional 
+information about its value. The sizeof a `basic_json` regardless of its template parameters 
+is 16 bytes.
 
-When assigned a new `basic_json` value, the old value is overwritten. The type of the new value may be different from the old value. 
+A `basic_json` is allocator-aware, and supports allocator propagation to allocator-aware arrays
+or objects. Every constructor has a version that accepts an allocator argument. 
+The allocator is used to allocate memory for a long string, byte string, array, or object,
+and it is retained in the long string, byte string, array, or object itself.
+For other data members the allocator argument is ignored. 
 
-The definition of the character type of text strings is supplied via the `CharT` template parameter.
-Implementation policies for arrays and objects are provided via the `Policy` template parameter.
-A custom allocator may be supplied with the `Allocator` template parameter, which a `basic_json` will
-rebind to internal data structures. 
+When assigned a new `basic_json` value, the old value is overwritten. The member data type of the new value may be different 
+from the old value. 
 
 A `basic_json` can support multiple readers concurrently, as long as it is not being modified.
 If it is being modified, it must be by one writer with no concurrent readers.
-
-Since 0.171.0, `basic_json` supports [std::uses_allocator](https://en.cppreference.com/w/cpp/memory/uses_allocator) construction.
-The allocator template parameter may be a stateless allocator, a [std::pmr::polymorphic_allocator](https://en.cppreference.com/w/cpp/memory/polymorphic_allocator), or a [std::scoped_allocator_adaptor](https://en.cppreference.com/w/cpp/memory/scoped_allocator_adaptor).
-Non-propagating stateful allocators, such as the [Boost.Interprocess allocators](https://www.boost.org/doc/libs/1_82_0/doc/html/interprocess/allocators_containers.html#interprocess.allocators_containers.allocator_introduction),
-must be wrapped by a `std::scoped_allocator_adaptor`.
 
 Several aliases for common character types and policies for ordering an object's name/value pairs are provided:
 
@@ -50,6 +50,29 @@ Type                |Definition
 `jsoncons::pmr::ojson` (0.171.0) |`jsoncons::pmr::basic_json<char,jsoncons::order_preserving_policy>`
 `jsoncons::pmr::wjson` (0.171.0) |`jsoncons::pmr::basic_json<wchar_t,jsoncons::sorted_policy>`
 `jsoncons::pmr::wojson` (0.171.0) |`jsoncons::pmr::basic_json<wchar_t,jsoncons::order_preserving_policy>`
+
+#### Template parameters
+
+<table border="0">
+  <tr>
+    <td>CharT</td>
+    <td>Character type of text string</td> 
+  </tr>
+  <tr>
+    <td>Policy</td>
+    <td>Implementation policy for arrays and objects</td>
+  </tr>
+  <tr>
+    <td>Allocator</td>
+    <td>Allocator type for allocating internal storage for long strings, byte strings, arrays and objects.
+    The allocator type may be a stateless allocator, a <a href=https://en.cppreference.com/w/cpp/memory/polymorphic_allocator>std::pmr::polymorphic_allocator</a>, 
+or a <a href=https://en.cppreference.com/w/cpp/memory/scoped_allocator_adaptor>std::scoped_allocator_adaptor</a>, see <a href=json/allocators.md>allocators</a>.
+Non-propagating stateful allocators, such as the <a href=https://www.boost.org/doc/libs/1_82_0/doc/html/interprocess/allocators_containers.html#interprocess.allocators_containers.allocator_introduction>Boost.Interprocess allocators</a>,
+must be wrapped by a <code>std::scoped_allocator_adaptor</code>.</td>
+  </tr>
+</table>
+
+#### Member types
 
 Member type                         |Definition
 ------------------------------------|------------------------------
@@ -110,7 +133,8 @@ Member type                         |Definition
 </table>
 
     allocator_type get_allocator() const
-Returns the allocator associated with the basic_json value.
+For a long string, byte string, array, or object, returns the retained allocator used to allocate memory
+for that instance, otherwise attempts to return a default constructed allocator. 
 
 #### Ranges and Iterators
 
