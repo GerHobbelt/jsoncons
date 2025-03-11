@@ -87,6 +87,7 @@ add_executable(unit_tests
                jsonpatch/src/jsonpatch_test_suite.cpp
                jsonpatch/src/jsonpatch_tests.cpp
                jsonpath/src/jsonpath_flatten_tests.cpp
+               jsonpath/src/jsonpath_function_tests.cpp
                jsonpath/src/path_node_tests.cpp
                jsonpath/src/json_location_tests.cpp
                jsonpath/src/json_location_parser_tests.cpp
@@ -100,6 +101,7 @@ add_executable(unit_tests
                jsonpointer/src/jsonpointer_flatten_tests.cpp
                jsonpointer/src/jsonpointer_tests.cpp
                jsonschema/src/abort_early_tests.cpp
+               jsonschema/src/custom_message_tests.cpp
                jsonschema/src/json_schema_walk_tests.cpp
                jsonschema/src/format_validator_tests.cpp
                jsonschema/src/validation_report_tests.cpp

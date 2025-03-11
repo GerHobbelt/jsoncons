@@ -23,6 +23,7 @@
 #include <jsoncons/sink.hpp>
 #include <jsoncons_ext/csv/csv_error.hpp>
 #include <jsoncons_ext/csv/csv_options.hpp>
+#include <jsoncons_ext/jsonpointer/jsonpointer.hpp>
 
 namespace jsoncons { namespace csv {
 
@@ -33,13 +34,14 @@ public:
     using char_type = CharT;
     using typename basic_json_visitor<CharT>::string_view_type;
     using sink_type = Sink;
-
     using allocator_type = Allocator;
     using char_allocator_type = typename std::allocator_traits<allocator_type>:: template rebind_alloc<CharT>;
     using string_type = std::basic_string<CharT, std::char_traits<CharT>, char_allocator_type>;
     using string_allocator_type = typename std::allocator_traits<allocator_type>:: template rebind_alloc<string_type>;
     using string_string_allocator_type = typename std::allocator_traits<allocator_type>:: template rebind_alloc<std::pair<const string_type,string_type>>;
-
+    using string_vector_allocator_type = typename std::allocator_traits<allocator_type>:: template rebind_alloc<std::pair<const string_type, std::vector<string_type, string_allocator_type>>>;
+    using column_type = std::vector<string_type, string_allocator_type>;
+    using column_path_column_map_type = std::unordered_map<string_type, column_type, std::hash<string_type>,std::equal_to<string_type>,string_vector_allocator_type>;
 private:
     static jsoncons::basic_string_view<CharT> null_constant()
     {
@@ -61,32 +63,28 @@ private:
     {
         flat_row_mapping,
         row_mapping,
-        column_mapping,
         flat_object,
         flat_row,
+        stream_flat_row,
         unmapped,
         object,
         row,
+        column_mapping,
         column,
         multivalued_field,
+        stream_multivalued_field,
         column_multivalued_field
     };
-
+    
     struct stack_item
     {
         stack_item_kind item_kind_;
-        std::size_t count_;
-        std::string pathname_;
-        std::string pointer_;
+        std::size_t count_{0};
+        string_type column_path_;
 
         stack_item(stack_item_kind item_kind) noexcept
-           : item_kind_(item_kind), pathname_{}, count_(0)
+           : item_kind_(item_kind)
         {
-        }
-
-        bool is_object() const
-        {
-            return item_kind_ == stack_item_kind::object || stack_item_kind::flat_object;
         }
 
         stack_item_kind item_kind() const
@@ -95,22 +93,51 @@ private:
         }
     };
 
+    using stack_item_allocator_type = typename std::allocator_traits<allocator_type>:: template rebind_alloc<stack_item>;
+
+    static const stack_item& parent(const std::vector<stack_item>& stack)
+    {
+        JSONCONS_ASSERT(stack.size() >= 2);
+        return stack[stack.size() - 2];
+    }
+
     Sink sink_;
-    const basic_csv_encode_options<CharT> options_;
+    bool flat_;
+    std::size_t max_nesting_depth_;
+    bool has_column_mapping_;
+    bool has_column_names_;
+    char_type field_delimiter_;
+    char_type subfield_delimiter_;
+    string_type line_delimiter_;
+    quote_style_kind quote_style_;
+    char_type quote_char_;
+    char_type quote_escape_char_;
+    bool enable_nan_to_num_;
+    string_type nan_to_num_;
+    bool enable_nan_to_str_;
+    string_type nan_to_str_;
+    bool enable_inf_to_num_;
+    string_type inf_to_num_;
+    bool enable_inf_to_str_;
+    string_type inf_to_str_;
+    bool enable_neginf_to_num_;
+    string_type neginf_to_num_;
+    bool enable_neginf_to_str_;
+    string_type neginf_to_str_;
     allocator_type alloc_;
 
-    std::vector<stack_item> stack_;
+    std::vector<stack_item, stack_item_allocator_type> stack_;
     jsoncons::detail::write_double fp_;
 
     std::vector<string_type,string_allocator_type> column_names_;
-    std::vector<string_type,string_allocator_type> column_pointers_;
-    std::unordered_map<string_type,string_type, std::hash<string_type>,std::equal_to<string_type>,string_string_allocator_type> cname_value_map_;
-    std::unordered_map<string_type,string_type, std::hash<string_type>,std::equal_to<string_type>,string_string_allocator_type> column_pointer_name_map_;
+    std::vector<string_type,string_allocator_type> column_paths_;
+    std::unordered_map<string_type,string_type, std::hash<string_type>,std::equal_to<string_type>,string_string_allocator_type> column_path_name_map_;
+    std::unordered_map<string_type,string_type, std::hash<string_type>,std::equal_to<string_type>,string_string_allocator_type> column_path_value_map_;
+    column_path_column_map_type column_path_column_map_;
 
     std::size_t column_index_{0};
-    std::vector<std::size_t> row_counts_;
-    string_type buffer_;
     string_type value_buffer_;
+    typename column_path_column_map_type::iterator column_it_;
 
     // Noncopyable and nonmoveable
     basic_csv_encoder(const basic_csv_encoder&) = delete;
@@ -125,13 +152,52 @@ public:
         const basic_csv_encode_options<CharT>& options, 
         const Allocator& alloc = Allocator())
       : sink_(std::forward<Sink>(sink)),
-        options_(options),
+        flat_(options.flat()),
+        max_nesting_depth_(options.max_nesting_depth()),
+        has_column_mapping_(!options.column_mapping().empty()),
+        has_column_names_(!options.column_names().empty()),
+        field_delimiter_(options.field_delimiter()),
+        subfield_delimiter_(options.subfield_delimiter()),
+        line_delimiter_(options.line_delimiter()),
+        quote_style_(options.quote_style()),
+        quote_char_(options.quote_char()),
+        quote_escape_char_(options.quote_escape_char()),
+        enable_nan_to_num_(options.enable_nan_to_num()),
+        nan_to_num_(options.nan_to_num()),
+        enable_nan_to_str_(options.enable_nan_to_str()),
+        nan_to_str_(options.nan_to_str()),
+        enable_inf_to_num_(options.enable_inf_to_num()),
+        inf_to_num_(options.inf_to_num()),
+        enable_inf_to_str_(options.enable_inf_to_str()),
+        inf_to_str_(options.inf_to_str()),
+        enable_neginf_to_num_(options.enable_neginf_to_num()),
+        neginf_to_num_(options.neginf_to_num()),
+        enable_neginf_to_str_(options.enable_neginf_to_str()),
+        neginf_to_str_(options.neginf_to_str()),
         alloc_(alloc),
+        stack_(alloc),
         fp_(options.float_format(), options.precision()),
-        buffer_(alloc),
-        value_buffer_(alloc)
+        column_names_(alloc),
+        column_paths_(alloc),
+        column_path_name_map_(alloc),
+        column_path_value_map_(alloc),
+        column_path_column_map_(alloc),
+        value_buffer_(alloc),
+        column_it_(column_path_column_map_.end())
     {
-        jsoncons::csv::detail::parse_column_names(options.column_names(), column_names_);
+        if (has_column_mapping_)
+        {
+            for (const auto& item : options.column_mapping())
+            {
+                column_paths_.emplace_back(item.first);
+                column_path_name_map_.emplace(item.first, item.second);
+                column_path_value_map_.emplace(item.first, string_type{alloc_});
+            }
+        }
+        if (has_column_names_)
+        {
+            jsoncons::csv::detail::parse_column_names(options.column_names(), column_names_);
+        }
     }
 
     ~basic_csv_encoder() noexcept
@@ -148,10 +214,12 @@ public:
     void reset()
     {
         stack_.clear();
-        column_names_.clear();
-        cname_value_map_.clear();
+        if (!has_column_mapping_)
+        {
+            column_paths_.clear();
+            column_path_value_map_.clear();
+        }
         column_index_ = 0;
-        row_counts_.clear();
     }
 
     void reset(Sink&& sink)
@@ -162,11 +230,10 @@ public:
 
 private:
 
-    template <typename AnyWriter>
     void escape_string(const CharT* s,
                        std::size_t length,
                        CharT quote_char, CharT quote_escape_char,
-                       AnyWriter& sink)
+                       string_type& sink)
     {
         const CharT* begin = s;
         const CharT* end = s + length;
@@ -195,7 +262,43 @@ private:
         if (stack_.empty())
         {
             stack_.emplace_back(stack_item_kind::column_mapping);
+            if (has_column_names_)
+            {
+                for (const auto& item : column_names_)
+                {
+                    string_type str{alloc_};
+                    str.push_back('/');
+                    str.append(jsonpointer::escape<char_type,char_allocator_type>(item, alloc_));
+                    column_paths_.emplace_back(str);
+                    column_path_value_map_.emplace(str, string_type{alloc_});
+                    column_path_name_map_.emplace(std::move(str), item);
+                }
+                has_column_mapping_ = true;
+            }
             return true;
+        }
+        if (JSONCONS_UNLIKELY(stack_.size() >= max_nesting_depth_))
+        {
+            ec = csv_errc::max_nesting_depth_exceeded;
+            return false;
+        } 
+        
+        // legacy        
+        if (has_column_names_ && stack_.back().count_ == 0)
+        {
+            if (stack_.back().item_kind_ == stack_item_kind::flat_row_mapping || stack_.back().item_kind_ == stack_item_kind::row_mapping)
+            {
+                for (const auto& item : column_names_)
+                {
+                    string_type str{alloc_};
+                    str.push_back('/');
+                    str.append(jsonpointer::escape<char_type,char_allocator_type>(item, alloc_));
+                    column_paths_.emplace_back(str);
+                    column_path_value_map_.emplace(str, string_type{alloc_});
+                    column_path_name_map_.emplace(std::move(str), item);
+                }
+                has_column_mapping_ = true;
+            }
         }
         switch (stack_.back().item_kind_)
         {
@@ -209,14 +312,13 @@ private:
                 stack_.emplace_back(stack_item_kind::object);
                 break;
             case stack_item_kind::flat_object:
-                if (options_.subfield_delimiter() == char_type())
+                if (subfield_delimiter_ == char_type())
                 {
                     stack_.emplace_back(stack_item_kind::unmapped);
                 }
                 else
                 {
-                    stack_.back().pathname_ = stack_[stack_.size()-2].pathname_;
-                    stack_.back().pointer_ = stack_[stack_.size()-2].pointer_;
+                    stack_.back().column_path_ = parent(stack_).column_path_;
                     value_buffer_.clear();
                     stack_.emplace_back(stack_item_kind::multivalued_field);
                 }
@@ -227,7 +329,7 @@ private:
                 stack_.emplace_back(stack_item_kind::unmapped);
                 break;
             default: // error
-                std::cout << "visit_begin_object " << (int)stack_.back().item_kind_ << "\n"; 
+                //std::cout << "visit_begin_object " << (int)stack_.back().item_kind_ << "\n"; 
                 ec = csv_errc::source_error;
                 return false;
         }
@@ -236,68 +338,151 @@ private:
 
     bool visit_end_object(const ser_context&, std::error_code& ec) override
     {
-        if (stack_.empty())
-        {
-            return true;
-        }
+        JSONCONS_ASSERT(!stack_.empty());
 
         switch (stack_.back().item_kind_)
         {
             case stack_item_kind::flat_object:
             case stack_item_kind::object:
-                if (stack_[stack_.size()-2].item_kind_ == stack_item_kind::row_mapping || stack_[stack_.size()-2].item_kind_ == stack_item_kind::flat_row_mapping)
+                if (parent(stack_).item_kind_ == stack_item_kind::row_mapping || parent(stack_).item_kind_ == stack_item_kind::flat_row_mapping)
                 {
                     if (stack_[0].count_ == 0)
                     {
-                        for (std::size_t i = 0; i < column_names_.size(); ++i)
+                        bool first = true;
+                        for (std::size_t i = 0; i < column_paths_.size(); ++i)
                         {
-                            if (i > 0)
+                            auto it = column_path_name_map_.find(column_paths_[i]);
+                            if (it != column_path_name_map_.end())
                             {
-                                sink_.push_back(options_.field_delimiter());
+                                if (!first)
+                                {
+                                    sink_.push_back(field_delimiter_);
+                                }
+                                else
+                                {
+                                    first = false;
+                                }
+                                sink_.append(it->second.data(), it->second.length());
                             }
-                            sink_.append(column_names_[i].data(), column_names_[i].length());
                         }
-                        sink_.append(options_.line_delimiter().data(),
-                                      options_.line_delimiter().length());
+                        sink_.append(line_delimiter_.data(), line_delimiter_.length());
                     }
-                    for (std::size_t i = 0; i < column_names_.size(); ++i)
+                    for (std::size_t i = 0; i < column_paths_.size(); ++i)
                     {
                         if (i > 0)
                         {
-                            sink_.push_back(options_.field_delimiter());
+                            sink_.push_back(field_delimiter_);
                         }
-                        auto it = cname_value_map_.find(column_names_[i]);
-                        if (it != cname_value_map_.end())
+                        auto it = column_path_value_map_.find(column_paths_[i]);
+                        if (it != column_path_value_map_.end())
                         {
-                            sink_.append(it->second.data(),it->second.length());
+                            sink_.append(it->second.data(), it->second.length());
                             it->second.clear();
                         }
                     }
-                    sink_.append(options_.line_delimiter().data(), options_.line_delimiter().length());
+                    sink_.append(line_delimiter_.data(), line_delimiter_.length());
                 }
                 break;
             case stack_item_kind::column_mapping:
-             {
-                 for (const auto& item : column_names_)
-                 {
-                     sink_.append(item.data(), item.size());
-                     sink_.append(options_.line_delimiter().data(), options_.line_delimiter().length());
-                 }
-                 break;
-             }
+            {
+                // Write header
+                {
+                    bool first = true;
+                    for (std::size_t i = 0; i < column_paths_.size(); ++i)
+                    {
+                        auto it = column_path_name_map_.find(column_paths_[i]);
+                        if (it != column_path_name_map_.end())
+                        {
+                            if (!first)
+                            {
+                                sink_.push_back(field_delimiter_);
+                            }
+                            sink_.append(it->second.data(), it->second.length());
+                            first = false;
+                        }
+                    }
+                    sink_.append(line_delimiter_.data(), line_delimiter_.length());
+                }
+
+                std::vector<std::pair<typename column_type::const_iterator,typename column_type::const_iterator>> columns;
+                for (const auto& item : column_paths_)
+                {
+                    auto it = column_path_column_map_.find(item);
+                    if (it != column_path_column_map_.end())
+                    {
+                        columns.emplace_back((*it).second.cbegin(), (*it).second.cend());
+                    }
+                }
+
+                if (!columns.empty())
+                {
+                    const std::size_t no_cols = columns.size();
+                    bool done = false;
+                    while (!done)
+                    {
+                        std::size_t missing_cols = 0;
+                        std::size_t new_missing_cols = 0;
+                        bool first = true;
+                        for (std::size_t i = 0; i < no_cols; ++i)
+                        {
+                            auto& item = columns[i];
+                            if (item.first == item.second)
+                            {                               
+                                ++missing_cols;
+                                ++new_missing_cols;
+                                if (missing_cols == no_cols)
+                                {
+                                    done = true;
+                                }
+                                else if (i == (no_cols-1))
+                                {
+                                    while (new_missing_cols > 0)
+                                    {
+                                        sink_.push_back(field_delimiter_);
+                                        --new_missing_cols;
+                                    }
+                                }
+                            }
+                            else
+                            {
+                                while (new_missing_cols > 0)
+                                {
+                                    sink_.push_back(field_delimiter_);
+                                    --new_missing_cols;
+                                }
+                                if (!first)
+                                {
+                                    sink_.push_back(field_delimiter_);
+                                }
+                                else
+                                {
+                                    first = false;
+                                }
+                                sink_.append((*(item.first)).data(), (*(item.first)).size());
+                                ++item.first;
+                            }
+                        }
+                        if (!done)
+                        {
+                            sink_.append(line_delimiter_.data(), line_delimiter_.length());
+                        }
+                    }
+                }
+                break;
+            }
             case stack_item_kind::column_multivalued_field:
                 break;
             case stack_item_kind::unmapped:
                 break;
             default:
-                std::cout << "visit_end_object " << (int)stack_.back().item_kind_ << "\n"; 
+                //std::cout << "visit_end_object " << (int)stack_.back().item_kind_ << "\n"; 
                 ec = csv_errc::source_error;
                 return false;
         }
         stack_.pop_back();
         if (!stack_.empty())
         {
-            end_value();
+            ++stack_.back().count_;
         }
         return true;
     }
@@ -306,7 +491,7 @@ private:
     {
         if (stack_.empty())
         {
-            if (options_.flat())
+            if (flat_)
             {
                 stack_.emplace_back(stack_item_kind::flat_row_mapping);
             }
@@ -316,11 +501,42 @@ private:
             }
             return true;
         }
+        if (JSONCONS_UNLIKELY(stack_.size() >= max_nesting_depth_))
+        {
+            ec = csv_errc::max_nesting_depth_exceeded;
+            return false;
+        }
+        // legacy        
+        if (has_column_names_ && stack_.back().count_ == 0)
+        {
+            if (stack_.back().item_kind_ == stack_item_kind::flat_row_mapping || stack_.back().item_kind_ == stack_item_kind::row_mapping)
+            {
+                std::size_t index = 0;
+                for (const auto& item : column_names_)
+                {
+                    string_type str{alloc_};
+                    str.push_back('/');
+                    jsoncons::detail::from_integer(index, str);
+                    column_paths_.emplace_back(str);
+                    column_path_value_map_.emplace(str, string_type{alloc_});
+                    column_path_name_map_.emplace(std::move(str), item);
+                    ++index;
+                }
+                has_column_mapping_ = true;
+            }
+        }
         
         switch (stack_.back().item_kind_)
         {
             case stack_item_kind::flat_row_mapping:
-                stack_.emplace_back(stack_item_kind::flat_row);
+                if (has_column_mapping_)
+                {
+                    stack_.emplace_back(stack_item_kind::flat_row);
+                }
+                else
+                {
+                    stack_.emplace_back(stack_item_kind::stream_flat_row);
+                }
                 break;
             case stack_item_kind::row_mapping:
                 stack_.emplace_back(stack_item_kind::row);
@@ -328,30 +544,11 @@ private:
             case stack_item_kind::object:
                 stack_.emplace_back(stack_item_kind::object);
                 break;
-            case stack_item_kind::column_mapping:
-                stack_.emplace_back(stack_item_kind::column);
-                row_counts_.push_back(1);
-                if (column_names_.size() <= row_counts_.back())
-                {
-                    column_names_.emplace_back();
-                }
-                break;
-            case stack_item_kind::column:
-            {
-                if (column_names_.size() <= row_counts_.back())
-                {
-                    column_names_.emplace_back();
-                }                
-                jsoncons::string_sink<std::basic_string<CharT>> bo(column_names_[row_counts_.back()]);
-                begin_value(bo);
-                stack_.emplace_back(stack_item_kind::column_multivalued_field);
-                break;
-            }
             case stack_item_kind::row:
                 stack_.emplace_back(stack_item_kind::row);
                 break;
             case stack_item_kind::flat_row:
-                if (options_.subfield_delimiter() == char_type())
+                if (subfield_delimiter_ == char_type())
                 {
                     stack_.emplace_back(stack_item_kind::unmapped);
                 }
@@ -362,8 +559,19 @@ private:
                     stack_.emplace_back(stack_item_kind::multivalued_field);
                 }
                 break;
+            case stack_item_kind::stream_flat_row:
+                if (subfield_delimiter_ == char_type())
+                {
+                    stack_.emplace_back(stack_item_kind::unmapped);
+                }
+                else
+                {
+                    value_buffer_.clear();
+                    stack_.emplace_back(stack_item_kind::stream_multivalued_field);
+                }
+                break;
             case stack_item_kind::flat_object:
-                if (options_.subfield_delimiter() == char_type())
+                if (subfield_delimiter_ == char_type())
                 {
                     stack_.emplace_back(stack_item_kind::unmapped);
                 }
@@ -371,28 +579,39 @@ private:
                 {
                     if (stack_[0].count_ == 0)
                     {
-                        if (options_.column_names().empty())
+                        if (!has_column_mapping_)
                         {
-                            column_names_.emplace_back(stack_.back().pathname_);
-                            column_pointers_.emplace_back(stack_.back().pathname_);
-                            column_pointer_name_map_.emplace(stack_.back().pathname_, stack_.back().pathname_);
+                            string_type str = stack_.back().column_path_;
+                            column_paths_.emplace_back(str);
+                            column_path_value_map_.emplace(std::move(str), string_type{alloc_});
                         }
-                        cname_value_map_[stack_.back().pathname_] = std::basic_string<CharT>();
                     }
+                    
                     value_buffer_.clear();
                     stack_.emplace_back(stack_item_kind::multivalued_field);
                 }
                 break;
             case stack_item_kind::multivalued_field:
+            case stack_item_kind::stream_multivalued_field:
                 stack_.emplace_back(stack_item_kind::unmapped);
                 break;
+            case stack_item_kind::column_mapping:
+                stack_.emplace_back(stack_item_kind::column);
+                break;
+            case stack_item_kind::column:
+            {
+                value_buffer_.clear();
+                stack_.emplace_back(stack_item_kind::column_multivalued_field);
+                break;
+            }
             case stack_item_kind::column_multivalued_field:
+                stack_.emplace_back(stack_item_kind::unmapped);
                 break;
             case stack_item_kind::unmapped:
                 stack_.emplace_back(stack_item_kind::unmapped);
                 break;
             default: // error
-                std::cout << "visit_begin_array " << (int)stack_.back().item_kind_ << "\n"; 
+                //std::cout << "visit_begin_array " << (int)stack_.back().item_kind_ << "\n"; 
                 ec = csv_errc::source_error;
                 return false;
         }
@@ -401,10 +620,7 @@ private:
 
     bool visit_end_array(const ser_context&, std::error_code& ec) override
     {
-        if (stack_.empty())
-        {
-            return true;
-        }
+        JSONCONS_ASSERT(!stack_.empty());
         
         switch (stack_.back().item_kind_)
         {
@@ -412,89 +628,116 @@ private:
             case stack_item_kind::flat_row_mapping:
                 break;
             case stack_item_kind::flat_row:
-                if (stack_[stack_.size()-2].item_kind_ == stack_item_kind::flat_row_mapping)
+                if (parent(stack_).item_kind_ == stack_item_kind::flat_row_mapping)
                 {
-                    if (stack_[0].count_ == 0 && !options_.column_names().empty())
+                    if (stack_[0].count_ == 0 && !column_path_name_map_.empty())
                     {
-                        for (std::size_t i = 0; i < column_names_.size(); ++i)
+                        std::size_t col = 0;
+                        for (std::size_t i = 0; i < column_paths_.size(); ++i)
                         {
-                            if (i > 0)
+                            auto it = column_path_name_map_.find(column_paths_[i]);
+                            if (it != column_path_name_map_.end())
                             {
-                                sink_.push_back(options_.field_delimiter());
+                                if (col > 0)
+                                {
+                                    sink_.push_back(field_delimiter_);
+                                }
+                                sink_.append(it->second.data(), it->second.length());
+                                ++col;
                             }
-                            sink_.append(column_names_[i].data(), column_names_[i].length());
                         }
-                        sink_.append(options_.line_delimiter().data(), 
-                            options_.line_delimiter().length());
+                        sink_.append(line_delimiter_.data(), line_delimiter_.length());
                     }
 
-                    for (std::size_t i = 0; i < column_names_.size(); ++i)
+                    for (std::size_t i = 0; i < column_paths_.size(); ++i)
                     {
                         if (i > 0)
                         {
-                            sink_.push_back(options_.field_delimiter());
+                            sink_.push_back(field_delimiter_);
                         }
-                        auto it = cname_value_map_.find(column_names_[i]);
-                        if (it != cname_value_map_.end())
+                        auto it = column_path_value_map_.find(column_paths_[i]);
+                        if (it != column_path_value_map_.end())
                         {
-                            sink_.append(it->second.data(),it->second.length());
+                            sink_.append(it->second.data(), it->second.length());
                             it->second.clear();
                         }
                     }
-                    sink_.append(options_.line_delimiter().data(), options_.line_delimiter().length());
+                    sink_.append(line_delimiter_.data(), line_delimiter_.length());
+                }
+                break;
+            case stack_item_kind::stream_flat_row:
+                if (parent(stack_).item_kind_ == stack_item_kind::flat_row_mapping)
+                {
+                    sink_.append(line_delimiter_.data(), line_delimiter_.length());
                 }
                 break;
             case stack_item_kind::multivalued_field:
             {
-                auto it = cname_value_map_.find(stack_[stack_.size()-2].pathname_);
-                if (it != cname_value_map_.end())
+                auto it = column_path_value_map_.find(parent(stack_).column_path_);
+                if (it != column_path_value_map_.end())
                 {
-                    it->second.append(value_buffer_.data(),value_buffer_.length());
+                    it->second = value_buffer_;
                 }
                 break;
             }
+            case stack_item_kind::stream_multivalued_field:
+            {
+                if (parent(stack_).count_ > 0)
+                {
+                    sink_.push_back(field_delimiter_);
+                }
+                sink_.append(value_buffer_.data(), value_buffer_.size());
+                break;
+            }
             case stack_item_kind::row:
-                if (stack_[stack_.size()-2].item_kind_ == stack_item_kind::row_mapping)
+                if (parent(stack_).item_kind_ == stack_item_kind::row_mapping)
                 {
                     if (stack_[0].count_ == 0)
                     {
-                        for (std::size_t i = 0; i < column_names_.size(); ++i)
+                        std::size_t col = 0;
+                        for (std::size_t i = 0; i < column_paths_.size(); ++i)
                         {
-                            if (i > 0)
+                            auto it = column_path_name_map_.find(column_paths_[i]);
+                            if (it != column_path_name_map_.end())
                             {
-                                sink_.push_back(options_.field_delimiter());
+                                if (col > 0)
+                                {
+                                    sink_.push_back(field_delimiter_);
+                                }
+                                sink_.append(it->second.data(), it->second.length());
+                                ++col;
                             }
-                            sink_.append(column_names_[i].data(), column_names_[i].length());
                         }
-                        sink_.append(options_.line_delimiter().data(), 
-                            options_.line_delimiter().length());
+                        sink_.append(line_delimiter_.data(), 
+                            line_delimiter_.length());
                     }
                     
-                    for (std::size_t i = 0; i < column_names_.size(); ++i)
+                    for (std::size_t i = 0; i < column_paths_.size(); ++i)
                     {
                         if (i > 0)
                         {
-                            sink_.push_back(options_.field_delimiter());
+                            sink_.push_back(field_delimiter_);
                         }
-                        auto it = cname_value_map_.find(column_names_[i]);
-                        if (it != cname_value_map_.end())
+                        auto it = column_path_value_map_.find(column_paths_[i]);
+                        if (it != column_path_value_map_.end())
                         {
-                            sink_.append(it->second.data(),it->second.length());
+                            sink_.append(it->second.data(), it->second.length());
                             it->second.clear();
                         }
                     }
-                    sink_.append(options_.line_delimiter().data(), options_.line_delimiter().length());
+                    sink_.append(line_delimiter_.data(), line_delimiter_.length());
                 }
                 break;
             case stack_item_kind::column:
                 ++column_index_;
                 break;
             case stack_item_kind::column_multivalued_field:
+                column_it_->second.emplace_back(value_buffer_.data(),value_buffer_.length());
                 break;
             case stack_item_kind::unmapped:
                 break;
             default:
-                std::cout << "visit_end_array " << (int)stack_.back().item_kind_ << "\n"; 
+                //std::cout << "visit_end_array " << (int)stack_.back().item_kind_ << "\n"; 
                 ec = csv_errc::source_error;
                 return false;
         }
@@ -502,7 +745,7 @@ private:
 
         if (!stack_.empty())
         {
-            end_value();
+            ++stack_.back().count_;
         }
         return true;
     }
@@ -514,41 +757,39 @@ private:
         {
             case stack_item_kind::flat_object:
             {
-                stack_.back().pointer_ = stack_[stack_.size()-2].pointer_;
-                stack_.back().pointer_.push_back('/');
-                stack_.back().pointer_.append(std::string(name));
-                stack_.back().pathname_ = std::string(name);
-                if (options_.column_names().empty())
+                stack_.back().column_path_ = parent(stack_).column_path_;
+                stack_.back().column_path_.push_back('/');
+                stack_.back().column_path_.append(jsonpointer::escape<char_type,char_allocator_type>(name, alloc_));
+                if (!has_column_mapping_)
                 {
-                    column_pointer_name_map_.emplace(stack_.back().pathname_, name);
+                    column_path_name_map_.emplace(stack_.back().column_path_, name);
                 }
                 break;
             }
             case stack_item_kind::object:
             {
-                stack_.back().pathname_ = stack_[stack_.size()-2].pathname_;
-                stack_.back().pathname_.push_back('/');
-                stack_.back().pathname_.append(std::string(name));
-                stack_.back().pointer_ = stack_[stack_.size()-2].pointer_;
-                stack_.back().pointer_.push_back('/');
-                stack_.back().pointer_.append(std::string(name));
-                if (options_.column_names().empty())
+                stack_.back().column_path_ = parent(stack_).column_path_;
+                stack_.back().column_path_.push_back('/');
+                stack_.back().column_path_.append(jsonpointer::escape<char_type,char_allocator_type>(name, alloc_));
+                if (!has_column_mapping_)
                 {
-                    column_pointer_name_map_.emplace(stack_.back().pathname_, stack_.back().pathname_);
+                    column_path_name_map_.emplace(stack_.back().column_path_, stack_.back().column_path_);
                 }
                 break;
             }
             case stack_item_kind::column_mapping:
             {
-                if (column_names_.empty())
+                stack_.back().column_path_.clear();
+                stack_.back().column_path_.push_back('/');
+                stack_.back().column_path_.append(std::string(name));
+                if (!has_column_mapping_)
                 {
-                    column_names_.emplace_back(name);
+                    
+                    string_type str = stack_.back().column_path_;
+                    column_paths_.emplace_back(str);
+                    column_path_name_map_.emplace(std::move(str), name);
                 }
-                else
-                {
-                    column_names_[0].push_back(options_.field_delimiter());
-                    column_names_[0].append(string_type(name));
-                }
+                column_it_ = column_path_column_map_.emplace(stack_.back().column_path_, column_type{alloc_}).first;
                 break;
             }
             default:
@@ -559,19 +800,21 @@ private:
     
     void append_array_path_component()
     {
-        buffer_.clear();
-        jsoncons::detail::from_integer(stack_.back().count_, buffer_);
-
-        stack_.back().pathname_ = stack_[stack_.size()-2].pathname_;
-        stack_.back().pathname_.push_back('/');
-        stack_.back().pathname_.append(buffer_);
-        stack_.back().pointer_ = stack_[stack_.size()-2].pointer_;
-        stack_.back().pointer_.push_back('/');
-        stack_.back().pointer_.append(buffer_);
-        if (stack_[0].count_ == 0 && options_.column_names().empty())
+        stack_.back().column_path_ = parent(stack_).column_path_;
+        stack_.back().column_path_.push_back('/');
+        jsoncons::detail::from_integer(stack_.back().count_, stack_.back().column_path_);
+        if (stack_[0].count_ == 0)
         {
-            column_names_.emplace_back(stack_.back().pathname_);
-            column_pointer_name_map_.emplace(stack_.back().pathname_, stack_.back().pathname_);
+            if (!has_column_mapping_)
+            {
+                string_type str = stack_.back().column_path_;
+                if (stack_.back().item_kind_ == stack_item_kind::row)
+                {
+                    column_path_name_map_.emplace(str, stack_.back().column_path_);
+                }
+                column_paths_.emplace_back(str);
+                column_path_value_map_.emplace(std::move(str), string_type{alloc_});
+            }
         }
     }
 
@@ -585,24 +828,17 @@ private:
             {
                 if (stack_[0].count_ == 0)
                 {
-                    if (options_.column_names().empty())
+                    if (!has_column_mapping_)
                     {
-                        column_names_.emplace_back(stack_.back().pathname_);
+                        string_type str = stack_.back().column_path_;
+                        column_paths_.emplace_back(str);
+                        column_path_value_map_.emplace(std::move(str), string_type{alloc_});
                     }
-                    cname_value_map_[stack_.back().pathname_] = std::basic_string<CharT>();
                 }
-                auto it = cname_value_map_.find(stack_.back().pathname_);
-                if (it != cname_value_map_.end())
+                auto it = column_path_value_map_.find(stack_.back().column_path_);
+                if (it != column_path_value_map_.end())
                 {
-                    std::basic_string<CharT> s;
-                    jsoncons::string_sink<std::basic_string<CharT>> bo(s);
-                    write_null_value(bo);
-                    bo.flush();
-                    if (!it->second.empty() && options_.subfield_delimiter() != char_type())
-                    {
-                        it->second.push_back(options_.subfield_delimiter());
-                    }
-                    it->second.append(s);
+                    write_null_value(it->second);
                 }
                 break;
             }
@@ -610,50 +846,45 @@ private:
             case stack_item_kind::row:
             {
                 append_array_path_component();
-                if (stack_[0].count_ == 0)
+                auto it = column_path_value_map_.find(stack_.back().column_path_);
+                if (it != column_path_value_map_.end())
                 {
-                    cname_value_map_[stack_.back().pathname_] = std::basic_string<CharT>();
-                }
-                auto it = cname_value_map_.find(stack_.back().pathname_);
-                if (it != cname_value_map_.end())
-                {
-                    std::basic_string<CharT> s;
-                    jsoncons::string_sink<std::basic_string<CharT>> bo(s);
-                    write_null_value(bo);
-                    bo.flush();
-                    it->second.append(s);
+                    write_null_value(it->second);
                 }
                 break;
             }
+            case stack_item_kind::stream_flat_row:
+            {
+                if (stack_.back().count_ > 0)
+                {
+                    sink_.push_back(field_delimiter_);
+                }
+                value_buffer_.clear();
+                write_null_value(value_buffer_);
+                sink_.append(value_buffer_.data(), value_buffer_.size());
+                break;
+            }
+            case stack_item_kind::column_multivalued_field:
             case stack_item_kind::multivalued_field:
+            case stack_item_kind::stream_multivalued_field:
             {
                 if (!value_buffer_.empty())
                 {
-                    value_buffer_.push_back(options_.subfield_delimiter());
+                    value_buffer_.push_back(subfield_delimiter_);
                 }
-                jsoncons::string_sink<std::basic_string<CharT>> bo(value_buffer_);
-                write_null_value(bo);
+                write_null_value(value_buffer_);
                 break;
             }
             case stack_item_kind::column:
             {
-                if (column_names_.size() <= row_counts_.back())
-                {
-                    column_names_.emplace_back();
-                }
-                jsoncons::string_sink<std::basic_string<CharT>> bo(column_names_[row_counts_.back()]);
-                write_null_value(bo);
-                break;
-            }
-            case stack_item_kind::column_multivalued_field:
-            {
-                jsoncons::string_sink<std::basic_string<CharT>> bo(column_names_[row_counts_.back()]);
-                write_null_value(bo);
+                (*column_it_).second.emplace_back();
+                write_null_value((*column_it_).second.back());
                 break;
             }
             default:
                 break;
         }
+        ++stack_.back().count_;
         return true;
     }
 
@@ -665,23 +896,20 @@ private:
             case stack_item_kind::flat_object:
             case stack_item_kind::object:
             {
-                //stack_.back().pathname_ = stack_[stack_.size()-2].pathname_;
                 if (stack_[0].count_ == 0)
                 {
-                    if (options_.column_names().empty())
+                    if (!has_column_mapping_)
                     {
-                        column_names_.emplace_back(stack_.back().pathname_);
+                        string_type str = stack_.back().column_path_;
+                        column_paths_.emplace_back(str);
+                        column_path_value_map_.emplace(std::move(str), string_type{alloc_});
                     }
-                    cname_value_map_[stack_.back().pathname_] = std::basic_string<CharT>();
                 }
-                auto it = cname_value_map_.find(stack_.back().pathname_);
-                if (it != cname_value_map_.end())
+
+                auto it = column_path_value_map_.find(stack_.back().column_path_);
+                if (it != column_path_value_map_.end())
                 {
-                    std::basic_string<CharT> s;
-                    jsoncons::string_sink<std::basic_string<CharT>> bo(s);
-                    write_string_value(sv,bo);
-                    bo.flush();
-                    cname_value_map_[stack_.back().pathname_] = s;
+                    write_string_value(sv, it->second);
                 }
                 break;
             }
@@ -689,50 +917,45 @@ private:
             case stack_item_kind::row:
             {
                 append_array_path_component();
-                if (stack_[0].count_ == 0)
+                auto it = column_path_value_map_.find(stack_.back().column_path_);
+                if (it != column_path_value_map_.end())
                 {
-                    cname_value_map_[stack_.back().pathname_] = std::basic_string<CharT>();
-                }
-                auto it = cname_value_map_.find(stack_.back().pathname_);
-                if (it != cname_value_map_.end())
-                {
-                    std::basic_string<CharT> s;
-                    jsoncons::string_sink<std::basic_string<CharT>> bo(s);
-                    write_string_value(sv,bo);
-                    bo.flush();
-                    it->second.append(s);
+                    write_string_value(sv, it->second);
                 }
                 break;
             }
+            case stack_item_kind::stream_flat_row:
+            {
+                if (stack_.back().count_ > 0)
+                {
+                    sink_.push_back(field_delimiter_);
+                }
+                value_buffer_.clear();
+                write_string_value(sv, value_buffer_);
+                sink_.append(value_buffer_.data(), value_buffer_.size());
+                break;
+            }
+            case stack_item_kind::column_multivalued_field:
             case stack_item_kind::multivalued_field:
+            case stack_item_kind::stream_multivalued_field:
             {
                 if (!value_buffer_.empty())
                 {
-                    value_buffer_.push_back(options_.subfield_delimiter());
+                    value_buffer_.push_back(subfield_delimiter_);
                 }
-                jsoncons::string_sink<std::basic_string<CharT>> bo(value_buffer_);
-                write_string_value(sv, bo);
+                write_string_value(sv, value_buffer_);
                 break;
             }
             case stack_item_kind::column:
             {
-                if (column_names_.size() <= row_counts_.back())
-                {
-                    column_names_.emplace_back();
-                }
-                jsoncons::string_sink<std::basic_string<CharT>> bo(column_names_[row_counts_.back()]);
-                write_string_value(sv,bo);
-                break;
-            }
-            case stack_item_kind::column_multivalued_field:
-            {
-                jsoncons::string_sink<std::basic_string<CharT>> bo(column_names_[row_counts_.back()]);
-                write_string_value(sv,bo);
+                (*column_it_).second.emplace_back();
+                write_string_value(sv, (*column_it_).second.back());
                 break;
             }
             default:
                 break;
         }
+        ++stack_.back().count_;
         return true;
     }
 
@@ -804,24 +1027,17 @@ private:
             {
                 if (stack_[0].count_ == 0)
                 {
-                    if (options_.column_names().empty())
+                    if (!has_column_mapping_)
                     {
-                        column_names_.emplace_back(stack_.back().pathname_);
+                        string_type str = stack_.back().column_path_;
+                        column_paths_.emplace_back(str);
+                        column_path_value_map_.emplace(std::move(str), string_type{alloc_});
                     }
-                    cname_value_map_[stack_.back().pathname_] = std::basic_string<CharT>();
                 }
-                auto it = cname_value_map_.find(stack_.back().pathname_);
-                if (it != cname_value_map_.end())
+                auto it = column_path_value_map_.find(stack_.back().column_path_);
+                if (it != column_path_value_map_.end())
                 {
-                    std::basic_string<CharT> s;
-                    jsoncons::string_sink<std::basic_string<CharT>> bo(s);
-                    write_double_value(val, context, bo, ec);
-                    bo.flush();
-                    if (!it->second.empty() && options_.subfield_delimiter() != char_type())
-                    {
-                        it->second.push_back(options_.subfield_delimiter());
-                    }
-                    it->second.append(s);
+                    write_double_value(val, context, it->second, ec);
                 }
                 break;
             }
@@ -829,50 +1045,49 @@ private:
             case stack_item_kind::row:
             {
                 append_array_path_component();
-                if (stack_[0].count_ == 0)
+                auto it = column_path_value_map_.find(stack_.back().column_path_);
+                if (it != column_path_value_map_.end())
                 {
-                    cname_value_map_[stack_.back().pathname_] = std::basic_string<CharT>();
-                }
-                auto it = cname_value_map_.find(stack_.back().pathname_);
-                if (it != cname_value_map_.end())
-                {
-                    std::basic_string<CharT> s;
-                    jsoncons::string_sink<std::basic_string<CharT>> bo(s);
-                    write_double_value(val, context, bo, ec);
-                    bo.flush();
-                    it->second.append(s);
+                    write_double_value(val, context, it->second, ec);
                 }
                 break;
             }
+            case stack_item_kind::stream_flat_row:
+            {
+                if (stack_.back().count_ > 0)
+                {
+                    sink_.push_back(field_delimiter_);
+                }
+                value_buffer_.clear();
+                write_double_value(val, context, value_buffer_, ec);
+                if (ec)
+                {
+                    return false;
+                }
+                sink_.append(value_buffer_.data(), value_buffer_.size());
+                break;
+            }
             case stack_item_kind::multivalued_field:
+            case stack_item_kind::column_multivalued_field:
+            case stack_item_kind::stream_multivalued_field:
             {
                 if (!value_buffer_.empty())
                 {
-                    value_buffer_.push_back(options_.subfield_delimiter());
+                    value_buffer_.push_back(subfield_delimiter_);
                 }
-                jsoncons::string_sink<std::basic_string<CharT>> bo(value_buffer_);
-                write_double_value(val, context, bo, ec);
+                write_double_value(val, context, value_buffer_, ec);
                 break;
             }
             case stack_item_kind::column:
             {
-                if (column_names_.size() <= row_counts_.back())
-                {
-                    column_names_.emplace_back();
-                }
-                jsoncons::string_sink<std::basic_string<CharT>> bo(column_names_[row_counts_.back()]);
-                write_double_value(val, context, bo, ec);
-                break;
-            }
-            case stack_item_kind::column_multivalued_field:
-            {
-                jsoncons::string_sink<std::basic_string<CharT>> bo(column_names_[row_counts_.back()]);
-                write_double_value(val, context, bo, ec);
+                (*column_it_).second.emplace_back();
+                write_double_value(val, context, (*column_it_).second.back(), ec);
                 break;
             }
             default:
                 break;
         }
+        ++stack_.back().count_;
         return true;
     }
 
@@ -889,24 +1104,17 @@ private:
             {
                 if (stack_[0].count_ == 0)
                 {
-                    if (options_.column_names().empty())
+                    if (!has_column_mapping_)
                     {
-                        column_names_.emplace_back(stack_.back().pathname_);
+                        string_type str = stack_.back().column_path_;
+                        column_paths_.emplace_back(str);
+                        column_path_value_map_.emplace(std::move(str), string_type{alloc_});
                     }
-                    cname_value_map_[stack_.back().pathname_] = std::basic_string<CharT>();
                 }
-                auto it = cname_value_map_.find(stack_.back().pathname_);
-                if (it != cname_value_map_.end())
+                auto it = column_path_value_map_.find(stack_.back().column_path_);
+                if (it != column_path_value_map_.end())
                 {
-                    std::basic_string<CharT> s;
-                    jsoncons::string_sink<std::basic_string<CharT>> bo(s);
-                    write_int64_value(val,bo);
-                    bo.flush();
-                    if (!it->second.empty() && options_.subfield_delimiter() != char_type())
-                    {
-                        it->second.push_back(options_.subfield_delimiter());
-                    }
-                    it->second.append(s);
+                    write_int64_value(val, it->second);
                 }
                 break;
             }
@@ -914,50 +1122,45 @@ private:
             case stack_item_kind::row:
             {
                 append_array_path_component();
-                if (stack_[0].count_ == 0)
+                auto it = column_path_value_map_.find(stack_.back().column_path_);
+                if (it != column_path_value_map_.end())
                 {
-                    cname_value_map_[stack_.back().pathname_] = std::basic_string<CharT>();
-                }
-                auto it = cname_value_map_.find(stack_.back().pathname_);
-                if (it != cname_value_map_.end())
-                {
-                    std::basic_string<CharT> s;
-                    jsoncons::string_sink<std::basic_string<CharT>> bo(s);
-                    write_int64_value(val,bo);
-                    bo.flush();
-                    it->second.append(s);
+                    write_int64_value(val, it->second);
                 }
                 break;
             }
+            case stack_item_kind::stream_flat_row:
+            {
+                if (stack_.back().count_ > 0)
+                {
+                    sink_.push_back(field_delimiter_);
+                }
+                value_buffer_.clear();
+                write_int64_value(val, value_buffer_);
+                sink_.append(value_buffer_.data(), value_buffer_.size());
+                break;
+            }
+            case stack_item_kind::column_multivalued_field:
             case stack_item_kind::multivalued_field:
+            case stack_item_kind::stream_multivalued_field:
             {
                 if (!value_buffer_.empty())
                 {
-                    value_buffer_.push_back(options_.subfield_delimiter());
+                    value_buffer_.push_back(subfield_delimiter_);
                 }
-                jsoncons::string_sink<std::basic_string<CharT>> bo(value_buffer_);
-                write_int64_value(val, bo);
+                write_int64_value(val, value_buffer_);
                 break;
             }
             case stack_item_kind::column:
             {
-                if (column_names_.size() <= row_counts_.back())
-                {
-                    column_names_.emplace_back();
-                }
-                jsoncons::string_sink<std::basic_string<CharT>> bo(column_names_[row_counts_.back()]);
-                write_int64_value(val, bo);
-                break;
-            }
-            case stack_item_kind::column_multivalued_field:
-            {
-                jsoncons::string_sink<std::basic_string<CharT>> bo(column_names_[row_counts_.back()]);
-                write_int64_value(val, bo);
+                (*column_it_).second.emplace_back();
+                write_int64_value(val, (*column_it_).second.back());
                 break;
             }
             default:
                 break;
         }
+        ++stack_.back().count_;
         return true;
     }
 
@@ -974,24 +1177,17 @@ private:
             {
                 if (stack_[0].count_ == 0)
                 {
-                    if (options_.column_names().empty())
+                    if (!has_column_mapping_)
                     {
-                        column_names_.emplace_back(stack_.back().pathname_);
+                        string_type str = stack_.back().column_path_;
+                        column_paths_.emplace_back(str);
+                        column_path_value_map_.emplace(std::move(str), string_type{alloc_});
                     }
-                    cname_value_map_[stack_.back().pathname_] = std::basic_string<CharT>();
                 }
-                auto it = cname_value_map_.find(stack_.back().pathname_);
-                if (it != cname_value_map_.end())
+                auto it = column_path_value_map_.find(stack_.back().column_path_);
+                if (it != column_path_value_map_.end())
                 {
-                    std::basic_string<CharT> s;
-                    jsoncons::string_sink<std::basic_string<CharT>> bo(s);
-                    write_uint64_value(val, bo);
-                    bo.flush();
-                    if (!it->second.empty() && options_.subfield_delimiter() != char_type())
-                    {
-                        it->second.push_back(options_.subfield_delimiter());
-                    }
-                    it->second.append(s);
+                    write_uint64_value(val, it->second);
                 }
                 break;
             }
@@ -999,50 +1195,45 @@ private:
             case stack_item_kind::row:
             {
                 append_array_path_component();
-                if (stack_[0].count_ == 0)
+                auto it = column_path_value_map_.find(stack_.back().column_path_);
+                if (it != column_path_value_map_.end())
                 {
-                    cname_value_map_[stack_.back().pathname_] = std::basic_string<CharT>();
-                }
-                auto it = cname_value_map_.find(stack_.back().pathname_);
-                if (it != cname_value_map_.end())
-                {
-                    std::basic_string<CharT> s;
-                    jsoncons::string_sink<std::basic_string<CharT>> bo(s);
-                    write_uint64_value(val, bo);
-                    bo.flush();
-                    it->second.append(s);
+                    write_uint64_value(val, it->second);
                 }
                 break;
             }
+            case stack_item_kind::stream_flat_row:
+            {
+                if (stack_.back().count_ > 0)
+                {
+                    sink_.push_back(field_delimiter_);
+                }
+                value_buffer_.clear();
+                write_uint64_value(val, value_buffer_);
+                sink_.append(value_buffer_.data(), value_buffer_.size());
+                break;
+            }
             case stack_item_kind::multivalued_field:
+            case stack_item_kind::column_multivalued_field:
+            case stack_item_kind::stream_multivalued_field:
             {
                 if (!value_buffer_.empty())
                 {
-                    value_buffer_.push_back(options_.subfield_delimiter());
+                    value_buffer_.push_back(subfield_delimiter_);
                 }
-                jsoncons::string_sink<std::basic_string<CharT>> bo(value_buffer_);
-                write_uint64_value(val, bo);
+                write_uint64_value(val, value_buffer_);
                 break;
             }
             case stack_item_kind::column:
             {
-                if (column_names_.size() <= row_counts_.back())
-                {
-                    column_names_.emplace_back();
-                }
-                jsoncons::string_sink<std::basic_string<CharT>> bo(column_names_[row_counts_.back()]);
-                write_uint64_value(val, bo);
-                break;
-            }
-            case stack_item_kind::column_multivalued_field:
-            {
-                jsoncons::string_sink<std::basic_string<CharT>> bo(column_names_[row_counts_.back()]);
-                write_uint64_value(val, bo);
+                (*column_it_).second.emplace_back();
+                write_uint64_value(val, (*column_it_).second.back());
                 break;
             }
             default:
                 break;
         }
+        ++stack_.back().count_;
         return true;
     }
 
@@ -1056,24 +1247,17 @@ private:
             {
                 if (stack_[0].count_ == 0)
                 {
-                    if (options_.column_names().empty())
+                    if (!has_column_mapping_)
                     {
-                        column_names_.emplace_back(stack_.back().pathname_);
+                        string_type str = stack_.back().column_path_;
+                        column_paths_.emplace_back(str);
+                        column_path_value_map_.emplace(std::move(str), string_type{alloc_});
                     }
-                    cname_value_map_[stack_.back().pathname_] = std::basic_string<CharT>();
                 }
-                auto it = cname_value_map_.find(stack_.back().pathname_);
-                if (it != cname_value_map_.end())
+                auto it = column_path_value_map_.find(stack_.back().column_path_);
+                if (it != column_path_value_map_.end())
                 {
-                    std::basic_string<CharT> s;
-                    jsoncons::string_sink<std::basic_string<CharT>> bo(s);
-                    write_bool_value(val,bo);
-                    bo.flush();
-                    if (!it->second.empty() && options_.subfield_delimiter() != char_type())
-                    {
-                        it->second.push_back(options_.subfield_delimiter());
-                    }
-                    it->second.append(s);
+                    write_bool_value(val, it->second);
                 }
                 break;
             }
@@ -1081,259 +1265,149 @@ private:
             case stack_item_kind::row:
             {
                 append_array_path_component();
-                if (stack_[0].count_ == 0)
+                auto it = column_path_value_map_.find(stack_.back().column_path_);
+                if (it != column_path_value_map_.end())
                 {
-                    cname_value_map_[stack_.back().pathname_] = std::basic_string<CharT>();
-                }
-                auto it = cname_value_map_.find(stack_.back().pathname_);
-                if (it != cname_value_map_.end())
-                {
-                    std::basic_string<CharT> s;
-                    jsoncons::string_sink<std::basic_string<CharT>> bo(s);
-                    write_bool_value(val,bo);
-                    bo.flush();
-                    it->second.append(s);
+                    write_bool_value(val, it->second);
                 }
                 break;
             }
+            case stack_item_kind::stream_flat_row:
+            {
+                if (stack_.back().count_ > 0)
+                {
+                    sink_.push_back(field_delimiter_);
+                }
+                value_buffer_.clear();
+                write_bool_value(val, value_buffer_);
+                sink_.append(value_buffer_.data(), value_buffer_.size());
+                break;
+            }
             case stack_item_kind::multivalued_field:
+            case stack_item_kind::column_multivalued_field:
+            case stack_item_kind::stream_multivalued_field:
             {
                 if (!value_buffer_.empty())
                 {
-                    value_buffer_.push_back(options_.subfield_delimiter());
+                    value_buffer_.push_back(subfield_delimiter_);
                 }
-                jsoncons::string_sink<std::basic_string<CharT>> bo(value_buffer_);
-                write_bool_value(val, bo);
+                write_bool_value(val, value_buffer_);
                 break;
             }
             case stack_item_kind::column:
             {
-                if (column_names_.size() <= row_counts_.back())
-                {
-                    column_names_.emplace_back();
-                }
-                jsoncons::string_sink<std::basic_string<CharT>> bo(column_names_[row_counts_.back()]);
-                write_bool_value(val, bo);
-                break;
-            }
-            case stack_item_kind::column_multivalued_field:
-            {
-                jsoncons::string_sink<std::basic_string<CharT>> bo(column_names_[row_counts_.back()]);
-                write_bool_value(val, bo);
+                (*column_it_).second.emplace_back();
+                write_bool_value(val, (*column_it_).second.back());
                 break;
             }
             default:
                 break;
         }
+        ++stack_.back().count_;
         return true;
     }
 
-    template <typename AnyWriter>
-    bool do_string_value(const CharT* s, std::size_t length, AnyWriter& sink)
+    void write_string_value(const string_view_type& value, string_type& str)
     {
+        const char* s = value.data();
+        const std::size_t length = value.length();
+        
         bool quote = false;
-        if (options_.quote_style() == quote_style_kind::all || options_.quote_style() == quote_style_kind::nonnumeric ||
-            (options_.quote_style() == quote_style_kind::minimal &&
-            (std::char_traits<CharT>::find(s, length, options_.field_delimiter()) != nullptr || std::char_traits<CharT>::find(s, length, options_.quote_char()) != nullptr)))
+        if (quote_style_ == quote_style_kind::all || quote_style_ == quote_style_kind::nonnumeric ||
+            (quote_style_ == quote_style_kind::minimal &&
+            (std::char_traits<CharT>::find(s, length, field_delimiter_) != nullptr || std::char_traits<CharT>::find(s, length, quote_char_) != nullptr)))
         {
             quote = true;
-            sink.push_back(options_.quote_char());
+            str.push_back(quote_char_);
         }
-        escape_string(s, length, options_.quote_char(), options_.quote_escape_char(), sink);
+        escape_string(s, length, quote_char_, quote_escape_char_, str);
         if (quote)
         {
-            sink.push_back(options_.quote_char());
+            str.push_back(quote_char_);
         }
-
-        return true;
     }
 
-    template <typename AnyWriter>
-    void write_string_value(const string_view_type& value, AnyWriter& sink)
+    void write_double_value(double val, const ser_context& context, string_type& str, std::error_code& ec)
     {
-        begin_value(sink);
-        do_string_value(value.data(),value.length(),sink);
-        end_value();
-    }
-
-    template <typename AnyWriter>
-    void write_double_value(double val, const ser_context& context, AnyWriter& sink, std::error_code& ec)
-    {
-        begin_value(sink);
-
         if (!std::isfinite(val))
         {
             if ((std::isnan)(val))
             {
-                if (options_.enable_nan_to_num())
+                if (enable_nan_to_num_)
                 {
-                    sink.append(options_.nan_to_num().data(), options_.nan_to_num().length());
+                    str.append(nan_to_num_.data(), nan_to_num_.length());
                 }
-                else if (options_.enable_nan_to_str())
+                else if (enable_nan_to_str_)
                 {
-                    visit_string(options_.nan_to_str(), semantic_tag::none, context, ec);
+                    visit_string(nan_to_str_, semantic_tag::none, context, ec);
                 }
                 else
                 {
-                    sink.append(null_constant().data(), null_constant().size());
+                    str.append(null_constant().data(), null_constant().size());
                 }
             }
             else if (val == std::numeric_limits<double>::infinity())
             {
-                if (options_.enable_inf_to_num())
+                if (enable_inf_to_num_)
                 {
-                    sink.append(options_.inf_to_num().data(), options_.inf_to_num().length());
+                    str.append(inf_to_num_.data(), inf_to_num_.length());
                 }
-                else if (options_.enable_inf_to_str())
+                else if (enable_inf_to_str_)
                 {
-                    visit_string(options_.inf_to_str(), semantic_tag::none, context, ec);
+                    visit_string(inf_to_str_, semantic_tag::none, context, ec);
                 }
                 else
                 {
-                    sink.append(null_constant().data(), null_constant().size());
+                    str.append(null_constant().data(), null_constant().size());
                 }
             }
             else
             {
-                if (options_.enable_neginf_to_num())
+                if (enable_neginf_to_num_)
                 {
-                    sink.append(options_.neginf_to_num().data(), options_.neginf_to_num().length());
+                    str.append(neginf_to_num_.data(), neginf_to_num_.length());
                 }
-                else if (options_.enable_neginf_to_str())
+                else if (enable_neginf_to_str_)
                 {
-                    visit_string(options_.neginf_to_str(), semantic_tag::none, context, ec);
+                    visit_string(neginf_to_str_, semantic_tag::none, context, ec);
                 }
                 else
                 {
-                    sink.append(null_constant().data(), null_constant().size());
+                    str.append(null_constant().data(), null_constant().size());
                 }
             }
         }
         else
         {
-            fp_(val, sink);
+            fp_(val, str);
         }
-
-        end_value();
-
     }
 
-    template <typename AnyWriter>
-    void write_int64_value(int64_t val, AnyWriter& sink)
+    void write_int64_value(int64_t val, string_type& str)
     {
-        begin_value(sink);
-
-        jsoncons::detail::from_integer(val,sink);
-
-        end_value();
+        jsoncons::detail::from_integer(val,str);
     }
 
-    template <typename AnyWriter>
-    void write_uint64_value(uint64_t val, AnyWriter& sink)
+    void write_uint64_value(uint64_t val, string_type& str)
     {
-        begin_value(sink);
-
-        jsoncons::detail::from_integer(val,sink);
-
-        end_value();
+        jsoncons::detail::from_integer(val,str);
     }
 
-    template <typename AnyWriter>
-    void write_bool_value(bool val, AnyWriter& sink) 
+    void write_bool_value(bool val, string_type& str) 
     {
-        begin_value(sink);
-
         if (val)
         {
-            sink.append(true_constant().data(), true_constant().size());
+            str.append(true_constant().data(), true_constant().size());
         }
         else
         {
-            sink.append(false_constant().data(), false_constant().size());
+            str.append(false_constant().data(), false_constant().size());
         }
-
-        end_value();
     }
  
-    template <typename AnyWriter>
-    bool write_null_value(AnyWriter& sink) 
+    void write_null_value(string_type& str) 
     {
-        begin_value(sink);
-        sink.append(null_constant().data(), null_constant().size());
-        end_value();
-        return true;
-    }
-
-    template <typename AnyWriter>
-    void begin_value(AnyWriter& sink)
-    {
-        if (stack_.empty())
-        {
-            return;
-        }
-        switch (stack_.back().item_kind_)
-        {
-            case stack_item_kind::flat_row:
-            case stack_item_kind::row:
-                break;
-            case stack_item_kind::column:
-            {
-                if (row_counts_.size() >= 3)
-                {
-                    for (std::size_t i = row_counts_.size()-2; i-- > 0;)
-                    {
-                        if (row_counts_[i] <= row_counts_.back())
-                        {
-                            sink.push_back(options_.field_delimiter());
-                        }
-                        else
-                        {
-                            break;
-                        }
-                    }
-                }
-                if (column_index_ > 0)
-                {
-                    sink.push_back(options_.field_delimiter());
-                }
-                break;
-            }
-            case stack_item_kind::multivalued_field:
-                break;
-            case stack_item_kind::column_multivalued_field:
-                if (stack_.back().count_ > 0 && options_.subfield_delimiter() != char_type())
-                {
-                    sink.push_back(options_.subfield_delimiter());
-                }
-                break;
-            default:
-                break;
-        }
-    }
-
-    void end_value()
-    {
-        if (stack_.empty())
-        {
-            return;
-        }
-        switch(stack_.back().item_kind_)
-        {
-            case stack_item_kind::flat_row:
-            case stack_item_kind::row:
-            {
-                ++stack_.back().count_;
-                break;
-            }
-            case stack_item_kind::column:
-            {
-                ++row_counts_.back();
-                break;
-            }
-            default:
-                ++stack_.back().count_;
-                break;
-        }
+        str.append(null_constant().data(), null_constant().size());
     }
 };
 

@@ -4,8 +4,8 @@
 
 // See https://github.com/danielaparker/jsoncons for latest version
 
-#ifndef JSONCONS_EXT_JSONSCHEMA_DRAFT4_SCHEMA_BUILDER_4_HPP
-#define JSONCONS_EXT_JSONSCHEMA_DRAFT4_SCHEMA_BUILDER_4_HPP
+#ifndef JSONCONS_EXT_JSONSCHEMA_DRAFT4_VALIDATOR_FACTORY_4_HPP
+#define JSONCONS_EXT_JSONSCHEMA_DRAFT4_VALIDATOR_FACTORY_4_HPP
 
 #include <cassert>
 #include <iostream>
@@ -18,8 +18,8 @@
 
 #include <jsoncons_ext/jsonpointer/jsonpointer.hpp>
 #include <jsoncons_ext/jsonschema/common/compilation_context.hpp>
-#include <jsoncons_ext/jsonschema/common/schema_builder.hpp>
-#include <jsoncons_ext/jsonschema/common/schema_validators.hpp>
+#include <jsoncons_ext/jsonschema/common/validator_factory.hpp>
+#include <jsoncons_ext/jsonschema/common/schema_validator.hpp>
 #include <jsoncons_ext/jsonschema/draft4/schema_draft4.hpp>
 #include <jsoncons_ext/jsonschema/json_schema.hpp>
 
@@ -32,11 +32,11 @@ namespace jsonschema {
 namespace draft4 {
 
     template <typename Json>
-    class schema_builder_4 : public schema_builder<Json> 
+    class validator_factory_4 : public validator_factory<Json> 
     {
     public:
-        using schema_store_type = typename schema_builder<Json>::schema_store_type;
-        using schema_builder_factory_type = typename schema_builder<Json>::schema_builder_factory_type;
+        using schema_store_type = typename validator_factory<Json>::schema_store_type;
+        using validator_factory_factory_type = typename validator_factory<Json>::validator_factory_factory_type;
         using keyword_validator_type = typename std::unique_ptr<keyword_validator<Json>>;
         using schema_validator_type = typename std::unique_ptr<schema_validator<Json>>;
         using anchor_uri_map_type = std::unordered_map<std::string,uri_wrapper>;
@@ -48,18 +48,18 @@ namespace draft4 {
         std::unordered_map<std::string,keyword_factory_type> keyword_factory_map_;
 
     public:
-        schema_builder_4(Json&& sch, const schema_builder_factory_type& builder_factory, 
+        validator_factory_4(Json&& sch, const validator_factory_factory_type& factory_factory, 
             evaluation_options options, schema_store_type* schema_store_ptr,
             const std::vector<resolve_uri_type<Json>>& resolve_funcs) 
-            : schema_builder<Json>(schema_version::draft4(), std::move(sch), builder_factory, options, schema_store_ptr, resolve_funcs)
+            : validator_factory<Json>(schema_version::draft4(), std::move(sch), factory_factory, options, schema_store_ptr, resolve_funcs)
         {
             init();
         }
 
-        schema_builder_4(const schema_builder_4&) = delete;
-        schema_builder_4& operator=(const schema_builder_4&) = delete;
-        schema_builder_4(schema_builder_4&&) = default;
-        schema_builder_4& operator=(schema_builder_4&&) = default;
+        validator_factory_4(const validator_factory_4&) = delete;
+        validator_factory_4& operator=(const validator_factory_4&) = delete;
+        validator_factory_4(validator_factory_4&&) = default;
+        validator_factory_4& operator=(validator_factory_4&&) = default;
 
         void init()
         {
@@ -283,7 +283,10 @@ namespace draft4 {
         std::unique_ptr<pattern_properties_validator<Json>> make_pattern_properties_validator(const compilation_context& context, 
             const Json& sch, const Json& parent, anchor_uri_map_type& anchor_dict)
         {
+            std::string keyword = "patternProperties";
             uri schema_location = context.get_base_uri();
+            std::string custom_message = context.get_custom_message(keyword);
+
             std::vector<std::pair<std::regex, schema_validator_type>> pattern_properties;
             
             for (const auto& prop : sch.object_range())
@@ -295,6 +298,7 @@ namespace draft4 {
             }
 
             return jsoncons::make_unique<pattern_properties_validator<Json>>(parent, std::move(schema_location),
+                custom_message,
                 std::move(pattern_properties));
         }
 #endif
@@ -321,11 +325,13 @@ namespace draft4 {
             }
             if (is_exclusive)
             {
-                return jsoncons::make_unique<exclusive_maximum_validator<Json>>(parent, schema_location, sch);
+                return jsoncons::make_unique<exclusive_maximum_validator<Json>>(parent, schema_location, 
+                    context.get_custom_message("maximum"), sch);
             }
             else
             {
-                return jsoncons::make_unique<maximum_validator<Json>>(parent, schema_location, sch);
+                return jsoncons::make_unique<maximum_validator<Json>>(parent, schema_location,
+                    context.get_custom_message("maximum"), sch);
             }
         }
 
@@ -351,11 +357,13 @@ namespace draft4 {
             }
             if (is_exclusive)
             {
-                return jsoncons::make_unique<exclusive_minimum_validator<Json>>(parent, schema_location, sch);
+                return jsoncons::make_unique<exclusive_minimum_validator<Json>>(parent, schema_location,
+                    context.get_custom_message("minimum"), sch);
             }
             else
             {
-                return jsoncons::make_unique<minimum_validator<Json>>(parent, schema_location, sch);
+                return jsoncons::make_unique<minimum_validator<Json>>(parent, schema_location,
+                    context.get_custom_message("minimum"), sch);
             }
         }
 
@@ -384,6 +392,8 @@ namespace draft4 {
                 }
             }
             jsoncons::optional<uri> id;
+            std::unordered_map<std::string,std::string> custom_messages{parent.custom_messages()};
+            std::string custom_message;
             if (sch.is_object())
             {
                 auto it = sch.find("id"); // If id is found, this schema can be referenced by the id
@@ -400,6 +410,26 @@ namespace draft4 {
                         new_uris.emplace_back(new_uri); 
                     }
                 }
+
+                if (this->options().enable_custom_error_message())
+                {
+                    it = sch.find("errorMessage"); 
+                    if (it != sch.object_range().end()) 
+                    {
+                        const auto& value = it->value();
+                        if (value.is_object())
+                        {
+                            for (const auto& item : value.object_range())
+                            {
+                                custom_messages[item.key()] =  item.value().template as<std::string>();
+                            }
+                        }
+                        else if (value.is_string())
+                        {
+                            custom_message = value.template as<std::string>();
+                        }
+                    }
+                }
             }
 
 /*
@@ -409,7 +439,8 @@ namespace draft4 {
                 std::cout << "    " << uri.string() << "\n";
             }
 */
-            return compilation_context(new_uris, id);
+
+            return compilation_context(new_uris, id, custom_messages, custom_message);
         }
     private:
         static const std::unordered_set<std::string>& known_keywords()

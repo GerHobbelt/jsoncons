@@ -293,6 +293,8 @@ private:
     string_type inf_to_str_;
     string_type neginf_to_str_;
     string_type column_names_;
+    std::vector<std::pair<std::string,std::string>> column_mapping_; 
+    std::size_t max_nesting_depth_{1024};
 
 protected:
     basic_csv_options_common()
@@ -321,6 +323,11 @@ public:
         return flat_;
     }
 
+    std::size_t max_nesting_depth() const 
+    {
+        return max_nesting_depth_;
+    }
+
     char_type field_delimiter() const 
     {
         return field_delimiter_;
@@ -341,9 +348,14 @@ public:
         return quote_escape_char_;
     }
 
-    string_type column_names() const 
+    const string_type& column_names() const 
     {
         return column_names_;
+    }
+
+    const std::vector<std::pair<std::string,std::string>>& column_mapping() const 
+    {
+        return column_mapping_;
     }
 
     bool enable_nan_to_num() const
@@ -681,11 +693,13 @@ public:
     using basic_csv_decode_options<CharT>::inf_to_num;
     using basic_csv_decode_options<CharT>::neginf_to_num;
     using basic_csv_decode_options<CharT>::flat;
+    using basic_csv_decode_options<CharT>::max_nesting_depth;
     using basic_csv_decode_options<CharT>::field_delimiter;
     using basic_csv_decode_options<CharT>::subfield_delimiter;
     using basic_csv_decode_options<CharT>::quote_char;
     using basic_csv_decode_options<CharT>::quote_escape_char;
     using basic_csv_decode_options<CharT>::column_names;
+    using basic_csv_decode_options<CharT>::column_mapping;
     using basic_csv_decode_options<CharT>::header_lines; 
     using basic_csv_decode_options<CharT>::assume_header; 
     using basic_csv_decode_options<CharT>::ignore_empty_values; 
@@ -805,6 +819,12 @@ public:
         return *this;
     }
 
+    basic_csv_options& column_mapping(const std::vector<std::pair<std::string,std::string>>& value)
+    {
+        this->column_mapping_ = value;
+        return *this;
+    }
+
     basic_csv_options& column_types(const string_type& value)
     {
         this->column_types_ = value;
@@ -820,6 +840,12 @@ public:
     basic_csv_options& flat(bool value)
     {
         this->flat_ = value;
+        return *this;
+    }
+
+    basic_csv_options& max_nesting_depth(std::size_t value)
+    {
+        this->max_nesting_depth_ = value;
         return *this;
     }
 
