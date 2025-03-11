@@ -8,21 +8,22 @@
 #define JSONCONS_JSON_ENCODER_HPP
 
 #include <array> // std::array
-#include <string>
-#include <vector>
 #include <cmath> // std::isfinite, std::isnan
 #include <limits> // std::numeric_limits
 #include <memory>
+#include <string>
 #include <utility> // std::move
-#include <jsoncons/config/jsoncons_config.hpp>
-#include <jsoncons/json_exception.hpp>
+#include <vector>
+
 #include <jsoncons/byte_string.hpp>
-#include <jsoncons/bigint.hpp>
-#include <jsoncons/json_options.hpp>
+#include <jsoncons/config/jsoncons_config.hpp>
+#include <jsoncons/detail/write_number.hpp>
 #include <jsoncons/json_error.hpp>
+#include <jsoncons/json_exception.hpp>
+#include <jsoncons/json_options.hpp>
 #include <jsoncons/json_visitor.hpp>
 #include <jsoncons/sink.hpp>
-#include <jsoncons/detail/write_number.hpp>
+#include <jsoncons/utility/bigint.hpp>
 
 namespace jsoncons { 
 namespace detail {
@@ -219,12 +220,12 @@ namespace detail {
         class encoding_context
         {
             container_type type_;
-            std::size_t count_;
+            std::size_t count_{0};
             line_split_kind line_splits_;
             bool indent_before_;
             bool new_line_after_;
-            std::size_t begin_pos_;
-            std::size_t data_pos_;
+            std::size_t begin_pos_{0};
+            std::size_t data_pos_{0};
         public:
             encoding_context(container_type type, line_split_kind split_lines, bool indent_once,
                              std::size_t begin_pos, std::size_t data_pos) noexcept
@@ -234,6 +235,9 @@ namespace detail {
             }
 
             encoding_context(const encoding_context&) = default;
+            
+            ~encoding_context() = default;
+            
             encoding_context& operator=(const encoding_context&) = default;
 
             void set_position(std::size_t pos)
@@ -684,7 +688,7 @@ namespace detail {
                 case semantic_tag::bigdec:
                 {
                     // output lossless number
-                    if (options_.bigint_format() == bigint_chars_format::number)
+                    if (options_.bignum_format() == bignum_format_kind::raw)
                     {
                         write_bigint_value(sv);
                 break;
@@ -950,15 +954,15 @@ namespace detail {
 
         void write_bigint_value(const string_view_type& sv)
         {
-            switch (options_.bigint_format())
+            switch (options_.bignum_format())
             {
-                case bigint_chars_format::number:
+                case bignum_format_kind::raw:
                 {
                     sink_.append(sv.data(),sv.size());
                     column_ += sv.size();
                     break;
                 }
-                case bigint_chars_format::base64:
+                case bignum_format_kind::base64:
                 {
                     bigint n = bigint::from_string(sv.data(), sv.length());
                     bool is_neg = n < 0;
@@ -981,7 +985,7 @@ namespace detail {
                     column_ += (length+2);
                     break;
                 }
-                case bigint_chars_format::base64url:
+                case bignum_format_kind::base64url:
                 {
                     bigint n = bigint::from_string(sv.data(), sv.length());
                     bool is_neg = n < 0;
@@ -1270,14 +1274,14 @@ namespace detail {
 
         void write_bigint_value(const string_view_type& sv)
         {
-            switch (options_.bigint_format())
+            switch (options_.bignum_format())
             {
-                case bigint_chars_format::number:
+                case bignum_format_kind::raw:
                 {
                     sink_.append(sv.data(),sv.size());
                     break;
                 }
-                case bigint_chars_format::base64:
+                case bignum_format_kind::base64:
                 {
                     bigint n = bigint::from_string(sv.data(), sv.length());
                     bool is_neg = n < 0;
@@ -1298,7 +1302,7 @@ namespace detail {
                     sink_.push_back('\"');
                     break;
                 }
-                case bigint_chars_format::base64url:
+                case bignum_format_kind::base64url:
                 {
                     bigint n = bigint::from_string(sv.data(), sv.length());
                     bool is_neg = n < 0;
@@ -1344,7 +1348,7 @@ namespace detail {
                 case semantic_tag::bigdec:
                 {
                     // output lossless number
-                    if (options_.bigint_format() == bigint_chars_format::number)
+                    if (options_.bignum_format() == bignum_format_kind::raw)
                     {
                         write_bigint_value(sv);
                         break;
@@ -1377,7 +1381,7 @@ namespace detail {
                 case semantic_tag::bigdec:
                 {
                     // output lossless number
-                    if (options_.bigint_format() == bigint_chars_format::number)
+                    if (options_.bignum_format() == bignum_format_kind::raw)
                     {
                         write_bigint_value(sv);
                         break;
@@ -1601,4 +1605,4 @@ namespace detail {
 
 } // namespace jsoncons
 
-#endif
+#endif // JSONCONS_JSON_ENCODER_HPP

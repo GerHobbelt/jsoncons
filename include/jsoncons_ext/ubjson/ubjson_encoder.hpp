@@ -4,22 +4,23 @@
 
 // See https://github.com/danielaparker/jsoncons for latest version
 
-#ifndef JSONCONS_UBJSON_UBJSON_ENCODER_HPP
-#define JSONCONS_UBJSON_UBJSON_ENCODER_HPP
+#ifndef JSONCONS_EXT_UBJSON_UBJSON_ENCODER_HPP
+#define JSONCONS_EXT_UBJSON_UBJSON_ENCODER_HPP
 
-#include <string>
-#include <vector>
 #include <limits> // std::numeric_limits
 #include <memory>
+#include <string>
 #include <utility> // std::move
+#include <vector>
+
+#include <jsoncons/config/jsoncons_config.hpp>
+#include <jsoncons/detail/parse_number.hpp>
 #include <jsoncons/json_exception.hpp>
 #include <jsoncons/json_visitor.hpp>
-#include <jsoncons/config/jsoncons_config.hpp>
 #include <jsoncons/sink.hpp>
-#include <jsoncons/detail/parse_number.hpp>
-#include <jsoncons_ext/ubjson/ubjson_type.hpp>
 #include <jsoncons_ext/ubjson/ubjson_error.hpp>
 #include <jsoncons_ext/ubjson/ubjson_options.hpp>
+#include <jsoncons_ext/ubjson/ubjson_type.hpp>
 
 namespace jsoncons { namespace ubjson {
 
@@ -39,13 +40,15 @@ private:
     struct stack_item
     {
         ubjson_container_type type_;
-        std::size_t length_;
-        std::size_t count_;
+        std::size_t length_{0};
+        std::size_t count_{0};
 
         stack_item(ubjson_container_type type, std::size_t length = 0) noexcept
-           : type_(type), length_(length), count_(0)
+           : type_(type), length_(length)
         {
         }
+        
+        ~stack_item() = default;
 
         std::size_t length() const
         {
@@ -490,5 +493,7 @@ private:
 using ubjson_stream_encoder = basic_ubjson_encoder<jsoncons::binary_stream_sink>;
 using ubjson_bytes_encoder = basic_ubjson_encoder<jsoncons::bytes_sink<std::vector<uint8_t>>>;
 
-}}
-#endif
+} // namespace ubjson
+} // namespace jsoncons
+
+#endif // JSONCONS_EXT_UBJSON_UBJSON_ENCODER_HPP

@@ -4,22 +4,23 @@
 
 // See https://github.com/danielaparker/jsoncons for latest version
 
-#ifndef JSONCONS_CBOR_CBOR_PARSER_HPP
-#define JSONCONS_CBOR_CBOR_PARSER_HPP
+#ifndef JSONCONS_EXT_CBOR_CBOR_PARSER_HPP
+#define JSONCONS_EXT_CBOR_CBOR_PARSER_HPP
 
-#include <string>
-#include <vector>
-#include <memory>
-#include <utility> // std::move
 #include <bitset> // std::bitset
-#include <jsoncons/json.hpp>
-#include <jsoncons/source.hpp>
-#include <jsoncons/json_visitor.hpp>
+#include <memory>
+#include <string>
+#include <utility> // std::move
+#include <vector>
+
 #include <jsoncons/config/jsoncons_config.hpp>
-#include <jsoncons_ext/cbor/cbor_error.hpp>
-#include <jsoncons_ext/cbor/cbor_detail.hpp>
-#include <jsoncons_ext/cbor/cbor_options.hpp>
 #include <jsoncons/item_event_visitor.hpp>
+#include <jsoncons/json.hpp>
+#include <jsoncons/json_visitor.hpp>
+#include <jsoncons/source.hpp>
+#include <jsoncons_ext/cbor/cbor_detail.hpp>
+#include <jsoncons_ext/cbor/cbor_error.hpp>
+#include <jsoncons_ext/cbor/cbor_options.hpp>
 
 namespace jsoncons { namespace cbor {
 
@@ -29,16 +30,18 @@ struct parse_state
 {
     parse_mode mode; 
     std::size_t length;
-    std::size_t index;
     bool pop_stringref_map_stack;
+    std::size_t index{0};
 
     parse_state(parse_mode mode, std::size_t length, bool pop_stringref_map_stack = false) noexcept
-        : mode(mode), length(length), index(0), pop_stringref_map_stack(pop_stringref_map_stack)
+        : mode(mode), length(length), pop_stringref_map_stack(pop_stringref_map_stack)
     {
     }
 
     parse_state(const parse_state&) = default;
     parse_state(parse_state&&) = default;
+    
+    ~parse_state() = default;
 };
 
 template <typename Source,typename Allocator=std::allocator<char>>
@@ -891,7 +894,7 @@ private:
         uint8_t info = get_additional_information_value(initial_b);
         switch (info)
         {
-            case JSONCONS_CBOR_0x00_0x17: // Integer 0x00..0x17 (0..23)
+            case JSONCONS_EXT_CBOR_0x00_0x17: // Integer 0x00..0x17 (0..23)
             {
                 val = info;
                 break;
@@ -959,7 +962,7 @@ private:
                 source_.ignore(1);
                 switch (info)
                 {
-                    case JSONCONS_CBOR_0x00_0x17: // 0x00..0x17 (0..23)
+                    case JSONCONS_EXT_CBOR_0x00_0x17: // 0x00..0x17 (0..23)
                     {
                         val = static_cast<int8_t>(- 1 - info);
                         break;
@@ -1957,6 +1960,7 @@ private:
     }
 };
 
-}}
+} // namespace cbor
+} // namespace jsoncons
 
 #endif

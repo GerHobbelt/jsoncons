@@ -35,59 +35,60 @@ basic_json(json_array_arg_t,
     const Allocator& alloc = Allocator()); (12)
 
 basic_json(json_array_arg_t, 
-    std::size_t count, const basic_json& value, semantic_tag tag = semantic_tag::none, 
-    const Allocator& alloc = Allocator()); (13) (since 0.178.0)  
+    std::size_t count, const basic_json& value, 
+    semantic_tag tag = semantic_tag::none, 
+    const Allocator& alloc = Allocator());                         (13) (since 0.178.0)  
 
 template <typename InputIt>
 basic_json(json_array_arg_t, 
     InputIt first, InputIt last, semantic_tag tag = semantic_tag::none, 
-    const Allocator& alloc = Allocator()); (14) 
+    const Allocator& alloc = Allocator());                         (14) 
 
 basic_json(json_array_arg_t, 
     std::initializer_list<basic_json> init, semantic_tag tag = semantic_tag::none, 
-    const Allocator& alloc = Allocator()); (15)
+    const Allocator& alloc = Allocator());                         (15)
 
 explicit basic_json(json_object_arg_t, 
-    const Allocator& alloc = Allocator()); (16) 
+    const Allocator& alloc = Allocator());                         (16) 
 
 basic_json(json_object_arg_t, 
     semantic_tag tag, 
-    const Allocator& alloc = Allocator()); (17) 
+    const Allocator& alloc = Allocator());                         (17) 
 
 template <typename InputIt>
 basic_json(json_object_arg_t, 
     InputIt first, InputIt last, 
     semantic_tag tag = semantic_tag::none,
-    const Allocator& alloc = Allocator()); (18) 
+    const Allocator& alloc = Allocator());                         (18) 
 
 basic_json(json_object_arg_t, 
     std::initializer_list<std::pair<std::basic_string<char_type>,basic_json>> init, 
     semantic_tag tag = semantic_tag::none, 
-    const Allocator& alloc = Allocator()); (19)
+    const Allocator& alloc = Allocator());                         (19)
 
 template <typename T>
 basic_json(const T& val); 
-                                                       (20)
+                                                                   (20)
 template <typename T>
 basic_json(const T& val, const allocator_type& alloc); 
 
 basic_json(const char_type* val); (21)
 
-basic_json(const char_type* val, const allocator_type& alloc); (22)
+basic_json(const char_type* val, const allocator_type& alloc);     (22)
 
 template <typename Source>
 basic_json(byte_string_arg_t, 
     const Source& source, semantic_tag tag = semantic_tag::none,
-    const Allocator& alloc = Allocator());       (23)
+    const Allocator& alloc = Allocator());                         (23)
 
 template <typename Source>
 basic_json(byte_string_arg_t, 
     const Source& source, uint64_t ext_tag,
-    const Allocator& alloc = Allocator());       (24) 
+    const Allocator& alloc = Allocator());                         (24) 
 
-basic_json(json_const_pointer_arg, const basic_json* j_ptr); (25) (since 0.156.0)
+basic_json(json_const_pointer_arg, const basic_json* ptr);         (25) (since 0.156.0)
 
-basic_json(json_reference_arg, basic_json& j);               (26) (since 1.0.0)
+basic_json(json_pointer_arg, basic_json* ptr);                     (26) (since 1.0.0)
 ```
 
 (1) Constructs an empty json object. 
@@ -157,11 +158,12 @@ Any of the values types `int8_t`, `uint8_t`, `char`, `unsigned char` and `std::b
 Uses [byte_string_arg_t](../byte_string_arg_t.md) as first argument to disambiguate overloads that construct byte strings.
 
 (25) Constructs a `basic_json` value that provides a non-owning view of
-another `basic_json` value. If second argument `j_ptr` is null,
+another `basic_json` value. If second argument `ptr` is null,
 constructs a `null` value.
 
 (26) Constructs a `basic_json` value that provides a non-owning view of
-another `basic_json` value. 
+another `basic_json` value. If second argument `ptr` is null,
+constructs a `null` value. 
 
 ### Helpers
 
@@ -191,42 +193,42 @@ using namespace jsoncons;
 int main()
 {
     json j1; // An empty object
-    std::cout << "(1) " << j1 << std::endl;
+    std::cout << "(1) " << j1 << '\n';
 
     json j2(json_object_arg, {{"baz", "qux"}, {"foo", "bar"}}); // An object 
-    std::cout << "(2) " << j2 << std::endl;
+    std::cout << "(2) " << j2 << '\n';
 
     json j3(json_array_arg, {"bar", "baz"}); // An array 
-    std::cout << "(3) " << j3 << std::endl;
+    std::cout << "(3) " << j3 << '\n';
   
     json j4(json::null()); // A null value
-    std::cout << "(4) " << j4 << std::endl;
+    std::cout << "(4) " << j4 << '\n';
     
     json j5(true); // A boolean value
-    std::cout << "(5) " << j5 << std::endl;
+    std::cout << "(5) " << j5 << '\n';
 
     double x = 1.0/7.0;
 
     json j6(x); // A double value
-    std::cout << "(6) " << j6 << std::endl;
+    std::cout << "(6) " << j6 << '\n';
 
     json j8("Hello"); // A text string
-    std::cout << "(8) " << j8 << std::endl;
+    std::cout << "(8) " << j8 << '\n';
 
     std::vector<int> v = {10,20,30};
     json j9 = v; // From a sequence container
-    std::cout << "(9) " << j9 << std::endl;
+    std::cout << "(9) " << j9 << '\n';
 
     std::map<std::string, int> m{ {"one", 1}, {"two", 2}, {"three", 3} };
     json j10 = m; // From an associative container
-    std::cout << "(10) " << j10 << std::endl;
+    std::cout << "(10) " << j10 << '\n';
 
     std::vector<uint8_t> bytes = {'H','e','l','l','o'};
     json j11(byte_string_arg, bytes); // A byte string
-    std::cout << "(11) " << j11 << std::endl;
+    std::cout << "(11) " << j11 << '\n';
 
     json j12(half_arg, 0x3bff);
-    std::cout << "(12) " << j12.as_double() << std::endl;
+    std::cout << "(12) " << j12.as_double() << '\n';
 }
 ```
 Output:

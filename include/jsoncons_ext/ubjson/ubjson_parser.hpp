@@ -4,19 +4,20 @@
 
 // See https://github.com/danielaparker/jsoncons for latest version
 
-#ifndef JSONCONS_UBJSON_UBJSON_PARSER_HPP
-#define JSONCONS_UBJSON_UBJSON_PARSER_HPP
+#ifndef JSONCONS_EXT_UBJSON_UBJSON_PARSER_HPP
+#define JSONCONS_EXT_UBJSON_UBJSON_PARSER_HPP
 
-#include <string>
 #include <memory>
+#include <string>
 #include <utility> // std::move
-#include <jsoncons/json.hpp>
-#include <jsoncons/source.hpp>
-#include <jsoncons/json_visitor.hpp>
+
 #include <jsoncons/config/jsoncons_config.hpp>
-#include <jsoncons_ext/ubjson/ubjson_type.hpp>
+#include <jsoncons/json.hpp>
+#include <jsoncons/json_visitor.hpp>
+#include <jsoncons/source.hpp>
 #include <jsoncons_ext/ubjson/ubjson_error.hpp>
 #include <jsoncons_ext/ubjson/ubjson_options.hpp>
+#include <jsoncons_ext/ubjson/ubjson_type.hpp>
 
 namespace jsoncons { namespace ubjson {
 
@@ -25,12 +26,12 @@ enum class parse_mode {root,accept,array,indefinite_array,strongly_typed_array,m
 struct parse_state 
 {
     parse_mode mode; 
-    std::size_t length;
+    std::size_t length{0};
     uint8_t type;
-    std::size_t index;
+    std::size_t index{0};
 
     parse_state(parse_mode mode, std::size_t length, uint8_t type = 0) noexcept
-        : mode(mode), length(length), type(type), index(0)
+        : mode(mode), length(length), type(type)
     {
     }
 
@@ -875,6 +876,7 @@ private:
     }
 };
 
-}}
+} // namespace ubjson
+} // namespace jsoncons
 
 #endif

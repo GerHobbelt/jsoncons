@@ -4,16 +4,17 @@
 
 // See https://github.com/danielaparker/jsoncons for latest version
 
-#ifndef JSONCONS_CSV_CSV_OPTIONS_HPP
-#define JSONCONS_CSV_CSV_OPTIONS_HPP
+#ifndef JSONCONS_EXT_CSV_CSV_OPTIONS_HPP
+#define JSONCONS_EXT_CSV_CSV_OPTIONS_HPP
 
-#include <string>
-#include <vector>
-#include <utility> // std::pair
-#include <unordered_map> // std::unordered_map
-#include <map>
-#include <limits> // std::numeric_limits
 #include <cwchar>
+#include <limits> // std::numeric_limits
+#include <map>
+#include <string>
+#include <unordered_map> // std::unordered_map
+#include <utility> // std::pair
+#include <vector>
+
 #include <jsoncons/json_options.hpp>
 
 namespace jsoncons { namespace csv {
@@ -107,7 +108,8 @@ void parse_column_names(const std::basic_string<CharT>& names,
         cont.push_back(buffer);
         buffer.clear();
     }
-}
+
+} // namespace detail
 
 template <typename CharT,typename Container>
 void parse_column_types(const std::basic_string<CharT>& types, 
@@ -467,8 +469,8 @@ private:
     bool lossless_number_:1;
     char_type comment_starter_;
     csv_mapping_kind mapping_;
-    std::size_t header_lines_;
-    std::size_t max_lines_;
+    std::size_t header_lines_{0};
+    std::size_t max_lines_{(std::numeric_limits<std::size_t>::max)()};
     string_type column_types_;
     string_type column_defaults_;
 public:
@@ -484,9 +486,7 @@ public:
           infer_types_(true),
           lossless_number_(false),
           comment_starter_('\0'),
-          mapping_(),
-          header_lines_(0),
-          max_lines_((std::numeric_limits<std::size_t>::max)())
+          mapping_()
     {}
 
     basic_csv_decode_options(const basic_csv_decode_options& other) = default;
@@ -940,5 +940,7 @@ public:
 using csv_options = basic_csv_options<char>;
 using wcsv_options = basic_csv_options<wchar_t>;
 
-}}
-#endif
+} // namespace jsonpath
+} // namespace jsoncons
+
+#endif // JSONCONS_EXT_CSV_CSV_OPTIONS_HPP

@@ -7,17 +7,18 @@
 #ifndef JSONCONS_JSON_READER_HPP
 #define JSONCONS_JSON_READER_HPP
 
-#include <memory> // std::allocator
-#include <string>
-#include <vector>
-#include <stdexcept>
-#include <system_error>
 #include <ios>
+#include <memory> // std::allocator
+#include <stdexcept>
+#include <string>
+#include <system_error>
 #include <utility> // std::move
-#include <jsoncons/source.hpp>
+#include <vector>
+
 #include <jsoncons/json_exception.hpp>
-#include <jsoncons/json_visitor.hpp>
 #include <jsoncons/json_parser.hpp>
+#include <jsoncons/json_visitor.hpp>
+#include <jsoncons/source.hpp>
 #include <jsoncons/source_adaptor.hpp>
 
 namespace jsoncons {
@@ -287,13 +288,13 @@ namespace jsoncons {
             }        
             parser_.reset();
             auto s = source_.read_buffer(ec);
-            if (ec) return;
+            if (ec) {return;}
             if (s.size() > 0)
             {
                 parser_.set_buffer(s.data(),s.size());
             }
             parser_.parse_some(visitor_, ec);
-            if (ec) return;
+            if (ec) {return;}
             if (!parser_.enter() && !parser_.accept())
             {
                 ec = json_errc::unexpected_eof;
@@ -359,7 +360,7 @@ namespace jsoncons {
             //std::cout << "UPDATE BUFFER\n";
             bool success = false;
             auto s = source_.read_buffer(ec);
-            if (ec) return false;
+            if (ec) {return false;}
             if (s.size() > 0)
             {
                 parser_.set_buffer(s.data(),s.size());
@@ -379,7 +380,7 @@ namespace jsoncons {
     using json_stream_reader = basic_json_reader<char,stream_source<char>>;
     using wjson_stream_reader = basic_json_reader<wchar_t,stream_source<wchar_t>>;
 
-}
+} // namespace jsoncons
 
-#endif
+#endif // JSONCONS_JSON_READER_HPP
 

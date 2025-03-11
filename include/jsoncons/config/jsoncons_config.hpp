@@ -7,10 +7,11 @@
 #ifndef JSONCONS_CONFIG_JSONCONS_CONFIG_HPP
 #define JSONCONS_CONFIG_JSONCONS_CONFIG_HPP
 
-#include <type_traits>
 #include <limits>
-#include <jsoncons/config/compiler_support.hpp>
+#include <type_traits>
+
 #include <jsoncons/config/binary_config.hpp>
+#include <jsoncons/config/compiler_support.hpp>
 
 #if !defined(JSONCONS_HAS_STD_STRING_VIEW)
 #include <jsoncons/detail/string_view.hpp>
@@ -114,7 +115,7 @@ namespace jsoncons {
     template <typename T,typename... Args>
     typename unique_if<T>::value_is_array_of_known_bound
     make_unique(Args&&...) = delete;
-} // jsoncons
+} // namespace jsoncons
 
 #else
 
@@ -240,7 +241,7 @@ namespace binary {
     }
 
 } // binary
-} // jsoncons
+} // namespace jsoncons
 
 namespace jsoncons {
 
@@ -286,7 +287,7 @@ namespace jsoncons {
         return jsoncons::wstring_view(w);
     }
 
-} // jsoncons
+} // namespace jsoncons
 
 #define JSONCONS_EXPAND(X) X    
 #define JSONCONS_QUOTE(Prefix, A) JSONCONS_EXPAND(Prefix ## #A)

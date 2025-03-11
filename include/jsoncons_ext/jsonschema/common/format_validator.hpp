@@ -4,19 +4,20 @@
 
 // See https://github.com/danielaparker/jsoncons for latest version
 
-#ifndef JSONCONS_JSONSCHEMA_COMMON_FORMAT_VALIDATOR_HPP
-#define JSONCONS_JSONSCHEMA_COMMON_FORMAT_VALIDATOR_HPP
+#ifndef JSONCONS_EXT_JSONSCHEMA_COMMON_FORMAT_VALIDATOR_HPP
+#define JSONCONS_EXT_JSONSCHEMA_COMMON_FORMAT_VALIDATOR_HPP
 
-#include <jsoncons/config/jsoncons_config.hpp>
-#include <jsoncons/utility/uri.hpp>
-#include <jsoncons/json.hpp>
-#include <jsoncons_ext/jsonpointer/jsonpointer.hpp>
-#include <jsoncons_ext/jsonschema/common/validator.hpp>
 #include <cassert>
+#include <iostream>
 #include <set>
 #include <sstream>
-#include <iostream>
-#include <cassert>
+
+#include <jsoncons/config/jsoncons_config.hpp>
+#include <jsoncons/json.hpp>
+#include <jsoncons/utility/uri.hpp>
+#include <jsoncons_ext/jsonpointer/jsonpointer.hpp>
+#include <jsoncons_ext/jsonschema/common/validator.hpp>
+
 #if defined(JSONCONS_HAS_STD_REGEX)
 #include <regex>
 #endif
@@ -967,14 +968,49 @@ namespace jsonschema {
         error_reporter& reporter)
     {
         std::error_code ec;
-        uri::parse(str, ec);
+        auto u = uri::parse(str, ec);
         if (ec)
         {
             walk_result result = reporter.error(validation_message("uri",
                 eval_path,
                 schema_location, 
                 instance_location, 
-                "'" + str + "' is not a valid URI."));
+                "'" + str + "': " + ec.message()));
+            if (result == walk_result::abort)
+            {
+                return result;
+            }
+        }
+        else if (!u.is_absolute())
+        {
+            walk_result result = reporter.error(validation_message("uri",
+                eval_path,
+                schema_location, 
+                instance_location, 
+                "'" + str + "' is not an absolute URI."));
+            if (result == walk_result::abort)
+            {
+                return result;
+            }
+        }
+        return walk_result::advance;
+    }
+
+    inline
+    walk_result uri_reference_check(const jsonpointer::json_pointer& eval_path, const uri& schema_location,
+        const jsonpointer::json_pointer& instance_location, 
+        const std::string& str,
+        error_reporter& reporter)
+    {
+        std::error_code ec;
+        auto u = uri::parse(str, ec);
+        if (ec)
+        {
+            walk_result result = reporter.error(validation_message("uri",
+                eval_path,
+                schema_location, 
+                instance_location, 
+                "'" + str + "': " + ec.message()));
             if (result == walk_result::abort)
             {
                 return result;
@@ -1184,4 +1220,4 @@ namespace jsonschema {
 } // namespace jsonschema
 } // namespace jsoncons
 
-#endif // JSONCONS_JSONSCHEMA_FORMAT_VALIDATOR_HPP
+#endif // JSONCONS_EXT_JSONSCHEMA_FORMAT_VALIDATOR_HPP

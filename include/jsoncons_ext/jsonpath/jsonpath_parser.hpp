@@ -4,20 +4,21 @@
 
 // See https://github.com/danielaparker/jsoncons for latest version
 
-#ifndef JSONCONS_JSONPATH_JSONPATH_EXPRESSION_HPP
-#define JSONCONS_JSONPATH_JSONPATH_EXPRESSION_HPP
+#ifndef JSONCONS_EXT_JSONPATH_JSONPATH_EXPRESSION_HPP
+#define JSONCONS_EXT_JSONPATH_JSONPATH_EXPRESSION_HPP
 
-#include <string>
-#include <vector>
-#include <memory>
-#include <type_traits> // std::is_const
-#include <limits> // std::numeric_limits
-#include <utility> // std::move
-#include <regex>
 #include <algorithm> // std::reverse
+#include <limits> // std::numeric_limits
+#include <memory>
+#include <regex>
+#include <string>
+#include <type_traits> // std::is_const
+#include <utility> // std::move
+#include <vector>
+
 #include <jsoncons/json.hpp>
-#include <jsoncons_ext/jsonpath/jsonpath_error.hpp>
 #include <jsoncons_ext/jsonpath/expression.hpp>
+#include <jsoncons_ext/jsonpath/jsonpath_error.hpp>
 #include <jsoncons_ext/jsonpath/jsonpath_selector.hpp>
 
 namespace jsoncons { 
@@ -117,8 +118,8 @@ namespace detail {
     private:
 
         allocator_type alloc_;
-        std::size_t line_;
-        std::size_t column_;
+        std::size_t line_{1};
+        std::size_t column_{1};
         const char_type* begin_input_;
         const char_type* end_input_;
         const char_type* p_;
@@ -131,7 +132,7 @@ namespace detail {
 
     public:
         jsonpath_evaluator(const allocator_type& alloc = allocator_type())
-            : alloc_(alloc), line_(1), column_(1),
+            : alloc_(alloc), 
               begin_input_(nullptr), end_input_(nullptr),
               p_(nullptr)
         {
@@ -155,7 +156,7 @@ namespace detail {
             return column_;
         }
 
-        path_expression_type compile(static_resources<value_type,reference>& resources, const string_view_type& path)
+        path_expression_type compile(static_resources<value_type>& resources, const string_view_type& path)
         {
             std::error_code ec;
             auto result = compile(resources, path, ec);
@@ -166,7 +167,7 @@ namespace detail {
             return result;
         }
 
-        path_expression_type compile(static_resources<value_type,reference>& resources, 
+        path_expression_type compile(static_resources<value_type>& resources, 
                                      const string_view_type& path, 
                                      std::error_code& ec)
         {
@@ -2151,7 +2152,7 @@ namespace detail {
             operator_stack_.erase(it.base(),operator_stack_.end());
         }
 
-        void push_token(jsoncons::jsonpath::detail::static_resources<value_type,reference>& resources, token_type&& tok, std::error_code& ec)
+        void push_token(jsoncons::jsonpath::detail::static_resources<value_type>& resources, token_type&& tok, std::error_code& ec)
         {
             //std::cout << tok.to_string() << "\n";
             switch (tok.token_kind())
@@ -2485,4 +2486,4 @@ namespace detail {
 } // namespace jsonpath
 } // namespace jsoncons
 
-#endif
+#endif // JSONCONS_EXT_JSONPATH_JSONPATH_EXPRESSION_HPP

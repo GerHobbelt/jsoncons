@@ -27,7 +27,7 @@ json_schema<Json> make_json_schema(const Json& sch,                 (until 0.175
     evaluation_options options = evaluation_options{});         
                                                                (3)
 template <typename Json>
-json_schema<Json> make_json_schema(Json sch,                        (since 0.175.0) (deprecated in 1.0.0)
+json_schema<Json> make_json_schema(Json sch,                        (since 0.175.0) 
     const std::string& retrieval_uri,                          
     evaluation_options options = evaluation_options{});         
 
@@ -38,7 +38,7 @@ json_schema<Json> make_json_schema(const Json& sch,                 (until 0.175
     evaluation_options options = evaluation_options{});         
                                                                (4)
 template <typename Json,class ResolveURI>
-json_schema<Json> make_json_schema(Json sch,                        (since 0.175.0) (deprecated in 1.0.0)
+json_schema<Json> make_json_schema(Json sch,                        (since 0.175.0) 
     const std::string& retrieval_uri,                          
     const ResolveURI& resolve, 
     evaluation_options options = evaluation_options{});         
@@ -57,7 +57,7 @@ Returns a [json_schema<Json>](json_schema.md) that represents a compiled JSON Sc
     <td>resolve</td>
     <td>A function object with the signature of <code>resolve</code> being equivalent to 
     <pre>
-    Json fun(const <a href="../corelib/uri.md">jsoncons::uri</a>& uri);</pre>
+    Json fun(const <a href="../corelib/utility/uri.md">jsoncons::uri</a>& uri);</pre>
     If unable to resolve the resource, it should return <code>Json::null()</code>.
     </td>   
   </tr>

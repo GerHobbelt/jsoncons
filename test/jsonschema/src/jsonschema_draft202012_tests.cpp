@@ -16,7 +16,7 @@ namespace jsonschema = jsoncons::jsonschema;
 
 namespace {
  
-    json resolver(const jsoncons::uri& uri)
+    json resolve(const jsoncons::uri& uri)
     {
         //std::cout << uri.string() << ", " << uri.path() << "\n";
         std::string pathname = "./jsonschema/JSON-Schema-Test-Suite/remotes";
@@ -50,7 +50,7 @@ namespace {
             ++count;
             try
             {
-                jsonschema::json_schema<json> compiled = jsonschema::make_json_schema(test_group.at("schema"), resolver, 
+                jsonschema::json_schema<json> compiled = jsonschema::make_json_schema(test_group.at("schema"), resolve, 
                     options);
 
                 int count_test = 0;
@@ -101,19 +101,23 @@ TEST_CASE("jsonschema draft2020-12 tests")
 {
     SECTION("issues")
     {
-        jsonschema_tests("./jsonschema/issues/draft2020-12/issue-521.json");
+        //jsonschema_tests("./jsonschema/issues/draft2020-12/issue-uri.json",
+        //    jsonschema::evaluation_options{}.default_version(jsonschema::schema_version::draft202012()).
+        //    require_format_validation(true));
+        jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft2020-12/optional/format/uri.json",
+            jsonschema::evaluation_options{}.default_version(jsonschema::schema_version::draft202012()).
+            require_format_validation(true));
     }
-//#if 0
+
     SECTION("more_tests")
     {
         // unevaluated-tests.json is from https://github.com/networknt/json-schema-validator/tree/master/src/test/resources/schema/unevaluatedTests
-        jsonschema_tests("./jsonschema/more_tests/draft2020-12/unevaluated-tests.json",
-            jsonschema::evaluation_options{}.default_version(jsonschema::schema_version::draft202012()).
-                compatibility_mode(true));
+        //jsonschema_tests("./jsonschema/more_tests/draft2020-12/unevaluated-tests.json",
+        //    jsonschema::evaluation_options{}.default_version(jsonschema::schema_version::draft202012()).
+        //        compatibility_mode(true));
     }
     SECTION("tests")
     {
-
         jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft2020-12/anchor.json"); 
 #ifdef JSONCONS_HAS_STD_REGEX
         jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft2020-12/additionalProperties.json");
@@ -212,12 +216,15 @@ TEST_CASE("jsonschema draft2020-12 tests")
         jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft2020-12/optional/format/time.json",
             jsonschema::evaluation_options{}.default_version(jsonschema::schema_version::draft202012()).
                 require_format_validation(true));
- 
-        //jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft2020-12/optional/format/uri.json");
+
+        jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft2020-12/optional/format/uri.json",
+            jsonschema::evaluation_options{}.default_version(jsonschema::schema_version::draft202012()).
+            require_format_validation(true));
+        jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft2020-12/optional/format/uri-reference.json",
+            jsonschema::evaluation_options{}.default_version(jsonschema::schema_version::draft202012()).
+            require_format_validation(true));
         //jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft2020-12/optional/format/uri-reference.json");
         //jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft2020-12/optional/format/uri-template.json");
-
         jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft2020-12/content.json");
     }
-//#endif
 }

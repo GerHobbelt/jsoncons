@@ -4,24 +4,25 @@
  
 // See https://github.com/danielaparker/jsoncons for latest version
 
-#ifndef JSONCONS_CSV_CSV_CURSOR_HPP
-#define JSONCONS_CSV_CSV_CURSOR_HPP
+#ifndef JSONCONS_EXT_CSV_CSV_CURSOR_HPP
+#define JSONCONS_EXT_CSV_CSV_CURSOR_HPP
 
-#include <memory> // std::allocator
-#include <string>
-#include <vector>
-#include <stdexcept>
-#include <system_error>
 #include <ios>
 #include <istream> // std::basic_istream
+#include <memory> // std::allocator
+#include <stdexcept>
+#include <string>
+#include <system_error>
+#include <vector>
+
 #include <jsoncons/byte_string.hpp>
 #include <jsoncons/config/jsoncons_config.hpp>
-#include <jsoncons/json_visitor.hpp>
 #include <jsoncons/json_exception.hpp>
-#include <jsoncons_ext/csv/csv_parser.hpp>
-#include <jsoncons/staj_cursor.hpp>
+#include <jsoncons/json_visitor.hpp>
 #include <jsoncons/source.hpp>
 #include <jsoncons/source_adaptor.hpp>
+#include <jsoncons/staj_cursor.hpp>
+#include <jsoncons_ext/csv/csv_parser.hpp>
 
 namespace jsoncons { namespace csv {
 
@@ -317,14 +318,14 @@ private:
             if (parser_.source_exhausted())
             {
                 auto s = source_.read_buffer(ec);
-                if (ec) return;
+                if (ec) {return;}
                 if (s.size() > 0)
                 {
                     parser_.set_buffer(s.data(),s.size());
                 }
             }
             parser_.parse_some(visitor, ec);
-            if (ec) return;
+            if (ec) {return;}
         }
     }
 };
@@ -334,7 +335,8 @@ using csv_string_cursor = basic_csv_cursor<char,jsoncons::string_source<char>>;
 using wcsv_stream_cursor = basic_csv_cursor<wchar_t,jsoncons::stream_source<wchar_t>>;
 using wcsv_string_cursor = basic_csv_cursor<wchar_t,jsoncons::string_source<wchar_t>>;
 
-}}
+} // namespace csv
+} // namespace jsoncons
 
-#endif
+#endif // JSONCONS_EXT_CSV_CSV_CURSOR_HPP
 

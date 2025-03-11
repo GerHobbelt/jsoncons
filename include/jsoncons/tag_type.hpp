@@ -8,6 +8,7 @@
 #define JSONCONS_TAG_TYPE_HPP
 
 #include <ostream>
+
 #include <jsoncons/config/jsoncons_config.hpp>
 
 namespace jsoncons {
@@ -61,12 +62,12 @@ struct json_const_pointer_arg_t
 
 constexpr json_const_pointer_arg_t json_const_pointer_arg{};
 
-struct json_reference_arg_t
+struct json_pointer_arg_t
 {
-    explicit json_reference_arg_t() = default; 
+    explicit json_pointer_arg_t() = default; 
 };
 
-constexpr json_reference_arg_t json_reference_arg{};
+constexpr json_pointer_arg_t json_pointer_arg{};
  
 enum class semantic_tag : uint8_t 
 {
@@ -236,6 +237,6 @@ std::basic_ostream<CharT>& operator<<(std::basic_ostream<CharT>& os, semantic_ta
     return os;
 }
 
-}
+} // namespace jsoncons
 
-#endif
+#endif // JSONCONS_TAG_TYPE_HPP

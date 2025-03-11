@@ -7,7 +7,8 @@
 #ifndef JSONCONS_CONFIG_BINARY_CONFIG_HPP
 #define JSONCONS_CONFIG_BINARY_CONFIG_HPP
 
-#include <cfloat>
+#include <cfloat> 
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstring> // std::memcpy
@@ -220,7 +221,7 @@ namespace binary {
         return val2;
     }
 
-} // binary
-} // jsoncons
+} // namespace binary
+} // namespace jsoncons
 
-#endif
+#endif // JSONCONS_CONFIG_BINARY_CONFIG_HPP

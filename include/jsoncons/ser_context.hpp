@@ -35,5 +35,6 @@ public:
     }
 };
 
-}
-#endif
+} // namespace jsoncons
+
+#endif // JSONCONS_SER_CONTEXT_HPP

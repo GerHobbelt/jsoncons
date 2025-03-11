@@ -4,17 +4,18 @@
 
 // See https://github.com/danielaparker/jsoncons for latest version
 
-#ifndef JSONCONS_JSONPATH_PATH_NODE_HPP
-#define JSONCONS_JSONPATH_PATH_NODE_HPP
+#ifndef JSONCONS_EXT_JSONPATH_PATH_NODE_HPP
+#define JSONCONS_EXT_JSONPATH_PATH_NODE_HPP
 
+#include <algorithm> // std::reverse
+#include <functional>
 #include <string>
 #include <vector>
-#include <functional>
-#include <algorithm> // std::reverse
+
 #include <jsoncons/config/jsoncons_config.hpp>
 #include <jsoncons/detail/write_number.hpp>
-#include <jsoncons_ext/jsonpath/jsonpath_error.hpp>
 #include <jsoncons/json_type.hpp>
+#include <jsoncons_ext/jsonpath/jsonpath_error.hpp>
 #include <jsoncons_ext/jsonpath/jsonpath_utilities.hpp>
 
 namespace jsoncons { 
@@ -336,4 +337,4 @@ namespace jsonpath {
 } // namespace jsonpath
 } // namespace jsoncons
 
-#endif
+#endif // JSONCONS_EXT_JSONPATH_PATH_NODE_HPP

@@ -4,19 +4,20 @@
 
 // See https://github.com/danielaparker/jsoncons for latest version
 
-#ifndef JSONCONS_CBOR_CBOR_ENCODER_HPP
-#define JSONCONS_CBOR_CBOR_ENCODER_HPP
+#ifndef JSONCONS_EXT_CBOR_CBOR_ENCODER_HPP
+#define JSONCONS_EXT_CBOR_CBOR_ENCODER_HPP
 
-#include <string>
-#include <vector>
 #include <limits> // std::numeric_limits
 #include <memory>
+#include <string>
 #include <utility> // std::move
+#include <vector>
+
+#include <jsoncons/config/jsoncons_config.hpp>
+#include <jsoncons/detail/parse_number.hpp>
 #include <jsoncons/json_exception.hpp> // jsoncons::ser_error
 #include <jsoncons/json_visitor.hpp>
-#include <jsoncons/config/jsoncons_config.hpp>
 #include <jsoncons/sink.hpp>
-#include <jsoncons/detail/parse_number.hpp>
 #include <jsoncons_ext/cbor/cbor_error.hpp>
 #include <jsoncons_ext/cbor/cbor_options.hpp>
 
@@ -51,13 +52,15 @@ private:
     struct stack_item
     {
         cbor_container_type type_;
-        std::size_t length_;
-        std::size_t count_;
+        std::size_t length_{0};
+        std::size_t index_{0};
 
         stack_item(cbor_container_type type, std::size_t length = 0) noexcept
-           : type_(type), length_(length), count_(0)
+           : type_(type), length_(length)
         {
         }
+        
+        ~stack_item() = default; 
 
         std::size_t length() const
         {
@@ -66,7 +69,7 @@ private:
 
         std::size_t count() const
         {
-            return count_;
+            return is_object() ? index_/2 : index_;
         }
 
         bool is_object() const
@@ -328,10 +331,9 @@ private:
         return true;
     }
 
-    bool visit_key(const string_view_type& name, const ser_context&, std::error_code&) override
+    bool visit_key(const string_view_type& name, const ser_context& context, std::error_code& ec) override
     {
-        write_string(name);
-        return true;
+        return visit_string(name, semantic_tag::none, context, ec);
     }
 
     bool visit_null(semantic_tag tag, const ser_context&, std::error_code&) override
@@ -595,7 +597,7 @@ private:
         if (!more) {return more;}
         if (exponent.length() > 0)
         {
-            int64_t val;
+            int64_t val{};
             auto r = jsoncons::detail::to_integer(exponent.data(), exponent.length(), val);
             if (!r)
             {
@@ -1732,7 +1734,7 @@ private:
     {
         if (!stack_.empty())
         {
-            ++stack_.back().count_;
+            ++stack_.back().index_;
         }
     }
 };
@@ -1740,5 +1742,7 @@ private:
 using cbor_stream_encoder = basic_cbor_encoder<jsoncons::binary_stream_sink>;
 using cbor_bytes_encoder = basic_cbor_encoder<jsoncons::bytes_sink<std::vector<uint8_t>>>;
 
-}}
+} // namespace cbor
+} // namespace jsoncons
+
 #endif

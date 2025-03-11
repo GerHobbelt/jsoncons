@@ -7,21 +7,22 @@
 #ifndef JSONCONS_JSON_CURSOR_HPP
 #define JSONCONS_JSON_CURSOR_HPP
 
-#include <memory> // std::allocator
-#include <string>
-#include <vector>
-#include <stdexcept>
-#include <system_error>
 #include <ios>
 #include <istream> // std::basic_istream
+#include <memory> // std::allocator
+#include <stdexcept>
+#include <string>
+#include <system_error>
+#include <vector>
+
 #include <jsoncons/byte_string.hpp>
 #include <jsoncons/config/jsoncons_config.hpp>
-#include <jsoncons/json_visitor.hpp>
 #include <jsoncons/json_exception.hpp>
 #include <jsoncons/json_parser.hpp>
-#include <jsoncons/staj_cursor.hpp>
+#include <jsoncons/json_visitor.hpp>
 #include <jsoncons/source.hpp>
 #include <jsoncons/source_adaptor.hpp>
+#include <jsoncons/staj_cursor.hpp>
 
 namespace jsoncons {
 
@@ -316,7 +317,7 @@ public:
         if (source_.eof())
         {
             parser_.check_done(ec);
-            if (ec) return;
+            if (ec) {return;}
         }
         else
         {
@@ -325,7 +326,7 @@ public:
                 if (parser_.source_exhausted())
                 {
                     auto s = source_.read_buffer(ec);
-                    if (ec) return;
+                    if (ec) {return;}
                     if (s.size() > 0)
                     {
                         parser_.set_buffer(s.data(),s.size());
@@ -334,7 +335,7 @@ public:
                 if (!parser_.source_exhausted())
                 {
                     parser_.check_done(ec);
-                    if (ec) return;
+                    if (ec) {return;}
                 }
             }
             while (!eof());
@@ -432,16 +433,16 @@ private:
             if (parser_.source_exhausted())
             {
                 auto s = source_.read_buffer(ec);
-                if (ec) return;
+                if (ec) {return;}
                 if (s.size() > 0)
                 {
                     parser_.set_buffer(s.data(),s.size());
-                    if (ec) return;
+                    if (ec) {return;}
                 }
             }
             bool eof = parser_.source_exhausted() && source_.eof();
             parser_.parse_some(visitor, ec);
-            if (ec) return;
+            if (ec) {return;}
             if (eof)
             {
                 if (parser_.enter())
@@ -464,7 +465,7 @@ using json_string_cursor = basic_json_cursor<char,jsoncons::string_source<char>>
 using wjson_stream_cursor = basic_json_cursor<wchar_t,jsoncons::stream_source<wchar_t>>;
 using wjson_string_cursor = basic_json_cursor<wchar_t,jsoncons::string_source<wchar_t>>;
 
-}
+} // namespace jsoncons
 
-#endif
+#endif // JSONCONS_JSON_CURSOR_HPP
 
