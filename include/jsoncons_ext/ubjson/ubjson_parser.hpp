@@ -1,4 +1,4 @@
-// Copyright 2013-2024 Daniel Parker
+// Copyright 2013-2025 Daniel Parker
 // Distributed under the Boost license, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
@@ -7,14 +7,23 @@
 #ifndef JSONCONS_EXT_UBJSON_UBJSON_PARSER_HPP
 #define JSONCONS_EXT_UBJSON_UBJSON_PARSER_HPP
 
+#include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <string>
+#include <system_error>
+#include <vector>
 #include <utility> // std::move
 
 #include <jsoncons/config/jsoncons_config.hpp>
-#include <jsoncons/json.hpp>
+#include <jsoncons/detail/parse_number.hpp>
 #include <jsoncons/json_visitor.hpp>
+#include <jsoncons/ser_context.hpp>
 #include <jsoncons/source.hpp>
+#include <jsoncons/tag_type.hpp>
+#include <jsoncons/utility/binary.hpp>
+#include <jsoncons/utility/unicode_traits.hpp>
+
 #include <jsoncons_ext/ubjson/ubjson_error.hpp>
 #include <jsoncons_ext/ubjson/ubjson_options.hpp>
 #include <jsoncons_ext/ubjson/ubjson_type.hpp>

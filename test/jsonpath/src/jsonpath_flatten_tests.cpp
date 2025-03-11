@@ -1,12 +1,14 @@
-// Copyright 2013-2024 Daniel Parker
+// Copyright 2013-2025 Daniel Parker
 // Distributed under Boost license
 
 #if defined(_MSC_VER)
 #include "windows.h" // test no inadvertant macro expansions
 #endif
-#include <jsoncons/json.hpp>
+
 #include <jsoncons_ext/jsonpath/flatten.hpp>
-#include <catch/catch.hpp>
+#include <jsoncons_ext/jsonpath/jsonpath.hpp>
+#include <jsoncons/json.hpp>
+
 #include <iostream>
 #include <sstream>
 #include <vector>
@@ -14,6 +16,7 @@
 #include <utility>
 #include <ctime>
 #include <new>
+#include <catch/catch.hpp>
 
 using namespace jsoncons;
 

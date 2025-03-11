@@ -1,4 +1,4 @@
-// Copyright 2013-2024 Daniel Parker
+// Copyright 2013-2025 Daniel Parker
 // Distributed under the Boost license, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
@@ -8,12 +8,15 @@
 #define JSONCONS_EXT_JSONSCHEMA_COMMON_FORMAT_VALIDATOR_HPP
 
 #include <cassert>
+#include <cstddef>
+#include <exception>
+#include <functional>
 #include <iostream>
 #include <set>
-#include <sstream>
+#include <string>
+#include <system_error>
 
 #include <jsoncons/config/jsoncons_config.hpp>
-#include <jsoncons/json.hpp>
 #include <jsoncons/utility/uri.hpp>
 #include <jsoncons_ext/jsonpointer/jsonpointer.hpp>
 #include <jsoncons_ext/jsonschema/common/validator.hpp>
@@ -91,7 +94,7 @@ namespace jsonschema {
         std::size_t length = s.size();
         for (std::size_t i = 0; i < length; ++i)
         {
-            char c = s[i];
+            const char c = s[i];
             switch (state)
             {
                 case state_t::local_part:
@@ -118,7 +121,9 @@ namespace jsonschema {
                         state = state_t::atom;
                     }
                     else
+                    {
                         return false;
+                    }
                     break;
                 }
                 case state_t::atom:
@@ -135,9 +140,13 @@ namespace jsonschema {
                             break;
                         default:
                             if (is_atext(c))
+                            {
                                 ++part_length;
+                            }
                             else
+                            {
                                 return false;
+                            }
                             break;
                     }
                     break;
@@ -169,37 +178,29 @@ namespace jsonschema {
                 }
                 case state_t::domain:
                 {
-                    switch (c)
+                    if (c == '[')
                     {
-                        case '[':
-                            state = state_t::domain_literal;
-                            break;
-                        default:
-                            if (is_digit(c) || is_alpha(c))
-                            {
-                                state = state_t::domain_name;
-                            }
-                            else
-                            {
-                                return false;
-                            }
-                            break;
+                         state = state_t::domain_literal;
+                    }
+                    else if (is_digit(c) || is_alpha(c))
+                    {
+                        state = state_t::domain_name;
+                    }
+                    else
+                    {
+                        return false;
                     }
                     break;
                 }
                 case state_t::domain_literal:
                 {
-                    switch (c)
+                    if (c == ']')
                     {
-                        case ']':
-                            state = state_t::done;
-                            break;
-                        default:
-                            if (!is_dtext(c))
-                            {
-                                return false;
-                            }
-                            break;
+                        state = state_t::done;
+                    }
+                    else if (!is_dtext(c))
+                    {
+                        return false;
                     }
                     break;
                 }
@@ -221,7 +222,9 @@ namespace jsonschema {
                                 ++part_length;
                             }
                             else
+                            {
                                 return false;
+                            }
                         }
                         break;
                     }
@@ -253,7 +256,7 @@ namespace jsonschema {
 
         for (std::size_t i = 0; i < s.length(); ++i)
         {
-            char c = s[i];
+            const char c = s[i];
             switch (state)
             {
                 case state_t::start:
@@ -448,7 +451,7 @@ namespace jsonschema {
 
         for (std::size_t i = 0; i < s.length(); ++i)
         {
-            char c = s[i];
+            const char c = s[i];
             switch (state)
             {
                 case state_t::expect_indicator_or_dotted_quad:
@@ -604,7 +607,7 @@ namespace jsonschema {
 
         for (std::size_t i = 0; i < length; ++i)
         {
-            char c = hostname[i];
+            const char c = hostname[i];
             switch (state)
             {
                 case state_t::start_label:
@@ -699,7 +702,7 @@ namespace jsonschema {
         
         state_t state = (type == date_time_type::time) ? state_t::hour : state_t::fullyear;
 
-        for (char c : s)
+        for (const char c : s)
         {
             switch (state)
             {
@@ -762,7 +765,7 @@ namespace jsonschema {
                     if (piece_length < 2 && (c >= '0' && c <= '9'))
                     {
                         piece_length++;
-                        hour = hour*10 + static_cast<std::size_t>(c - '0');
+                        hour = hour*10 + static_cast<int>(c - '0');
                     }
                     else if (c == ':' && piece_length == 2 && (/*hour >=0 && */ hour <= 23))
                     {
@@ -780,7 +783,7 @@ namespace jsonschema {
                     if (piece_length < 2 && (c >= '0' && c <= '9'))
                     {
                         piece_length++;
-                        minute = minute*10 + static_cast<std::size_t>(c - '0');
+                        minute = minute*10 + static_cast<int>(c - '0');
                     }
                     else if (c == ':' && piece_length == 2 && (/*minute >=0 && */minute <= 59))
                     {
@@ -798,7 +801,7 @@ namespace jsonschema {
                     if (piece_length < 2 && (c >= '0' && c <= '9'))
                     {
                         piece_length++;
-                        second = second*10 + static_cast<std::size_t>(c - '0');
+                        second = second*10 + static_cast<int>(c - '0');
                     }
                     else if (piece_length == 2 && second <= 60) // 00-58, 00-59, 00-60 based on leap second rules
                     {
@@ -831,7 +834,7 @@ namespace jsonschema {
                 {
                     if (c >= '0' && c <= '9')
                     {
-                        secfrac = secfrac*10 + static_cast<std::size_t>(c - '0');
+                        secfrac = secfrac*10 + static_cast<int>(c - '0');
                     }
                     else
                     {
@@ -862,7 +865,7 @@ namespace jsonschema {
                     if (piece_length < 2 && (c >= '0' && c <= '9'))
                     {
                         piece_length++;
-                        offset_hour = offset_hour*10 + static_cast<std::size_t>(c - '0');
+                        offset_hour = offset_hour*10 + static_cast<int>(c - '0');
                     }
                     else if (c == ':' && piece_length == 2 && (/*offset_hour >=0 && */offset_hour <= 23))
                     {
@@ -880,7 +883,7 @@ namespace jsonschema {
                     if (piece_length < 2 && (c >= '0' && c <= '9'))
                     {
                         piece_length++;
-                        offset_minute = offset_minute*10 + static_cast<std::size_t>(c - '0');
+                        offset_minute = offset_minute*10 + static_cast<int>(c - '0');
                     }
                     else if (c == ':' && piece_length == 2 && (/*offset_minute >=0 && */offset_minute <= 59))
                     {
@@ -925,7 +928,9 @@ namespace jsonschema {
         }
         auto day_minutes = hour * 60 + minute - (offset_hour * 60 + offset_minute);
         if (day_minutes < 0)
+        {
             day_minutes += 60 * 24;
+        }
         hour = day_minutes % 24;
         minute = day_minutes / 24;
         
@@ -948,10 +953,7 @@ namespace jsonschema {
         {
             return state == state_t::mday && piece_length == 2 && (mday >= 1 && mday <= days_in_month(year, month));
         }
-        else
-        {
-            return state == state_t::offset_minute || state == state_t::z || state == state_t::secfrac;
-        }
+        return state == state_t::offset_minute || state == state_t::z || state == state_t::secfrac;
     }
 
     // format checkers

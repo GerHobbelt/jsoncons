@@ -1,4 +1,4 @@
-/// Copyright 2013-2024 Daniel Parker
+/// Copyright 2013-2025 Daniel Parker
 // Distributed under the Boost license, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
@@ -7,9 +7,9 @@
 #ifndef JSONCONS_EXT_BSON_BSON_ERROR_HPP
 #define JSONCONS_EXT_BSON_BSON_ERROR_HPP
 
+#include <string>
 #include <system_error>
-
-#include <jsoncons/config/jsoncons_config.hpp>
+#include <type_traits>
 
 namespace jsoncons { namespace bson {
 
@@ -102,4 +102,4 @@ namespace std {
     };
 } // namespace std
 
-#endif // JSONCONS_EXT_BSON_BSON_ENCODER_HPP
+#endif // JSONCONS_EXT_BSON_BSON_ERROR_HPP

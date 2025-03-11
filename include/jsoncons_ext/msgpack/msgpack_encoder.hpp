@@ -1,4 +1,4 @@
-// Copyright 2013-2024 Daniel Parker
+// Copyright 2013-2025 Daniel Parker
 // Distributed under the Boost license, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
@@ -7,17 +7,28 @@
 #ifndef JSONCONS_EXT_MSGPACK_MSGPACK_ENCODER_HPP
 #define JSONCONS_EXT_MSGPACK_MSGPACK_ENCODER_HPP
 
+#include <cstddef>
+#include <cstdint>
+#include <cstdlib>
 #include <limits> // std::numeric_limits
 #include <memory>
-#include <string>
+#include <system_error>
 #include <utility> // std::move
 #include <vector>
 
+#include <jsoncons/config/compiler_support.hpp>
 #include <jsoncons/config/jsoncons_config.hpp>
 #include <jsoncons/detail/parse_number.hpp>
+#include <jsoncons/utility/bigint.hpp>
+#include <jsoncons/utility/byte_string.hpp>
 #include <jsoncons/json_exception.hpp>
 #include <jsoncons/json_visitor.hpp>
+#include <jsoncons/ser_context.hpp>
 #include <jsoncons/sink.hpp>
+#include <jsoncons/tag_type.hpp>
+#include <jsoncons/utility/binary.hpp>
+#include <jsoncons/utility/unicode_traits.hpp>
+
 #include <jsoncons_ext/msgpack/msgpack_error.hpp>
 #include <jsoncons_ext/msgpack/msgpack_options.hpp>
 #include <jsoncons_ext/msgpack/msgpack_type.hpp>
@@ -75,20 +86,20 @@ namespace msgpack {
 
         std::vector<stack_item> stack_;
         int nesting_depth_;
+    public:
 
         // Noncopyable and nonmoveable
         basic_msgpack_encoder(const basic_msgpack_encoder&) = delete;
-        basic_msgpack_encoder& operator=(const basic_msgpack_encoder&) = delete;
-    public:
-        explicit basic_msgpack_encoder(Sink&& sink, 
-                                       const Allocator& alloc = Allocator())
+        basic_msgpack_encoder(basic_msgpack_encoder&&) = delete;
+
+        explicit basic_msgpack_encoder(Sink&& sink, const Allocator& alloc = Allocator())
            : basic_msgpack_encoder(std::forward<Sink>(sink), msgpack_encode_options(), alloc)
         {
         }
 
         explicit basic_msgpack_encoder(Sink&& sink, 
-                                       const msgpack_encode_options& options, 
-                                       const Allocator& alloc = Allocator())
+            const msgpack_encode_options& options, 
+            const Allocator& alloc = Allocator())
            : sink_(std::forward<Sink>(sink)),
              options_(options),
              alloc_(alloc),
@@ -100,6 +111,9 @@ namespace msgpack {
         {
             sink_.flush();
         }
+
+        basic_msgpack_encoder& operator=(const basic_msgpack_encoder&) = delete;
+        basic_msgpack_encoder& operator=(basic_msgpack_encoder&&) = delete;
 
         void reset()
         {
@@ -304,8 +318,8 @@ namespace msgpack {
                         bigint q;
                         bigint rem;
                         n.divide(millis_in_second, q, rem, true);
-                        int64_t seconds = static_cast<int64_t>(q);
-                        int64_t nanoseconds = static_cast<int64_t>(rem) * nanos_in_milli;
+                        auto seconds = static_cast<int64_t>(q);
+                        auto nanoseconds = static_cast<int64_t>(rem) * nanos_in_milli;
                         if (nanoseconds < 0)
                         {
                             nanoseconds = -nanoseconds; 
@@ -326,8 +340,8 @@ namespace msgpack {
                         bigint q;
                         bigint rem;
                         n.divide(nanos_in_second, q, rem, true);
-                        int64_t seconds = static_cast<int64_t>(q);
-                        int64_t nanoseconds = static_cast<int64_t>(rem);
+                        auto seconds = static_cast<int64_t>(q);
+                        auto nanoseconds = static_cast<int64_t>(rem);
                         if (nanoseconds < 0)
                         {
                             nanoseconds = -nanoseconds; 

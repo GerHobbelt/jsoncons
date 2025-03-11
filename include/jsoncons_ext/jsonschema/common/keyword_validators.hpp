@@ -1,4 +1,4 @@
-// Copyright 2013-2024 Daniel Parker
+// Copyright 2013-2025 Daniel Parker
 // 
 // Distributed under the Boost license, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -9,14 +9,24 @@
 #define JSONCONS_EXT_JSONSCHEMA_COMMON_KEYWORD_VALIDATORS_HPP
 
 #include <cassert>
+#include <cstddef>
 #include <iostream>
+#include <map>
 #include <set>
-#include <sstream>
+#include <string>
+#include <system_error>
 #include <unordered_set>
+#include <utility>
+#include <vector>
 
 #include <jsoncons/config/jsoncons_config.hpp>
-#include <jsoncons/json.hpp>
+#include <jsoncons/utility/byte_string.hpp>
+#include <jsoncons/conv_error.hpp>
+#include <jsoncons/json_reader.hpp>
+#include <jsoncons/tag_type.hpp>
+#include <jsoncons/utility/unicode_traits.hpp>
 #include <jsoncons/utility/uri.hpp>
+
 #include <jsoncons_ext/jsonpointer/jsonpointer.hpp>
 #include <jsoncons_ext/jsonschema/common/format_validator.hpp>
 #include <jsoncons_ext/jsonschema/common/uri_wrapper.hpp>
@@ -741,9 +751,9 @@ namespace jsonschema {
                 }
                 else
                 {
-                    size_t index = 0;
-                    size_t start = 0;
-                    size_t end = 0;
+                    std::size_t index = 0;
+                    std::size_t start = 0;
+                    std::size_t end = 0;
                     for (const auto& item : instance.array_range()) 
                     {
                         jsonpointer::json_pointer item_location = instance_location / index;
@@ -800,7 +810,7 @@ namespace jsonschema {
 
             if (schema_val_) 
             {
-                size_t index = 0;
+                std::size_t index = 0;
                 for (const auto& item : instance.array_range()) 
                 {
                     jsonpointer::json_pointer item_location = instance_location / index;
@@ -2448,7 +2458,7 @@ namespace jsonschema {
                     jsonpointer::json_pointer prop_location = instance_location / prop.key();
 
                     std::size_t errors = reporter.error_count();
-                    walk_result result = prop_it->second->validate(prop_context, prop.value(), prop_location, results, reporter, patch);
+                    walk_result result = (*prop_it).second->validate(prop_context, prop.value(), prop_location, results, reporter, patch);
                     if (result == walk_result::abort)
                     {
                         return result;
@@ -2515,7 +2525,7 @@ namespace jsonschema {
                 if (prop_it != properties_.end()) 
                 {
                     jsonpointer::json_pointer prop_location = instance_location / prop.key();
-                    result = prop_it->second->walk(context, prop.value(), prop_location, reporter);
+                    result = (*prop_it).second->walk(context, prop.value(), prop_location, reporter);
                     allowed_properties.insert(prop.key());
                     if (result == walk_result::abort)
                     {
@@ -3358,8 +3368,8 @@ namespace jsonschema {
             collecting_error_listener local_reporter;
 
             std::size_t index = 0;
-            size_t start = 0;
-            size_t end = 0;
+            std::size_t start = 0;
+            std::size_t end = 0;
             for (const auto& item : instance.array_range()) 
             {
                 std::size_t errors = local_reporter.errors.size();
@@ -3632,12 +3642,12 @@ namespace jsonschema {
                 return walk_result::advance;
             }
         
-            size_t data_index = 0;
+            std::size_t data_index = 0;
         
             evaluation_context<Json> prefix_items_context(context, this->keyword_name());
 
-            size_t start = 0;
-            size_t end = 0;
+            std::size_t start = 0;
+            std::size_t end = 0;
             for (std::size_t schema_index=0; 
                   schema_index < prefix_item_validators_.size() && data_index < instance.size(); 
                   ++schema_index, ++data_index) 
@@ -3702,7 +3712,7 @@ namespace jsonschema {
                 return result;
             }
 
-            size_t data_index = 0;
+            std::size_t data_index = 0;
 
             evaluation_context<Json> prefix_items_context(context, this->keyword_name());
 
@@ -3811,7 +3821,7 @@ namespace jsonschema {
                         if (prop_it == results.evaluated_properties.end()) 
                         {
                             //std::cout << "Not in evaluated properties: " << prop.key() << "\n";
-                            std::size_t error_count = reporter.error_count();
+                            const std::size_t error_count = reporter.error_count();
                             walk_result result = schema_val_->validate(this_context, prop.value() , instance_location, results, reporter, patch);
                             if (result == walk_result::abort)
                             {
@@ -3912,8 +3922,8 @@ namespace jsonschema {
                 else
                 {
                     std::size_t index = 0;
-                    size_t start = 0;
-                    size_t end = 0;
+                    std::size_t start = 0;
+                    std::size_t end = 0;
                     for (const auto& item : instance.array_range())
                     {
                         // check if it is in "evaluated_items"
@@ -3922,7 +3932,7 @@ namespace jsonschema {
                             evaluation_context<Json> item_context{this_context, index, evaluation_flags{}};
                             jsonpointer::json_pointer item_location = instance_location / index;
                             //std::cout << "Not in evaluated properties: " << item.key() << "\n";
-                            std::size_t error_count = reporter.error_count();
+                            const std::size_t error_count = reporter.error_count();
                             walk_result result = schema_val_->validate(item_context, item, item_location, results, reporter, patch);
                             if (result == walk_result::abort)
                             {

@@ -1,4 +1,4 @@
-// Copyright 2013-2024 Daniel Parker
+// Copyright 2013-2025 Daniel Parker
 // Distributed under the Boost license, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
@@ -7,17 +7,29 @@
 #ifndef JSONCONS_EXT_CBOR_CBOR_ENCODER_HPP
 #define JSONCONS_EXT_CBOR_CBOR_ENCODER_HPP
 
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
 #include <limits> // std::numeric_limits
+#include <map>
 #include <memory>
 #include <string>
+#include <system_error>
+#include <type_traits>
 #include <utility> // std::move
 #include <vector>
 
+#include <jsoncons/config/compiler_support.hpp>
 #include <jsoncons/config/jsoncons_config.hpp>
 #include <jsoncons/detail/parse_number.hpp>
 #include <jsoncons/json_exception.hpp> // jsoncons::ser_error
 #include <jsoncons/json_visitor.hpp>
+#include <jsoncons/ser_context.hpp>
 #include <jsoncons/sink.hpp>
+#include <jsoncons/tag_type.hpp>
+#include <jsoncons/utility/binary.hpp>
+#include <jsoncons/utility/unicode_traits.hpp>
+
 #include <jsoncons_ext/cbor/cbor_error.hpp>
 #include <jsoncons_ext/cbor/cbor_options.hpp>
 
@@ -97,11 +109,12 @@ private:
     std::map<byte_string_type,size_t,std::less<byte_string_type>,byte_string_size_allocator_type> bytestringref_map_;
     std::size_t next_stringref_ = 0;
     int nesting_depth_;
+public:
 
     // Noncopyable and nonmoveable
     basic_cbor_encoder(const basic_cbor_encoder&) = delete;
-    basic_cbor_encoder& operator=(const basic_cbor_encoder&) = delete;
-public:
+    basic_cbor_encoder(basic_cbor_encoder&&) = delete;
+
     explicit basic_cbor_encoder(Sink&& sink, 
                                 const Allocator& alloc = Allocator())
        : basic_cbor_encoder(std::forward<Sink>(sink), cbor_encode_options(), alloc)
@@ -134,6 +147,9 @@ public:
         {
         }
     }
+
+    basic_cbor_encoder& operator=(const basic_cbor_encoder&) = delete;
+    basic_cbor_encoder& operator=(basic_cbor_encoder&&) = delete;
 
     void reset()
     {
@@ -371,7 +387,7 @@ private:
             else
             {
                 write_tag(25);
-                write_uint64_value(it->second);
+                write_uint64_value((*it).second);
             }
         }
         else
@@ -913,7 +929,7 @@ private:
             else
             {
                 write_tag(25);
-                write_uint64_value(it->second);
+                write_uint64_value((*it).second);
             }
         }
         else
@@ -943,7 +959,7 @@ private:
             else
             {
                 write_tag(25);
-                write_uint64_value(it->second);
+                write_uint64_value((*it).second);
             }
         }
         else
@@ -1528,7 +1544,7 @@ private:
         else
         {
             bool more = this->begin_array(data.size(), semantic_tag::none,context, ec);
-            for (auto p = data.begin(); more && p != data.end(); ++p)
+            for (const auto* p = data.begin(); more && p != data.end(); ++p)
             {
                 more = this->double_value(*p,semantic_tag::none,context, ec);
             }
@@ -1555,19 +1571,17 @@ private:
             write_byte_string_value(byte_string_view(v));
             return true;
         }
-        else
+        
+        bool more = this->begin_array(data.size(), semantic_tag::none,context, ec);
+        for (auto p = data.begin(); more && p != data.end(); ++p)
         {
-            bool more = this->begin_array(data.size(), semantic_tag::none,context, ec);
-            for (auto p = data.begin(); more && p != data.end(); ++p)
-            {
-                more = this->double_value(*p,semantic_tag::none,context, ec);
-            }
-            if (more)
-            {
-                more = this->end_array(context, ec);
-            }
-            return more;
+            more = this->double_value(*p,semantic_tag::none,context, ec);
         }
+        if (more)
+        {
+            more = this->end_array(context, ec);
+        }
+        return more;
     }
 /*
     bool visit_typed_array(const jsoncons::span<const float128_type>&, 

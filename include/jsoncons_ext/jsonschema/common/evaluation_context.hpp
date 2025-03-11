@@ -1,4 +1,4 @@
-// Copyright 2013-2024 Daniel Parker
+// Copyright 2013-2025 Daniel Parker
 // Distributed under the Boost license, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
@@ -7,8 +7,11 @@
 #ifndef JSONCONS_EXT_JSONSCHEMA_COMMON_EVALUATION_CONTEXT_HPP
 #define JSONCONS_EXT_JSONSCHEMA_COMMON_EVALUATION_CONTEXT_HPP
 
+#include <cstddef>
+#include <string>
+#include <vector>
+
 #include <jsoncons/config/jsoncons_config.hpp>
-#include <jsoncons/json.hpp>
 #include <jsoncons/utility/uri.hpp>
 #include <jsoncons_ext/jsonpointer/jsonpointer.hpp>
 #include <jsoncons_ext/jsonschema/jsonschema_error.hpp>
@@ -78,7 +81,7 @@ namespace jsonschema {
         {
         }
 
-        evaluation_context(evaluation_context&& other)
+        evaluation_context(evaluation_context&& other) noexcept
             : dynamic_scope_{std::move(other.dynamic_scope_)},eval_path_{std::move(other.eval_path_)},
               flags_(other.flags_)
         {

@@ -1,4 +1,4 @@
-// Copyright 2013-2024 Daniel Parker
+// Copyright 2013-2025 Daniel Parker
 // Distributed under the Boost license, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
@@ -7,17 +7,22 @@
 #ifndef JSONCONS_JSON_VISITOR_HPP
 #define JSONCONS_JSON_VISITOR_HPP
 
+#include <cstddef>
+#include <cstdint>
 #include <iostream>
 #include <string>
+#include <system_error>
 #include <utility>
 
-#include <jsoncons/byte_string.hpp>
+#include <jsoncons/utility/byte_string.hpp>
+#include <jsoncons/config/compiler_support.hpp>
 #include <jsoncons/config/jsoncons_config.hpp>
 #include <jsoncons/json_exception.hpp>
 #include <jsoncons/json_options.hpp>
 #include <jsoncons/ser_context.hpp>
 #include <jsoncons/tag_type.hpp>
 #include <jsoncons/utility/bigint.hpp>
+#include <jsoncons/utility/extension_traits.hpp>
 
 namespace jsoncons {
 
@@ -32,7 +37,7 @@ namespace jsoncons {
 
         basic_json_visitor() = default;
 
-        virtual ~basic_json_visitor() noexcept = default;
+        virtual ~basic_json_visitor() = default;
 
         void flush()
         {

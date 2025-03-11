@@ -1,4 +1,4 @@
-// Copyright 2013-2024 Daniel Parker
+// Copyright 2013-2025 Daniel Parker
 // Distributed under the Boost license, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
@@ -7,15 +7,25 @@
 #ifndef JSONCONS_EXT_JSONPATH_EXPRESSION_HPP
 #define JSONCONS_EXT_JSONPATH_EXPRESSION_HPP
 
-#include <limits> // std::numeric_limits
-#include <set> // std::set
+#include <cstddef>
+#include <cstdint>
+#include <exception>
+#include <functional>
+#include <memory>
 #include <string> // std::basic_string
+#include <system_error>
+#include <type_traits>
 #include <unordered_map> // std::unordered_map
-#include <unordered_set> // std::unordered_set
 #include <utility> // std::move
 #include <vector> // std::vector
 
+#include <jsoncons/config/compiler_support.hpp>
+#include <jsoncons/config/jsoncons_config.hpp>
+#include <jsoncons/detail/parse_number.hpp>
 #include <jsoncons/json_type.hpp>
+#include <jsoncons/tag_type.hpp>
+#include <jsoncons/utility/extension_traits.hpp>
+
 #include <jsoncons_ext/jsonpath/jsonpath_error.hpp>
 #include <jsoncons_ext/jsonpath/path_node.hpp>
 
@@ -217,6 +227,8 @@ namespace jsonpath {
         {
         }
 
+        value_or_pointer(const value_or_pointer& other) = delete;
+
         value_or_pointer(value_or_pointer&& other) noexcept
             : is_value_(other.is_value_)
         {
@@ -237,6 +249,8 @@ namespace jsonpath {
                 val_.~value_type();
             }
         }
+
+        value_or_pointer& operator=(const value_or_pointer& other) noexcept = delete;
 
         value_or_pointer& operator=(value_or_pointer&& other) noexcept
         {
@@ -292,9 +306,15 @@ namespace jsonpath {
             }
         }
 
-        parameter(parameter&& other) noexcept = default;
+        parameter(const parameter& other) = default;
 
-        parameter& operator=(parameter&& other) noexcept = default;
+        parameter(parameter&& other) = default;
+        
+        ~parameter() = default; 
+
+        parameter& operator=(const parameter& other) = default;
+
+        parameter& operator=(parameter&& other) = default;
 
         const Json& value() const
         {
@@ -316,6 +336,9 @@ namespace jsonpath {
         optional<std::size_t> arity_;
         function_type f_;
 
+        custom_function(const custom_function&) = default;
+        custom_function(custom_function&&) = default;
+
         custom_function(const string_type& function_name,
                         const optional<std::size_t>& arity,
                         const function_type& f)
@@ -329,14 +352,15 @@ namespace jsonpath {
                         optional<std::size_t>&& arity,
                         function_type&& f)
             : function_name_(std::move(function_name)),
-              arity_(std::move(arity)),
+              arity_(arity),
               f_(std::move(f))
         {
         }
+        
+        ~custom_function() = default; 
 
-        custom_function(const custom_function&) = default;
-
-        custom_function(custom_function&&) = default;
+        custom_function& operator=(const custom_function&) = default;
+        custom_function& operator=(custom_function&&) = default;
 
         const string_type& name() const 
         {
@@ -400,8 +424,14 @@ namespace detail {
               is_right_associative_(is_right_associative)
         {
         }
+        
+        unary_operator(const unary_operator& other) = default;
+        unary_operator(unary_operator&& other) = default;
 
         virtual ~unary_operator() = default;
+
+        unary_operator& operator=(const unary_operator& other) = default;
+        unary_operator& operator=(unary_operator&& other) = default;
 
         std::size_t precedence_level() const 
         {
@@ -464,14 +494,11 @@ namespace detail {
             {
                 return Json(-val.template as<int64_t>(), semantic_tag::none);
             }
-            else if (val.is_double())
+            if (val.is_double())
             {
                 return Json(-val.as_double(), semantic_tag::none);
             }
-            else
-            {
-                return Json::null();
-            }
+            return Json::null();
         }
     };
 
@@ -488,9 +515,6 @@ namespace detail {
               pattern_(std::move(pattern))
         {
         }
-
-        regex_operator(regex_operator&&) = default;
-        regex_operator& operator=(regex_operator&&) = default;
 
         Json evaluate(const_reference val, std::error_code&) const override
         {
@@ -515,6 +539,8 @@ namespace detail {
               is_right_associative_(is_right_associative)
         {
         }
+        
+        virtual ~binary_operator() = default;
 
         std::size_t precedence_level() const 
         {
@@ -528,13 +554,10 @@ namespace detail {
         virtual Json evaluate(const_reference lhs, const_reference rhs, 
             std::error_code&) const = 0;
 
-        virtual std::string to_string(int = 0) const
+        virtual std::string to_string(int) const
         {
             return "binary operator";
         }
-
-    protected:
-        ~binary_operator() = default;
     };
 
     // Implementations
@@ -560,18 +583,15 @@ namespace detail {
             {
                 return lhs;
             }
-            else
-            {
-                return rhs;
-            }
+            return rhs;
         }
-        std::string to_string(int level = 0) const override
+        std::string to_string(int level) const override
         {
             std::string s;
             if (level > 0)
             {
                 //s.append("\n");
-                s.append(level*2, ' ');
+                s.append(std::size_t(level)*2, ' ');
             }
             s.append("or operator");
             return s;
@@ -595,19 +615,16 @@ namespace detail {
             {
                 return rhs;
             }
-            else
-            {
-                return lhs;
-            }
+            return lhs;
         }
 
-        std::string to_string(int level = 0) const override
+        std::string to_string(int level) const override
         {
             std::string s;
             if (level > 0)
             {
                 s.append("\n");
-                s.append(level*2, ' ');
+                s.append(std::size_t(level)*2, ' ');
             }
             s.append("and operator");
             return s;
@@ -630,13 +647,13 @@ namespace detail {
             return lhs == rhs ? Json(true, semantic_tag::none) : Json(false, semantic_tag::none);
         }
 
-        std::string to_string(int level = 0) const override
+        std::string to_string(int level) const override
         {
             std::string s;
             if (level > 0)
             {
                 s.append("\n");
-                s.append(level*2, ' ');
+                s.append(std::size_t(level)*2, ' ');
             }
             s.append("equal operator");
             return s;
@@ -659,13 +676,13 @@ namespace detail {
             return lhs != rhs ? Json(true, semantic_tag::none) : Json(false, semantic_tag::none);
         }
 
-        std::string to_string(int level = 0) const override
+        std::string to_string(int level) const override
         {
             std::string s;
             if (level > 0)
             {
                 s.append("\n");
-                s.append(level*2, ' ');
+                s.append(std::size_t(level)*2, ' ');
             }
             s.append("not equal operator");
             return s;
@@ -689,20 +706,20 @@ namespace detail {
             {
                 return lhs < rhs ? Json(true, semantic_tag::none) : Json(false, semantic_tag::none);
             }
-            else if (lhs.is_string() && rhs.is_string())
+            if (lhs.is_string() && rhs.is_string())
             {
                 return lhs < rhs ? Json(true, semantic_tag::none) : Json(false, semantic_tag::none);
             }
             return Json::null();
         }
 
-        std::string to_string(int level = 0) const override
+        std::string to_string(int level) const override
         {
             std::string s;
             if (level > 0)
             {
                 s.append("\n");
-                s.append(level*2, ' ');
+                s.append(std::size_t(level)*2, ' ');
             }
             s.append("less than operator");
             return s;
@@ -726,20 +743,20 @@ namespace detail {
             {
                 return lhs <= rhs ? Json(true, semantic_tag::none) : Json(false, semantic_tag::none);
             }
-            else if (lhs.is_string() && rhs.is_string())
+            if (lhs.is_string() && rhs.is_string())
             {
                 return lhs <= rhs ? Json(true, semantic_tag::none) : Json(false, semantic_tag::none);
             }
             return Json::null();
         }
 
-        std::string to_string(int level = 0) const override
+        std::string to_string(int level) const override
         {
             std::string s;
             if (level > 0)
             {
                 s.append("\n");
-                s.append(level*2, ' ');
+                s.append(std::size_t(level)*2, ' ');
             }
             s.append("less than or equal operator");
             return s;
@@ -765,20 +782,20 @@ namespace detail {
             {
                 return lhs > rhs ? Json(true, semantic_tag::none) : Json(false, semantic_tag::none);
             }
-            else if (lhs.is_string() && rhs.is_string())
+            if (lhs.is_string() && rhs.is_string())
             {
                 return lhs > rhs ? Json(true, semantic_tag::none) : Json(false, semantic_tag::none);
             }
             return Json::null();
         }
 
-        std::string to_string(int level = 0) const override
+        std::string to_string(int level) const override
         {
             std::string s;
             if (level > 0)
             {
                 s.append("\n");
-                s.append(level*2, ' ');
+                s.append(std::size_t(level)*2, ' ');
             }
             s.append("greater than operator");
             return s;
@@ -802,20 +819,20 @@ namespace detail {
             {
                 return lhs >= rhs ? Json(true, semantic_tag::none) : Json(false, semantic_tag::none);
             }
-            else if (lhs.is_string() && rhs.is_string())
+            if (lhs.is_string() && rhs.is_string())
             {
                 return lhs >= rhs ? Json(true, semantic_tag::none) : Json(false, semantic_tag::none);
             }
             return Json::null();
         }
 
-        std::string to_string(int level = 0) const override
+        std::string to_string(int level) const override
         {
             std::string s;
             if (level > 0)
             {
                 s.append("\n");
-                s.append(level*2, ' ');
+                s.append(std::size_t(level)*2, ' ');
             }
             s.append("greater than or equal operator");
             return s;
@@ -839,27 +856,24 @@ namespace detail {
             {
                 return Json::null();
             }
-            else if (lhs.is_int64() && rhs.is_int64())
+            if (lhs.is_int64() && rhs.is_int64())
             {
                 return Json(((lhs.template as<int64_t>() + rhs.template as<int64_t>())), semantic_tag::none);
             }
-            else if (lhs.is_uint64() && rhs.is_uint64())
+            if (lhs.is_uint64() && rhs.is_uint64())
             {
                 return Json((lhs.template as<uint64_t>() + rhs.template as<uint64_t>()), semantic_tag::none);
             }
-            else
-            {
-                return Json((lhs.as_double() + rhs.as_double()), semantic_tag::none);
-            }
+            return Json((lhs.as_double() + rhs.as_double()), semantic_tag::none);
         }
 
-        std::string to_string(int level = 0) const override
+        std::string to_string(int level) const override
         {
             std::string s;
             if (level > 0)
             {
                 s.append("\n");
-                s.append(level*2, ' ');
+                s.append(std::size_t(level)*2, ' ');
             }
             s.append("plus operator");
             return s;
@@ -883,27 +897,24 @@ namespace detail {
             {
                 return Json::null();
             }
-            else if (lhs.is_int64() && rhs.is_int64())
+            if (lhs.is_int64() && rhs.is_int64())
             {
                 return Json(((lhs.template as<int64_t>() - rhs.template as<int64_t>())), semantic_tag::none);
             }
-            else if (lhs.is_uint64() && rhs.is_uint64())
+            if (lhs.is_uint64() && rhs.is_uint64())
             {
                 return Json((lhs.template as<uint64_t>() - rhs.template as<uint64_t>()), semantic_tag::none);
             }
-            else
-            {
-                return Json((lhs.as_double() - rhs.as_double()), semantic_tag::none);
-            }
+            return Json((lhs.as_double() - rhs.as_double()), semantic_tag::none);
         }
 
-        std::string to_string(int level = 0) const override
+        std::string to_string(int level) const override
         {
             std::string s;
             if (level > 0)
             {
                 s.append("\n");
-                s.append(level*2, ' ');
+                s.append(std::size_t(level)*2, ' ');
             }
             s.append("minus operator");
             return s;
@@ -927,27 +938,24 @@ namespace detail {
             {
                 return Json::null();
             }
-            else if (lhs.is_int64() && rhs.is_int64())
+            if (lhs.is_int64() && rhs.is_int64())
             {
                 return Json(((lhs.template as<int64_t>() * rhs.template as<int64_t>())), semantic_tag::none);
             }
-            else if (lhs.is_uint64() && rhs.is_uint64())
+            if (lhs.is_uint64() && rhs.is_uint64())
             {
                 return Json((lhs.template as<uint64_t>() * rhs.template as<uint64_t>()), semantic_tag::none);
             }
-            else
-            {
-                return Json((lhs.as_double() * rhs.as_double()), semantic_tag::none);
-            }
+            return Json((lhs.as_double() * rhs.as_double()), semantic_tag::none);
         }
 
-        std::string to_string(int level = 0) const override
+        std::string to_string(int level) const override
         {
             std::string s;
             if (level > 0)
             {
                 s.append("\n");
-                s.append(level*2, ' ');
+                s.append(std::size_t(level)*2, ' ');
             }
             s.append("multiply operator");
             return s;
@@ -973,27 +981,24 @@ namespace detail {
             {
                 return Json::null();
             }
-            else if (lhs.is_int64() && rhs.is_int64())
+            if (lhs.is_int64() && rhs.is_int64())
             {
                 return Json(((lhs.template as<int64_t>() / rhs.template as<int64_t>())), semantic_tag::none);
             }
-            else if (lhs.is_uint64() && rhs.is_uint64())
+            if (lhs.is_uint64() && rhs.is_uint64())
             {
                 return Json((lhs.template as<uint64_t>() / rhs.template as<uint64_t>()), semantic_tag::none);
             }
-            else
-            {
-                return Json((lhs.as_double() / rhs.as_double()), semantic_tag::none);
-            }
+            return Json((lhs.as_double() / rhs.as_double()), semantic_tag::none);
         }
 
-        std::string to_string(int level = 0) const override
+        std::string to_string(int level) const override
         {
             std::string s;
             if (level > 0)
             {
                 s.append("\n");
-                s.append(level*2, ' ');
+                s.append(std::size_t(level)*2, ' ');
             }
             s.append("divide operator");
             return s;
@@ -1019,27 +1024,24 @@ namespace detail {
             {
                 return Json::null();
             }
-            else if (lhs.is_int64() && rhs.is_int64())
+            if (lhs.is_int64() && rhs.is_int64())
             {
                 return Json(((lhs.template as<int64_t>() % rhs.template as<int64_t>())), semantic_tag::none);
             }
-            else if (lhs.is_uint64() && rhs.is_uint64())
+            if (lhs.is_uint64() && rhs.is_uint64())
             {
                 return Json((lhs.template as<uint64_t>() % rhs.template as<uint64_t>()), semantic_tag::none);
             }
-            else
-            {
-                return Json(fmod(lhs.as_double(), rhs.as_double()), semantic_tag::none);
-            }
+            return Json(fmod(lhs.as_double(), rhs.as_double()), semantic_tag::none);
         }
 
-        std::string to_string(int level = 0) const override
+        std::string to_string(int level) const override
         {
             std::string s;
             if (level > 0)
             {
                 s.append("\n");
-                s.append(level*2, ' ');
+                s.append(std::size_t(level)*2, ' ');
             }
             s.append("modulus operator");
             return s;
@@ -1060,7 +1062,13 @@ namespace detail {
         {
         }
 
-        virtual ~function_base() noexcept = default;
+        function_base(const function_base&) = default;
+        function_base(function_base&&) = default;
+        
+        virtual ~function_base() = default;
+
+        function_base& operator=(const function_base&) = default;
+        function_base& operator=(function_base&&) = default;
 
         jsoncons::optional<std::size_t> arity() const
         {
@@ -1070,13 +1078,13 @@ namespace detail {
         virtual value_type evaluate(const std::vector<parameter_type>& args, 
             std::error_code& ec) const = 0;
 
-        virtual std::string to_string(int level = 0) const
+        virtual std::string to_string(int level) const
         {
             std::string s;
             if (level > 0)
             {
                 s.append("\n");
-                s.append(level*2, ' ');
+                s.append(std::size_t(level)*2, ' ');
             }
             s.append("function");
             return s;
@@ -1162,13 +1170,13 @@ namespace detail {
             }
         }
 
-        std::string to_string(int level = 0) const override
+        std::string to_string(int level) const override
         {
             std::string s;
             if (level > 0)
             {
                 s.append("\n");
-                s.append(level*2, ' ');
+                s.append(std::size_t(level)*2, ' ');
             }
             s.append("contains function");
             return s;
@@ -1218,19 +1226,16 @@ namespace detail {
             {
                 return value_type(true, semantic_tag::none);
             }
-            else
-            {
-                return value_type(false, semantic_tag::none);
-            }
+            return value_type(false, semantic_tag::none);
         }
 
-        std::string to_string(int level = 0) const override
+        std::string to_string(int level) const override
         {
             std::string s;
             if (level > 0)
             {
                 s.append("\n");
-                s.append(level*2, ' ');
+                s.append(std::size_t(level)*2, ' ');
             }
             s.append("ends_with function");
             return s;
@@ -1280,19 +1285,16 @@ namespace detail {
             {
                 return value_type(true, semantic_tag::none);
             }
-            else
-            {
-                return value_type(false, semantic_tag::none);
-            }
+            return value_type(false, semantic_tag::none);
         }
 
-        std::string to_string(int level = 0) const override
+        std::string to_string(int level) const override
         {
             std::string s;
             if (level > 0)
             {
                 s.append("\n");
-                s.append(level*2, ' ');
+                s.append(std::size_t(level)*2, ' ');
             }
             s.append("starts_with function");
             return s;
@@ -1343,13 +1345,13 @@ namespace detail {
             return value_type(sum, semantic_tag::none);
         }
 
-        std::string to_string(int level = 0) const override
+        std::string to_string(int level) const override
         {
             std::string s;
             if (level > 0)
             {
                 s.append("\n");
-                s.append(level*2, ' ');
+                s.append(std::size_t(level)*2, ' ');
             }
             s.append("sum function");
             return s;
@@ -1407,20 +1409,20 @@ namespace detail {
             value_type j(json_array_arg, semantic_tag::none, alloc_);
             while (rit != rend) 
             {
-                auto s = rit->str();
+                auto s = (*rit).str();
                 j.emplace_back(s.c_str(), semantic_tag::none);
                 ++rit;
             }
             return j;
         }
 
-        std::string to_string(int level = 0) const override
+        std::string to_string(int level) const override
         {
             std::string s;
             if (level > 0)
             {
                 s.append("\n");
-                s.append(level*2, ' ');
+                s.append(std::size_t(level)*2, ' ');
             }
             s.append("tokenize function");
             return s;
@@ -1468,13 +1470,13 @@ namespace detail {
             }
         }
 
-        std::string to_string(int level = 0) const override
+        std::string to_string(int level) const override
         {
             std::string s;
             if (level > 0)
             {
                 s.append("\n");
-                s.append(level*2, ' ');
+                s.append(std::size_t(level)*2, ' ');
             }
             s.append("ceil function");
             return s;
@@ -1520,13 +1522,13 @@ namespace detail {
             }
         }
 
-        std::string to_string(int level = 0) const override
+        std::string to_string(int level) const override
         {
             std::string s;
             if (level > 0)
             {
                 s.append("\n");
-                s.append(level*2, ' ');
+                s.append(std::size_t(level)*2, ' ');
             }
             s.append("floor function");
             return s;
@@ -1576,7 +1578,7 @@ namespace detail {
                     {
                         return value_type(sn, semantic_tag::none);
                     }
-                    jsoncons::detail::chars_to to_double;
+                    const jsoncons::detail::chars_to to_double;
                     try
                     {
                         auto s = arg0.as_string();
@@ -1594,13 +1596,13 @@ namespace detail {
             }
         }
 
-        std::string to_string(int level = 0) const override
+        std::string to_string(int level) const override
         {
             std::string s;
             if (level > 0)
             {
                 s.append("\n");
-                s.append(level*2, ' ');
+                s.append(std::size_t(level)*2, ' ');
             }
             s.append("to_number function");
             return s;
@@ -1649,13 +1651,13 @@ namespace detail {
             return value_type(prod, semantic_tag::none);
         }
 
-        std::string to_string(int level = 0) const override
+        std::string to_string(int level) const override
         {
             std::string s;
             if (level > 0)
             {
                 s.append("\n");
-                s.append(level*2, ' ');
+                s.append(std::size_t(level)*2, ' ');
             }
             s.append("prod function");
             return s;
@@ -1707,13 +1709,13 @@ namespace detail {
             return value_type(sum / static_cast<double>(arg0.size()), semantic_tag::none);
         }
 
-        std::string to_string(int level = 0) const override
+        std::string to_string(int level) const override
         {
             std::string s;
             if (level > 0)
             {
                 s.append("\n");
-                s.append(level*2, ' ');
+                s.append(std::size_t(level)*2, ' ');
             }
             s.append("to_string function");
             return s;
@@ -1777,13 +1779,13 @@ namespace detail {
             return arg0.at(index);
         }
 
-        std::string to_string(int level = 0) const override
+        std::string to_string(int level) const override
         {
             std::string s;
             if (level > 0)
             {
                 s.append("\n");
-                s.append(level*2, ' ');
+                s.append(std::size_t(level)*2, ' ');
             }
             s.append("min function");
             return s;
@@ -1848,13 +1850,13 @@ namespace detail {
             return arg0.at(index);
         }
 
-        std::string to_string(int level = 0) const override
+        std::string to_string(int level) const override
         {
             std::string s;
             if (level > 0)
             {
                 s.append("\n");
-                s.append(level*2, ' ');
+                s.append(std::size_t(level)*2, ' ');
             }
             s.append("max function");
             return s;
@@ -1903,13 +1905,13 @@ namespace detail {
             }
         }
 
-        std::string to_string(int level = 0) const override
+        std::string to_string(int level) const override
         {
             std::string s;
             if (level > 0)
             {
                 s.append("\n");
-                s.append(level*2, ' ');
+                s.append(std::size_t(level)*2, ' ');
             }
             s.append("abs function");
             return s;
@@ -1960,13 +1962,13 @@ namespace detail {
             }
         }
 
-        std::string to_string(int level = 0) const override
+        std::string to_string(int level) const override
         {
             std::string s;
             if (level > 0)
             {
                 s.append("\n");
-                s.append(level*2, ' ');
+                s.append(std::size_t(level)*2, ' ');
             }
             s.append("length function");
             return s;
@@ -2016,13 +2018,13 @@ namespace detail {
             return result;
         }
 
-        std::string to_string(int level = 0) const override
+        std::string to_string(int level) const override
         {
             std::string s;
             if (level > 0)
             {
                 s.append("\n");
-                s.append(level*2, ' ');
+                s.append(std::size_t(level)*2, ' ');
             }
             s.append("keys function");
             return s;
@@ -2124,6 +2126,8 @@ namespace detail {
         path_value_pair(path_value_pair&& other) = default;
         path_value_pair& operator=(const path_value_pair&) = default;
         path_value_pair& operator=(path_value_pair&& other) = default;
+        
+        ~path_value_pair() = default;
 
         path_node_type path() const
         {
@@ -2205,7 +2209,14 @@ namespace detail {
         using reference = JsonReference;
         using path_node_type = basic_path_node<typename Json::char_type>;
 
-        virtual ~node_receiver() noexcept = default;
+        node_receiver() = default;
+        node_receiver(const node_receiver&) = default;
+        node_receiver(node_receiver&&) = default;
+
+        virtual ~node_receiver() = default;
+
+        node_receiver& operator=(const node_receiver&) = default;
+        node_receiver& operator=(node_receiver&&) = default;
 
         virtual void add(const path_node_type& base_path, reference value) = 0;
     };
@@ -2356,7 +2367,7 @@ namespace detail {
         {
         }
 
-        virtual ~jsonpath_selector() noexcept = default;
+        virtual ~jsonpath_selector() = default;
 
         bool is_path() const 
         {
@@ -2391,7 +2402,7 @@ namespace detail {
         {
         }
 
-        virtual std::string to_string(int = 0) const
+        virtual std::string to_string(int) const
         {
             return std::string();
         }
@@ -2434,6 +2445,9 @@ namespace detail {
 
         std::unordered_map<string_type,std::unique_ptr<function_base_type>,MyHash> functions_;
         std::unordered_map<string_type,std::unique_ptr<function_base_type>,MyHash> custom_functions_;
+
+        static_resources(const static_resources&) = delete;
+        static_resources(static_resources&&) = default;
 
         static_resources(const allocator_type& alloc = allocator_type())
             : alloc_(alloc)
@@ -2484,24 +2498,11 @@ namespace detail {
                                           jsoncons::make_unique<decorator_function<Json>>(item.arity(),item.function()));
             }
         }
-
-        static_resources(const static_resources&) = delete;
+        
+        ~static_resources() = default;
 
         static_resources operator=(const static_resources&) = delete;
-
-        //static_resources(static_resources&&) = delete;
-
         static_resources operator=(static_resources&&) = delete;
-
-        static_resources(static_resources&& other) noexcept 
-            : alloc_(std::move(other.alloc_)),
-              selectors_(std::move(other.selectors_)),
-              temp_json_values_(std::move(other.temp_json_values_)),
-              unary_operators_(std::move(other.unary_operators_)),
-              functions_(std::move(other.functions_)),
-              custom_functions_(std::move(other.custom_functions_))
-        {
-        }
 
         const function_base_type* get_function(const string_type& name, std::error_code& ec) const
         {
@@ -2514,15 +2515,9 @@ namespace detail {
                     ec = jsonpath_errc::unknown_function;
                     return nullptr;
                 }
-                else
-                {
-                    return it2->second.get();
-                }
+                return it2->second.get();
             }
-            else
-            {
-                return it->second.get();
-            }
+            return (*it).second.get();
         }
 
         const unary_operator<Json>* get_unary_not() const
@@ -2662,7 +2657,15 @@ namespace detail {
         using path_value_pair_type = path_value_pair<Json,JsonReference>;
         using path_node_type = basic_path_node<typename Json::char_type>;
 
-        virtual ~expression_base() noexcept = default;
+        expression_base() = default;
+        
+        expression_base(const expression_base&) = default;
+        expression_base(expression_base&&) = default;
+
+        virtual ~expression_base() = default;
+
+        expression_base& operator=(const expression_base&) = default;
+        expression_base& operator=(expression_base&&) = default;
 
         virtual value_type evaluate(eval_context<Json,JsonReference>& context,
             reference root,
@@ -2670,7 +2673,7 @@ namespace detail {
             result_options options,
             std::error_code& ec) const = 0;
 
-        virtual std::string to_string(int level = 0) const = 0;
+        virtual std::string to_string(int level) const = 0;
     };
 
     template <typename Json,typename JsonReference>
@@ -2693,6 +2696,13 @@ namespace detail {
             Json value_;
         };
     public:
+
+        token(const token& other) = delete;
+
+        token(token&& other) noexcept
+        {
+            construct(std::move(other));
+        }
 
         token(const unary_operator<Json>* expr) noexcept
             : token_kind_(jsonpath_token_kind::unary_operator),
@@ -2798,11 +2808,6 @@ namespace detail {
         {
         }
 
-        token(token&& other) noexcept
-        {
-            construct(std::move(other));
-        }
-
         const Json& get_value(const_reference_arg_t, eval_context<Json,JsonReference>&) const
         {
             return value_;
@@ -2817,7 +2822,9 @@ namespace detail {
 # pragma GCC diagnostic push
 # pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
 #endif
-        token& operator=(token&& other)
+        token& operator=(const token& other) = delete;
+
+        token& operator=(token&& other) noexcept
         {
 
             if (&other != this)
@@ -2935,7 +2942,7 @@ namespace detail {
 # pragma GCC diagnostic push
 # pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
 #endif
-        void construct(token&& other)
+        void construct(token&& other) noexcept
         {
             token_kind_ = other.token_kind_;
             switch (token_kind_)
@@ -2981,7 +2988,7 @@ namespace detail {
             }
         }
 
-        std::string to_string(int level = 0) const
+        std::string to_string(int level) const
         {
             std::string s;
             switch (token_kind_)
@@ -2990,7 +2997,7 @@ namespace detail {
                     if (level > 0)
                     {
                         s.append("\n");
-                        s.append(level*2, ' ');
+                        s.append(std::size_t(level)*2, ' ');
                     }
                     s.append("root node");
                     break;
@@ -2998,7 +3005,7 @@ namespace detail {
                     if (level > 0)
                     {
                         s.append("\n");
-                        s.append(level*2, ' ');
+                        s.append(std::size_t(level)*2, ' ');
                     }
                     s.append("current node");
                     break;
@@ -3006,7 +3013,7 @@ namespace detail {
                     if (level > 0)
                     {
                         s.append("\n");
-                        s.append(level*2, ' ');
+                        s.append(std::size_t(level)*2, ' ');
                     }
                     s.append("argument");
                     break;
@@ -3021,7 +3028,7 @@ namespace detail {
                     if (level > 0)
                     {
                         s.append("\n");
-                        s.append(level*2, ' ');
+                        s.append(std::size_t(level)*2, ' ');
                     }
                     auto sbuf = value_.to_string();
                     unicode_traits::convert(sbuf.data(), sbuf.size(), s);
@@ -3037,7 +3044,7 @@ namespace detail {
                     if (level > 0)
                     {
                         s.append("\n");
-                        s.append(level*2, ' ');
+                        s.append(std::size_t(level)*2, ' ');
                     }
                     s.append("token kind: ");
                     s.append(jsoncons::jsonpath::detail::to_string(token_kind_));
@@ -3114,8 +3121,12 @@ namespace detail {
         {
         }
 
+        path_expression(const path_expression& expr) = delete;
         path_expression(path_expression&& expr) = default;
 
+        ~path_expression() = default;
+        
+        path_expression& operator=(const path_expression& expr) = delete;
         path_expression& operator=(path_expression&& expr) = default;
 
         Json evaluate(eval_context<Json,JsonReference>& context, 
@@ -3210,7 +3221,7 @@ namespace detail {
                         for (auto&& node : receiver.nodes)
                         {
                             auto it = std::lower_bound(index.begin(),index.end(),node, path_value_pair_less_type());
-                            if (it != index.end() && it->path() == node.path()) 
+                            if (it != index.end() && (*it).path() == node.path()) 
                             {
                                 temp2.emplace_back(std::move(node));
                                 index.erase(it);
@@ -3243,7 +3254,7 @@ namespace detail {
             if (level > 0)
             {
                 s.append("\n");
-                s.append(level*2, ' ');
+                s.append(std::size_t(level)*2, ' ');
             }
             s.append("expression ");
             if (selector_ != nullptr)
@@ -3285,17 +3296,18 @@ namespace detail {
         {
         }
 
-        expression(expression&& expr)
-            : token_list_(std::move(expr.token_list_))
-        {
-        }
+        expression(const expression& expr) = delete;
+        expression(expression&& expr) = default;
 
         expression(std::vector<token_type>&& token_stack)
             : token_list_(std::move(token_stack))
         {
         }
 
+        expression& operator=(const expression& expr) = delete;
         expression& operator=(expression&& expr) = default;
+        
+        ~expression() = default;
 
         value_type evaluate(eval_context<Json,reference>& context, 
             reference root,
@@ -3327,7 +3339,7 @@ namespace detail {
                         }
                         case jsonpath_token_kind::unary_operator:
                         {
-                            JSONCONS_ASSERT(stack.size() >= 1);
+                            JSONCONS_ASSERT(!stack.empty());
                             auto item = std::move(stack.back());
                             stack.pop_back();
 
@@ -3438,7 +3450,7 @@ namespace detail {
             if (level > 0)
             {
                 s.append("\n");
-                s.append(level*2, ' ');
+                s.append(std::size_t(level)*2, ' ');
             }
             s.append("expression ");
             for (const auto& item : token_list_)

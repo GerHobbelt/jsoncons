@@ -1,4 +1,4 @@
-// Copyright 2013-2024 Daniel Parker
+// Copyright 2013-2025 Daniel Parker
 // Distributed under the Boost license, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
@@ -7,18 +7,18 @@
 #ifndef JSONCONS_EXT_UBJSON_UBJSON_CURSOR_HPP
 #define JSONCONS_EXT_UBJSON_UBJSON_CURSOR_HPP
 
+#include <cstddef>
+#include <functional>
 #include <ios>
-#include <istream> // std::basic_istream
 #include <memory> // std::allocator
 #include <stdexcept>
-#include <string>
 #include <system_error>
-#include <vector>
 
-#include <jsoncons/byte_string.hpp>
+#include <jsoncons/utility/byte_string.hpp>
 #include <jsoncons/config/jsoncons_config.hpp>
 #include <jsoncons/json_exception.hpp>
 #include <jsoncons/json_visitor.hpp>
+#include <jsoncons/ser_context.hpp>
 #include <jsoncons/source.hpp>
 #include <jsoncons/staj_cursor.hpp>
 #include <jsoncons_ext/ubjson/ubjson_parser.hpp>
@@ -38,12 +38,12 @@ private:
     basic_staj_visitor<char_type> cursor_visitor_;
     bool eof_;
 
-    // Noncopyable and nonmoveable
-    basic_ubjson_cursor(const basic_ubjson_cursor&) = delete;
-    basic_ubjson_cursor& operator=(const basic_ubjson_cursor&) = delete;
-
 public:
     using string_view_type = string_view;
+
+    // Noncopyable and nonmoveable
+    basic_ubjson_cursor(const basic_ubjson_cursor&) = delete;
+    basic_ubjson_cursor(basic_ubjson_cursor&&) = delete;
 
     template <typename Sourceable>
     basic_ubjson_cursor(Sourceable&& source,
@@ -96,6 +96,11 @@ public:
             next(ec);
         }
     }
+
+    ~basic_ubjson_cursor() = default;
+
+    basic_ubjson_cursor& operator=(const basic_ubjson_cursor&) = delete;
+    basic_ubjson_cursor& operator=(basic_ubjson_cursor&&) = delete;
 
     void reset()
     {

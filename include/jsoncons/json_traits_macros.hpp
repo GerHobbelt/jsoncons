@@ -1,4 +1,4 @@
-// Copyright 2013-2024 Daniel Parker
+// Copyright 2013-2025 Daniel Parker
 // Distributed under the Boost license, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
@@ -7,15 +7,10 @@
 #ifndef JSONCONS_JSON_TRAITS_MACROS_HPP
 #define JSONCONS_JSON_TRAITS_MACROS_HPP
 
-#include <algorithm> // std::swap
-#include <iterator> // std::iterator_traits, std::input_iterator_tag
-#include <limits> // std::numeric_limits
-#include <string>
-#include <type_traits> // std::enable_if
 #include <utility>
 
+#include <jsoncons/config/compiler_support.hpp>
 #include <jsoncons/config/jsoncons_config.hpp> // JSONCONS_EXPAND, JSONCONS_QUOTE
-#include <jsoncons/utility/extension_traits.hpp>
 #include <jsoncons/json_type_traits.hpp>
 #include <jsoncons/json_visitor.hpp>
 
@@ -701,7 +696,7 @@ namespace jsoncons \
                     JSONCONS_THROW(conv_error(conv_errc::conversion_failed, "Not an enum")); \
                 } \
             } \
-            return it->first; \
+            return (*it).first; \
         } \
         static Json to_json(enum_type class_instance, allocator_type alloc=allocator_type()) \
         { \
@@ -722,7 +717,7 @@ namespace jsoncons \
                     JSONCONS_THROW(conv_error(conv_errc::conversion_failed, "Not an enum")); \
                 } \
             } \
-            return Json(it->second,alloc); \
+            return Json((*it).second,alloc); \
         } \
     }; \
 } \
@@ -802,7 +797,7 @@ namespace jsoncons \
                     JSONCONS_THROW(conv_error(conv_errc::conversion_failed, "Not an enum")); \
                 } \
             } \
-            return it->first; \
+            return (*it).first; \
         } \
         static Json to_json(enum_type class_instance, allocator_type alloc=allocator_type()) \
         { \
@@ -823,7 +818,7 @@ namespace jsoncons \
                     JSONCONS_THROW(conv_error(conv_errc::conversion_failed, "Not an enum")); \
                 } \
             } \
-            return Json(it->second,alloc); \
+            return Json((*it).second,alloc); \
         } \
     }; \
     template <> struct is_json_type_traits_declared<EnumType> : public std::true_type {}; \

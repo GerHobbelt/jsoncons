@@ -34,15 +34,12 @@ minor modifications.
 #ifndef JSONCONS_DETAIL_GRISU3_HPP
 #define JSONCONS_DETAIL_GRISU3_HPP 
 
-#pragma once
 #include <cassert>
 #include <cinttypes>
 #include <cmath>
 #include <cstdint>
 #include <cstring> // std::memmove
 #include <stdlib.h>
-
-#include <jsoncons/detail/write_number.hpp>
 
 namespace jsoncons { namespace detail {
 

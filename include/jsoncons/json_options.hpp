@@ -1,4 +1,4 @@
-// Copyright 2013-2024 Daniel Parker
+// Copyright 2013-2025 Daniel Parker
 // Distributed under the Boost license, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
@@ -7,14 +7,14 @@
 #ifndef JSONCONS_JSON_OPTIONS_HPP
 #define JSONCONS_JSON_OPTIONS_HPP
 
+#include <cstdint>
 #include <cwchar>
 #include <functional>
-#include <limits> // std::numeric_limits
 #include <string>
+#include <system_error>
 
-#include <jsoncons/utility/extension_traits.hpp>
+#include <jsoncons/config/compiler_support.hpp>
 #include <jsoncons/json_error.hpp>
-#include <jsoncons/json_exception.hpp>
 #include <jsoncons/ser_context.hpp>
 
 namespace jsoncons {
@@ -25,9 +25,17 @@ enum class indenting : uint8_t {no_indent = 0, indent = 1};
 
 enum class line_split_kind  : uint8_t {same_line=1, new_line, multi_line};
 
-enum class bignum_format_kind : uint8_t {raw, number=raw, base10, base64, base64url};
+enum class bignum_format_kind : uint8_t {raw, 
+#if !defined(JSONCONS_NO_DEPRECATED)
+    number=raw, // deprecated, use raw instead 
+#endif    
+    base10, 
+    base64, 
+    base64url};
 
-using bigint_chars_format = bignum_format_kind;
+#if !defined(JSONCONS_NO_DEPRECATED)
+JSONCONS_DEPRECATED_MSG("Instead, use bignum_format_kind") typedef bignum_format_kind bigint_chars_format;
+#endif
 
 enum class byte_string_chars_format : uint8_t {none=0,base16,base64,base64url};
 
@@ -103,7 +111,7 @@ protected:
         max_nesting_depth_(1024)
     {}
 
-    virtual ~basic_json_options_common() noexcept = default;
+    virtual ~basic_json_options_common() = default;
 
     basic_json_options_common(const basic_json_options_common&) = default;
     basic_json_options_common& operator=(const basic_json_options_common&) = default;
@@ -268,7 +276,7 @@ public:
 
     basic_json_decode_options(const basic_json_decode_options&) = default;
 
-    basic_json_decode_options(basic_json_decode_options&& other)
+    basic_json_decode_options(basic_json_decode_options&& other) noexcept
         : super_type(std::move(other)), lossless_number_(other.lossless_number_), err_handler_(std::move(other.err_handler_))
     {
     }
@@ -340,7 +348,7 @@ public:
 
     basic_json_encode_options(const basic_json_encode_options&) = default;
 
-    basic_json_encode_options(basic_json_encode_options&& other)
+    basic_json_encode_options(basic_json_encode_options&& other) noexcept
         : super_type(std::move(other)),
           escape_all_non_ascii_(other.escape_all_non_ascii_),
           escape_solidus_(other.escape_solidus_),
@@ -372,7 +380,8 @@ public:
 
 
 #if !defined(JSONCONS_NO_DEPRECATED)
-    bigint_chars_format bigint_format() const  {return bignum_format_;}
+    JSONCONS_DEPRECATED_MSG("Instead, use bignum_format")
+    bignum_format_kind bigint_format() const  {return bignum_format_;}
 #endif    
 
     bignum_format_kind bignum_format() const  {return bignum_format_;}
@@ -550,7 +559,8 @@ public:
 
 
 #if !defined(JSONCONS_NO_DEPRECATED)
-    basic_json_options&  bigint_format(bigint_chars_format value) {this->bignum_format_ = value; return *this;}
+    JSONCONS_DEPRECATED_MSG("Instead, use bignum_format")
+    basic_json_options&  bigint_format(bignum_format_kind value) {this->bignum_format_ = value; return *this;}
 #endif    
 
     basic_json_options&  bignum_format(bignum_format_kind value) {this->bignum_format_ = value; return *this;}

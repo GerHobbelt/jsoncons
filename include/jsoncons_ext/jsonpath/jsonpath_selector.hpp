@@ -1,4 +1,4 @@
-// Copyright 2013-2024 Daniel Parker
+// Copyright 2013-2025 Daniel Parker
 // Distributed under the Boost license, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
@@ -7,17 +7,19 @@
 #ifndef JSONCONS_EXT_JSONPATH_JSONPATH_SELECTOR_HPP
 #define JSONCONS_EXT_JSONPATH_JSONPATH_SELECTOR_HPP
 
-#include <limits> // std::numeric_limits
+#include <cstddef>
+#include <cstdint>
 #include <memory>
-#include <regex>
 #include <string>
-#include <type_traits> // std::is_const
+#include <system_error>
 #include <utility> // std::move
 #include <vector>
 
-#include <jsoncons/json.hpp>
+#include <jsoncons/config/jsoncons_config.hpp>
+#include <jsoncons/tag_type.hpp>
+
 #include <jsoncons_ext/jsonpath/expression.hpp>
-#include <jsoncons_ext/jsonpath/jsonpath_error.hpp>
+#include <jsoncons_ext/jsonpath/path_node.hpp>
 
 namespace jsoncons { 
 namespace jsonpath {
@@ -56,17 +58,11 @@ namespace detail {
                 auto len = *start_ >= 0 ? *start_ : (static_cast<int64_t>(size) + *start_);
                 return len <= static_cast<int64_t>(size) ? len : static_cast<int64_t>(size);
             }
-            else
+            if (step_ >= 0)
             {
-                if (step_ >= 0)
-                {
-                    return 0;
-                }
-                else 
-                {
-                    return static_cast<int64_t>(size);
-                }
+                return 0;
             }
+            return static_cast<int64_t>(size);
         }
 
         int64_t get_stop(std::size_t size) const
@@ -212,13 +208,13 @@ namespace detail {
             return tail_->evaluate(context, root, last, current, options, ec);
         }
 
-        std::string to_string(int level = 0) const override
+        std::string to_string(int level) const override
         {
             std::string s;
             if (level > 0)
             {
                 s.append("\n");
-                s.append(level*2, ' ');
+                s.append(std::size_t(level)*2, ' ');
             }
             if (tail_)
             {
@@ -266,7 +262,7 @@ namespace detail {
                 {
                     this->tail_select(context, root, 
                                         path_generator_type::generate(context, last, identifier_, options),
-                                        it->value(), receiver, options);
+                                        (*it).value(), receiver, options);
                 }
             }
             else if (current.is_array())
@@ -275,7 +271,7 @@ namespace detail {
                 auto r = jsoncons::detail::decimal_to_integer(identifier_.data(), identifier_.size(), n);
                 if (r)
                 {
-                    std::size_t index = (n >= 0) ? static_cast<std::size_t>(n) : static_cast<std::size_t>(static_cast<int64_t>(current.size()) + n);
+                    auto index = (n >= 0) ? static_cast<std::size_t>(n) : static_cast<std::size_t>(static_cast<int64_t>(current.size()) + n);
                     if (index < current.size())
                     {
                         this->tail_select(context, root, 
@@ -318,32 +314,26 @@ namespace detail {
                 {
                     return this->evaluate_tail(context, root, 
                                                path_generator_type::generate(context, last, identifier_, options),
-                                              it->value(), options, ec);
+                                              (*it).value(), options, ec);
                 }
-                else
-                {
-                    return context.null_value();
-                }
+                return context.null_value();
             }
-            else if (current.is_array())
+            if (current.is_array())
             {
                 int64_t n{0};
                 auto r = jsoncons::detail::decimal_to_integer(identifier_.data(), identifier_.size(), n);
                 if (r)
                 {
-                    std::size_t index = (n >= 0) ? static_cast<std::size_t>(n) : static_cast<std::size_t>(static_cast<int64_t>(current.size()) + n);
+                    auto index = (n >= 0) ? static_cast<std::size_t>(n) : static_cast<std::size_t>(static_cast<int64_t>(current.size()) + n);
                     if (index < current.size())
                     {
                         return this->evaluate_tail(context, root, 
                                                    path_generator_type::generate(context, last, index, options),
                                                    current[index], options, ec);
                     }
-                    else
-                    {
-                        return context.null_value();
-                    }
+                    return context.null_value();
                 }
-                else if (identifier_ == context.length_label() && current.size() > 0)
+                if (identifier_ == context.length_label() && current.size() > 0)
                 {
                     pointer ptr = context.create_json(current.size(), semantic_tag::none, context.get_allocator());
                     return this->evaluate_tail(context, root, 
@@ -351,12 +341,9 @@ namespace detail {
                                                *ptr, 
                                                options, ec);
                 }
-                else
-                {
-                    return context.null_value();
-                }
+                return context.null_value();
             }
-            else if (current.is_string() && identifier_ == context.length_label())
+            if (current.is_string() && identifier_ == context.length_label())
             {
                 string_view_type sv = current.as_string_view();
                 std::size_t count = unicode_traits::count_codepoints(sv.data(), sv.size());
@@ -365,19 +352,16 @@ namespace detail {
                                            path_generator_type::generate(context, last, identifier_, options), 
                                            *ptr, options, ec);
             }
-            else
-            {
-                return context.null_value();
-            }
+            return context.null_value();
         }
 
-        std::string to_string(int level = 0) const override
+        std::string to_string(int level) const override
         {
             std::string s;
             if (level > 0)
             {
                 s.append("\n");
-                s.append(level*2, ' ');
+                s.append(std::size_t(level)*2, ' ');
             }
             s.append("identifier selector ");
             unicode_traits::convert(identifier_.data(),identifier_.size(),s);
@@ -408,6 +392,11 @@ namespace detail {
         {
         }
         
+        root_selector(const root_selector&) = default;
+        root_selector(root_selector&&) = default;
+        root_selector& operator=(const root_selector&) = default;
+        root_selector& operator=(root_selector&&) = default;
+        
         ~root_selector() = default;
 
         void select(eval_context<Json,JsonReference>& context,
@@ -431,25 +420,22 @@ namespace detail {
             {
                 return context.get_from_cache(id_);
             }
-            else
+            auto& ref = this->evaluate_tail(context, root, last, root, options, ec);
+            if (!ec)
             {
-                auto& ref = this->evaluate_tail(context, root, last, root, options, ec);
-                if (!ec)
-                {
-                    context.add_to_cache(id_, ref);
-                }
-
-                return ref;
+                context.add_to_cache(id_, ref);
             }
+
+            return ref;
         }
 
-        std::string to_string(int level = 0) const override
+        std::string to_string(int level) const override
         {
             std::string s;
             if (level > 0)
             {
                 s.append("\n");
-                s.append(level*2, ' ');
+                s.append(std::size_t(level)*2, ' ');
             }
             s.append("root_selector ");
             s.append(base_selector<Json,JsonReference>::to_string(level+1));
@@ -472,10 +458,14 @@ namespace detail {
         using path_generator_type = path_generator<Json,JsonReference>;
         using node_receiver_type = typename supertype::node_receiver_type;
 
-        current_node_selector()
-        {
-        }
+        current_node_selector() = default;
+        current_node_selector(const current_node_selector&) = default;
+        current_node_selector(current_node_selector&&) = default;       
+        ~current_node_selector() = default;
 
+        current_node_selector& operator=(const current_node_selector&) = default;
+        current_node_selector& operator=(current_node_selector&&) = default;              
+        
         void select(eval_context<Json,JsonReference>& context,
                     reference root,
                     const path_node_type& last, 
@@ -499,13 +489,13 @@ namespace detail {
                                 root, last, current, options, ec);
         }
 
-        std::string to_string(int level = 0) const override
+        std::string to_string(int level) const override
         {
             std::string s;
             if (level > 0)
             {
                 s.append("\n");
-                s.append(level*2, ' ');
+                s.append(std::size_t(level)*2, ' ');
             }
             s.append("current_node_selector");
             s.append(base_selector<Json,JsonReference>::to_string(level+1));
@@ -533,9 +523,16 @@ namespace detail {
         using node_receiver_type = typename supertype::node_receiver_type;
 
         parent_node_selector(int ancestor_depth)
+            : ancestor_depth_(ancestor_depth)
         {
-            ancestor_depth_ = ancestor_depth;
         }
+        parent_node_selector(const parent_node_selector&) = default;
+        parent_node_selector(parent_node_selector&&) = default;
+        
+        ~parent_node_selector() = default;
+
+        parent_node_selector& operator=(const parent_node_selector&) = default;
+        parent_node_selector& operator=(parent_node_selector&&) = default;
 
         void select(eval_context<Json,JsonReference>& context,
                     reference root,
@@ -584,24 +581,18 @@ namespace detail {
                 {
                     return this->evaluate_tail(context, root, *ancestor, *ptr, options, ec);
                 }
-                else
-                {
-                    return context.null_value();
-                }
-            }
-            else
-            {
                 return context.null_value();
             }
+            return context.null_value();
         }
 
-        std::string to_string(int level = 0) const override
+        std::string to_string(int level) const override
         {
             std::string s;
             if (level > 0)
             {
                 s.append("\n");
-                s.append(level*2, ' ');
+                s.append(std::size_t(level)*2, ' ');
             }
             s.append("parent_node_selector");
             s.append(base_selector<Json,JsonReference>::to_string(level+1));
@@ -639,10 +630,10 @@ namespace detail {
         {
             if (current.is_array())
             {
-                int64_t slen = static_cast<int64_t>(current.size());
+                auto slen = static_cast<int64_t>(current.size());
                 if (index_ >= 0 && index_ < slen)
                 {
-                    std::size_t i = static_cast<std::size_t>(index_);
+                    auto i = static_cast<std::size_t>(index_);
                     this->tail_select(context, root, 
                                         path_generator_type::generate(context, last, i, options), 
                                         current.at(i), receiver, options);
@@ -652,7 +643,7 @@ namespace detail {
                     int64_t index = slen + index_;
                     if (index >= 0 && index < slen)
                     {
-                        std::size_t i = static_cast<std::size_t>(index);
+                        auto i = static_cast<std::size_t>(index);
                         this->tail_select(context, root, 
                                             path_generator_type::generate(context, last, i, options), 
                                             current.at(i), receiver, options);
@@ -670,34 +661,25 @@ namespace detail {
         {
             if (current.is_array())
             {
-                int64_t slen = static_cast<int64_t>(current.size());
+                auto slen = static_cast<int64_t>(current.size());
                 if (index_ >= 0 && index_ < slen)
                 {
-                    std::size_t i = static_cast<std::size_t>(index_);
+                    auto i = static_cast<std::size_t>(index_);
                     return this->evaluate_tail(context, root, 
                                         path_generator_type::generate(context, last, i, options), 
                                         current.at(i), options, ec);
                 }
-                else 
+                int64_t index = slen + index_;
+                if (index >= 0 && index < slen)
                 {
-                    int64_t index = slen + index_;
-                    if (index >= 0 && index < slen)
-                    {
-                        std::size_t i = static_cast<std::size_t>(index);
-                        return this->evaluate_tail(context, root, 
-                                            path_generator_type::generate(context, last, i, options), 
-                                            current.at(i), options, ec);
-                    }
-                    else
-                    {
-                        return context.null_value();
-                    }
+                    auto i = static_cast<std::size_t>(index);
+                    return this->evaluate_tail(context, root, 
+                                        path_generator_type::generate(context, last, i, options), 
+                                        current.at(i), options, ec);
                 }
-            }
-            else
-            {
                 return context.null_value();
             }
+            return context.null_value();
         }
     };
 
@@ -761,13 +743,13 @@ namespace detail {
             return *jptr;
         }
 
-        std::string to_string(int level = 0) const override
+        std::string to_string(int level) const override
         {
             std::string s;
             if (level > 0)
             {
                 s.append("\n");
-                s.append(level*2, ' ');
+                s.append(std::size_t(level)*2, ' ');
             }
             s.append("wildcard selector");
             s.append(base_selector<Json,JsonReference>::to_string(level));
@@ -836,13 +818,13 @@ namespace detail {
             return *jptr;
         }
 
-        std::string to_string(int level = 0) const override
+        std::string to_string(int level) const override
         {
             std::string s;
             if (level > 0)
             {
                 s.append("\n");
-                s.append(level*2, ' ');
+                s.append(std::size_t(level)*2, ' ');
             }
             s.append("wildcard selector");
             s.append(base_selector<Json,JsonReference>::to_string(level));
@@ -917,13 +899,13 @@ namespace detail {
             return *jptr;
         }
 
-        std::string to_string(int level = 0) const override
+        std::string to_string(int level) const override
         {
             std::string s;
             if (level > 0)
             {
                 s.append("\n");
-                s.append(level*2, ' ');
+                s.append(std::size_t(level)*2, ' ');
             }
             s.append("union selector ");
             for (auto& selector : selectors_)
@@ -1009,13 +991,13 @@ namespace detail {
             return *jptr;
         }
 
-        std::string to_string(int level = 0) const override
+        std::string to_string(int level) const override
         {
             std::string s;
             if (level > 0)
             {
                 s.append("\n");
-                s.append(level*2, ' ');
+                s.append(std::size_t(level)*2, ' ');
             }
             s.append("filter selector ");
             s.append(expr_.to_string(level+1));
@@ -1094,28 +1076,22 @@ namespace detail {
                     std::size_t start = j.template as<std::size_t>();
                     return this->evaluate_tail(context, root, last, current.at(start), options, ec);
                 }
-                else if (j.is_string() && current.is_object())
+                if (j.is_string() && current.is_object())
                 {
                     return this->evaluate_tail(context, root, last, current.at(j.as_string_view()), options, ec);
                 }
-                else
-                {
-                    return context.null_value();
-                }
-            }
-            else
-            {
                 return context.null_value();
             }
+            return context.null_value();
         }
 
-        std::string to_string(int level = 0) const override
+        std::string to_string(int level) const override
         {
             std::string s;
             if (level > 0)
             {
                 s.append("\n");
-                s.append(level*2, ' ');
+                s.append(std::size_t(level)*2, ' ');
             }
             s.append("bracket expression selector ");
             s.append(expr_.to_string(level+1));
@@ -1170,7 +1146,7 @@ namespace detail {
                     }
                     for (int64_t i = start; i < end; i += step)
                     {
-                        std::size_t j = static_cast<std::size_t>(i);
+                        auto j = static_cast<std::size_t>(i);
                         this->tail_select(context, root, 
                                             path_generator_type::generate(context, last, j, options), 
                                             current[j], receiver, options);
@@ -1188,7 +1164,7 @@ namespace detail {
                     }
                     for (int64_t i = start; i > end; i += step)
                     {
-                        std::size_t j = static_cast<std::size_t>(i);
+                        auto j = static_cast<std::size_t>(i);
                         if (j < current.size())
                         {
                             this->tail_select(context, root, 
@@ -1260,21 +1236,18 @@ namespace detail {
             if (!ec)
             {
                 return this->evaluate_tail(context, root, last, *context.create_json(std::move(ref)), 
-                                    options, ec);
+                    options, ec);
             }
-            else
-            {
-                return context.null_value();
-            }
+            return context.null_value();
         }
 
-        std::string to_string(int level = 0) const override
+        std::string to_string(int level) const override
         {
             std::string s;
             if (level > 0)
             {
                 s.append("\n");
-                s.append(level*2, ' ');
+                s.append(std::size_t(level)*2, ' ');
             }
             s.append("function_selector ");
             s.append(expr_.to_string(level+1));

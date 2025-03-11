@@ -1,27 +1,29 @@
-// Copyright 2013-2024 Daniel Parker
+// Copyright 2013-2025 Daniel Parker
 // Distributed under the Boost license, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
 // See https://github.com/danielaparker/jsoncons for latest version
 
-#ifndef JSONCONS_EXT_JSONPATH_JSONPATH_EXPR_HPP
-#define JSONCONS_EXT_JSONPATH_JSONPATH_EXPR_HPP
+#ifndef JSONCONS_EXT_JSONPATH_JSONPATH_EXPRESSION_HPP
+#define JSONCONS_EXT_JSONPATH_JSONPATH_EXPRESSION_HPP
 
 #include <algorithm> // std::reverse
-#include <limits> // std::numeric_limits
+#include <cstddef>
 #include <memory>
-#include <regex>
-#include <string>
+#include <system_error>
 #include <type_traits> // std::is_const
 #include <utility> // std::move
 #include <vector>
 
-#include <jsoncons/json.hpp>
+#include <jsoncons/config/jsoncons_config.hpp>
+#include <jsoncons/allocator_set.hpp>
+#include <jsoncons/utility/extension_traits.hpp>
+#include <jsoncons/tag_type.hpp>
+
 #include <jsoncons_ext/jsonpath/expression.hpp>
 #include <jsoncons_ext/jsonpath/json_location.hpp>
-#include <jsoncons_ext/jsonpath/jsonpath_error.hpp>
 #include <jsoncons_ext/jsonpath/jsonpath_parser.hpp>
-#include <jsoncons_ext/jsonpath/jsonpath_selector.hpp>
+#include <jsoncons_ext/jsonpath/path_node.hpp>
 
 namespace jsoncons { 
 namespace jsonpath {
@@ -63,6 +65,8 @@ namespace jsonpath {
         jsonpath_expression(const jsonpath_expression&) = delete;
         jsonpath_expression(jsonpath_expression&&) = default;
 
+        ~jsonpath_expression() = default;
+
         jsonpath_expression& operator=(const jsonpath_expression&) = delete;
         jsonpath_expression& operator=(jsonpath_expression&&) = default;
 
@@ -92,11 +96,8 @@ namespace jsonpath {
                 const_expr_.evaluate(context, root, path_node_type{}, root, callback, options);
                 return result;
             }
-            else
-            {
-                jsoncons::jsonpath::detail::eval_context<value_type, const_reference> context{ alloc_ };
-                return const_expr_.evaluate(context, root, path_node_type{}, root, options);
-            }
+            jsoncons::jsonpath::detail::eval_context<value_type, const_reference> context{ alloc_ };
+            return const_expr_.evaluate(context, root, path_node_type{}, root, options);
         }
 
         value_type select(const_reference root, result_options options = result_options()) const
@@ -113,11 +114,8 @@ namespace jsonpath {
                 const_expr_.evaluate(context, root, path_node_type{}, root, callback, options);
                 return result;
             }
-            else
-            {
-                jsoncons::jsonpath::detail::eval_context<value_type, const_reference> context{ alloc_ };
-                return const_expr_.evaluate(context, root, path_node_type{}, root, options);
-            }
+            jsoncons::jsonpath::detail::eval_context<value_type, const_reference> context{ alloc_ };
+            return const_expr_.evaluate(context, root, path_node_type{}, root, options);
         }
 
         template <typename BinaryCallback>
@@ -244,7 +242,7 @@ namespace jsonpath {
     {
         std::size_t count = 0;
 
-        auto expr = jsonpath::make_expression<json>(path_string);
+        auto expr = jsonpath::make_expression<Json>(path_string);
         std::vector<jsonpath::json_location> locations = expr.select_paths(root,
             jsonpath::result_options::nodups | jsonpath::result_options::sort_descending);
 
@@ -259,4 +257,4 @@ namespace jsonpath {
 } // namespace jsonpath
 } // namespace jsoncons
 
-#endif // JSONCONS_EXT_JSONPATH_JSONPATH_EXPR_HPP
+#endif // JSONCONS_EXT_JSONPATH_JSONPATH_EXPRESSION_HPP

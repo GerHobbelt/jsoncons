@@ -1,4 +1,4 @@
-// Copyright 2013-2024 Daniel Parker
+// Copyright 2013-2025 Daniel Parker
 // Distributed under the Boost license, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
@@ -44,13 +44,12 @@ namespace jsonschema {
     class evaluation_options
     {
         std::string default_version_;
-        bool require_format_validation_;
-        bool compatibility_mode_;
+        bool require_format_validation_{false};
+        bool compatibility_mode_{false};
         std::string default_base_uri_;
     public:
         evaluation_options()
             : default_version_{schema_version::draft202012()}, 
-              require_format_validation_(false), compatibility_mode_(false),
               default_base_uri_("https://jsoncons.com")
         {
         }

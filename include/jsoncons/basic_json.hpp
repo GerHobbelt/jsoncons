@@ -1,4 +1,4 @@
-// Copyright 2013-2024 Daniel Parker
+// Copyright 2013-2025 Daniel Parker
 // Distributed under the Boost license, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
@@ -9,21 +9,24 @@
 
 #include <algorithm> // std::swap
 #include <cstring>
-#include <cstring> // std::memcpy
-#include <exception>
+#include <cstdint>
+#include <functional>
 #include <initializer_list> // std::initializer_list
 #include <istream> // std::basic_istream
 #include <limits> // std::numeric_limits
 #include <memory> // std::allocator
 #include <ostream> 
+#include <stdexcept>
 #include <string>
+#include <system_error>
 #include <type_traits> // std::enable_if
 #include <typeinfo>
 #include <utility> // std::move
 #include <vector>
 
 #include <jsoncons/allocator_set.hpp>
-#include <jsoncons/byte_string.hpp>
+#include <jsoncons/utility/byte_string.hpp>
+#include <jsoncons/config/compiler_support.hpp>
 #include <jsoncons/config/version.hpp>
 #include <jsoncons/json_array.hpp>
 #include <jsoncons/json_decoder.hpp>
@@ -37,8 +40,13 @@
 #include <jsoncons/json_type.hpp>
 #include <jsoncons/json_type_traits.hpp>
 #include <jsoncons/pretty_print.hpp>
+#include <jsoncons/ser_context.hpp>
+#include <jsoncons/source.hpp>
+#include <jsoncons/tag_type.hpp>
 #include <jsoncons/utility/bigint.hpp>
 #include <jsoncons/utility/heap_string.hpp>
+#include <jsoncons/utility/extension_traits.hpp>
+#include <jsoncons/utility/unicode_traits.hpp>
 
 #if defined(JSONCONS_HAS_POLYMORPHIC_ALLOCATOR)
 #include <memory_resource> // std::poymorphic_allocator
@@ -397,7 +405,6 @@ namespace jsoncons {
         using string_type = std::basic_string<char_type,char_traits_type,char_allocator_type>;
 
         using key_type = typename policy_type::template member_key<char_type,char_traits_type,char_allocator_type>;
-
 
         using reference = basic_json&;
         using const_reference = const basic_json&;
@@ -1879,7 +1886,7 @@ namespace jsoncons {
                 JSONCONS_THROW(ser_error(json_errc::illegal_unicode_character,parser.line(),parser.column()));
             }
             std::size_t offset = (r.ptr - source.data());
-            parser.set_buffer(source.data()+offset,source.size()-offset);
+            parser.update(source.data()+offset,source.size()-offset);
             parser.parse_some(decoder);
             parser.finish_parse(decoder);
             parser.check_done();
@@ -1905,7 +1912,7 @@ namespace jsoncons {
                 JSONCONS_THROW(ser_error(json_errc::illegal_unicode_character,parser.line(),parser.column()));
             }
             std::size_t offset = (r.ptr - source.data());
-            parser.set_buffer(source.data()+offset,source.size()-offset);
+            parser.update(source.data()+offset,source.size()-offset);
             parser.parse_some(decoder);
             parser.finish_parse(decoder);
             parser.check_done();
@@ -2076,7 +2083,7 @@ namespace jsoncons {
                 JSONCONS_THROW(ser_error(json_errc::illegal_unicode_character,parser.line(),parser.column()));
             }
             std::size_t offset = (r.ptr - source.data());
-            parser.set_buffer(source.data()+offset,source.size()-offset);
+            parser.update(source.data()+offset,source.size()-offset);
             parser.parse_some(decoder);
             parser.finish_parse(decoder);
             parser.check_done();
@@ -2586,7 +2593,7 @@ namespace jsoncons {
                     }
                     else
                     {
-                        return it->value();
+                        return (*it).value();
                     }
                     break;
                 }
@@ -2614,7 +2621,7 @@ namespace jsoncons {
                     }
                     else
                     {
-                        return it->value();
+                        return (*it).value();
                     }
                     break;
                 }
@@ -2946,7 +2953,7 @@ namespace jsoncons {
                         return 0;
                     }
                     std::size_t count = 0;
-                    while (it != cast<object_storage>().value().end()&& it->key() == key)
+                    while (it != cast<object_storage>().value().end()&& (*it).key() == key)
                     {
                         ++count;
                         ++it;
@@ -3484,7 +3491,7 @@ namespace jsoncons {
                 case json_storage_kind::short_str:
                 case json_storage_kind::long_str:
                 {
-                    jsoncons::detail::chars_to to_double;
+                    const jsoncons::detail::chars_to to_double;
                     // to_double() throws std::invalid_argument if conversion fails
                     return to_double(as_cstring(), as_string_view().length());
                 }
@@ -3587,7 +3594,7 @@ namespace jsoncons {
                     {
                         JSONCONS_THROW(key_not_found(key.data(),key.length()));
                     }
-                    return it->value();
+                    return (*it).value();
                 }
                 case json_storage_kind::json_reference:
                     return cast<json_reference_storage>().value().at(key);
@@ -3609,7 +3616,7 @@ namespace jsoncons {
                     {
                         JSONCONS_THROW(key_not_found(key.data(),key.length()));
                     }
-                    return it->value();
+                    return (*it).value();
                 }
                 case json_storage_kind::json_const_reference:
                     return cast<json_const_reference_storage>().value().at(key);
@@ -3706,7 +3713,7 @@ namespace jsoncons {
                     auto it = cast<object_storage>().value().find(key);
                     if (it != cast<object_storage>().value().end())
                     {
-                        return it->value();
+                        return (*it).value();
                     }
                     else
                     {
@@ -3739,7 +3746,7 @@ namespace jsoncons {
                     auto it = cast<object_storage>().value().find(key);
                     if (it != cast<object_storage>().value().end())
                     {
-                        return it->value().template as<T>();
+                        return (*it).value().template as<T>();
                     }
                     else
                     {
@@ -4465,8 +4472,8 @@ namespace jsoncons {
                     const object& o = cast<object_storage>().value();
                     for (auto it = o.begin(); more && it != o.end(); ++it)
                     {
-                        visitor.key(string_view_type((it->key()).data(),it->key().length()), context, ec);
-                        it->value().dump_noflush(visitor, ec);
+                        visitor.key(string_view_type(((*it).key()).data(),(*it).key().length()), context, ec);
+                        (*it).value().dump_noflush(visitor, ec);
                     }
                     if (more)
                     {
@@ -4480,7 +4487,7 @@ namespace jsoncons {
                     const array& o = cast<array_storage>().value();
                     for (const_array_iterator it = o.begin(); more && it != o.end(); ++it)
                     {
-                        it->dump_noflush(visitor, ec);
+                        (*it).dump_noflush(visitor, ec);
                     }
                     if (more)
                     {

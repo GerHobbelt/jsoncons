@@ -1,4 +1,4 @@
-// Copyright 2013-2024 Daniel Parker
+// Copyright 2013-2025 Daniel Parker
 // Distributed under the Boost license, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
@@ -6,6 +6,11 @@
 
 #ifndef JSONCONS_EXT_JSONSCHEMA_JSON_SCHEMA_FACTORY_HPP
 #define JSONCONS_EXT_JSONSCHEMA_JSON_SCHEMA_FACTORY_HPP
+
+#include <string>
+#include <unordered_map>
+
+#include <jsoncons/config/compiler_support.hpp>
 
 #include <jsoncons_ext/jsonschema/draft201909/schema_builder_201909.hpp>
 #include <jsoncons_ext/jsonschema/draft202012/schema_builder_202012.hpp>
@@ -38,11 +43,11 @@ namespace jsonschema {
                 auto it = sch.find("$schema");
                 if (it != sch.object_range().end())
                 { 
-                    builder = get_builder(std::move(sch), it->value().as_string_view(), options, schema_store_ptr, resolve_funcs, vocabulary);
+                    builder = get_builder(std::move(sch), (*it).value().as_string_view(), options, schema_store_ptr, resolve_funcs, vocabulary);
                     if (!builder)
                     {
                         std::string message("Unsupported schema version ");
-                        message.append(it->value().template as<std::string>());
+                        message.append((*it).value().template as<std::string>());
                         JSONCONS_THROW(schema_error(message));
                     }
                 }
@@ -155,7 +160,7 @@ namespace jsonschema {
                     auto vocab_it = meta_sch.find("$vocabulary");
                     if (vocab_it != meta_sch.object_range().end())
                     {
-                        const auto& vocab = vocab_it->value();
+                        const auto& vocab = (*vocab_it).value();
                         if (vocab.is_object())
                         {
                             for (const auto& member : vocab.object_range())
@@ -167,7 +172,7 @@ namespace jsonschema {
                     auto schema_it = meta_sch.find("$schema");
                     if (schema_it != meta_sch.object_range().end())
                     {
-                        builder = get_builder(std::move(sch), schema_it->value().as_string_view(), options, schema_store_ptr, resolve_funcs, vocabulary);
+                        builder = get_builder(std::move(sch), (*schema_it).value().as_string_view(), options, schema_store_ptr, resolve_funcs, vocabulary);
                         found = true;
                     }
                 }
@@ -206,9 +211,9 @@ namespace jsonschema {
         }
     }
 
-    template <typename Json,typename ResolveURI>
-    typename std::enable_if<extension_traits::is_unary_function_object_exact<ResolveURI,Json,jsoncons::uri>::value,json_schema<Json>>::type
-    make_json_schema(Json sch, const std::string& retrieval_uri, const ResolveURI& resolve, 
+    template <typename Json,typename URIResolver>
+    typename std::enable_if<extension_traits::is_unary_function_object_exact<URIResolver,Json,jsoncons::uri>::value,json_schema<Json>>::type
+    make_json_schema(Json sch, const std::string& retrieval_uri, const URIResolver& resolver, 
         evaluation_options options = evaluation_options{})
     {
         using schema_store_type = std::map<jsoncons::uri, schema_validator<Json>*>;
@@ -216,7 +221,7 @@ namespace jsonschema {
         schema_builder_factory<Json> builder_factory{};
         
         std::unordered_map<std::string,bool> vocabulary{};
-        std::vector<resolve_uri_type<Json>> resolve_funcs = {{meta_resolver<Json>, resolve}};
+        std::vector<resolve_uri_type<Json>> resolve_funcs = {{meta_resolver<Json>, resolver}};
         auto schema_builder = builder_factory(std::move(sch), options, &schema_store, resolve_funcs, vocabulary);
 
         schema_builder->build_schema(retrieval_uri);
@@ -239,9 +244,9 @@ namespace jsonschema {
         return json_schema<Json>(schema_builder->get_schema_validator());
     }
 
-    template <typename Json,typename ResolveURI>
-    typename std::enable_if<extension_traits::is_unary_function_object_exact<ResolveURI,Json,jsoncons::uri>::value,json_schema<Json>>::type
-    make_json_schema(Json sch, const ResolveURI& resolve, 
+    template <typename Json,typename URIResolver>
+    typename std::enable_if<extension_traits::is_unary_function_object_exact<URIResolver,Json,jsoncons::uri>::value,json_schema<Json>>::type
+    make_json_schema(Json sch, const URIResolver& resolver, 
         evaluation_options options = evaluation_options{})
     {
         using schema_store_type = std::map<jsoncons::uri, schema_validator<Json>*>;
@@ -249,7 +254,7 @@ namespace jsonschema {
         schema_builder_factory<Json> builder_factory{};
 
         std::unordered_map<std::string,bool> vocabulary{};
-        std::vector<resolve_uri_type<Json>> resolve_funcs = {{meta_resolver<Json>, resolve}};
+        std::vector<resolve_uri_type<Json>> resolve_funcs = {{meta_resolver<Json>, resolver}};
         auto schema_builder = builder_factory(std::move(sch), options, &schema_store, resolve_funcs, vocabulary);
 
         schema_builder->build_schema();

@@ -1,4 +1,4 @@
-// Copyright 2013-2024 Daniel Parker
+// Copyright 2013-2025 Daniel Parker
 // Distributed under the Boost license, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
@@ -8,9 +8,9 @@
 #define JSONCONS_EXT_JSONSCHEMA_COMMON_COMPILATION_CONTEXT_HPP
 
 #include <random>
+#include <vector>
 
 #include <jsoncons/config/jsoncons_config.hpp>
-#include <jsoncons/json.hpp>
 #include <jsoncons/utility/uri.hpp>
 #include <jsoncons_ext/jsonpointer/jsonpointer.hpp>
 #include <jsoncons_ext/jsonschema/common/uri_wrapper.hpp>
@@ -72,9 +72,9 @@ namespace jsonschema {
         {
             for (auto it = uris_.rbegin(); it != uris_.rend(); ++it)
             {
-                if (!it->has_plain_name_fragment())
+                if (!(*it).has_plain_name_fragment())
                 {
-                    return it->append(keyword).uri();
+                    return (*it).append(keyword).uri();
                 }
             }
             return uri{"#"};

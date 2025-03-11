@@ -1,4 +1,4 @@
-/// Copyright 2013-2024 Daniel Parker
+/// Copyright 2013-2025 Daniel Parker
 // Distributed under the Boost license, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
@@ -7,8 +7,12 @@
 #ifndef JSONCONS_EXT_JSONPATH_JSONPATH_ERROR_HPP
 #define JSONCONS_EXT_JSONPATH_JSONPATH_ERROR_HPP
 
+#include <cstddef>
+#include <string>
 #include <system_error>
+#include <type_traits>
 
+#include <jsoncons/config/compiler_support.hpp>
 #include <jsoncons/json_exception.hpp>
 
 namespace jsoncons { namespace jsonpath {
@@ -164,7 +168,7 @@ namespace jsoncons { namespace jsonpath {
         return std::error_code(static_cast<int>(result),jsonpath_error_category());
     }
 
-} // jsonpath
+} // namespace jsonpath
 } // namespace jsoncons
 
 namespace std {
@@ -202,7 +206,7 @@ namespace jsoncons { namespace jsonpath {
 
         jsonpath_error(jsonpath_error&& other) = default;
         
-        ~jsonpath_error() = default;
+        ~jsonpath_error() override = default;
 
         const char* what() const noexcept override
         {

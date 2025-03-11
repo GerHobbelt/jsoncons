@@ -1,4 +1,4 @@
-// Copyright 2017-2024 Daniel Parker
+// Copyright 2017-2025 Daniel Parker
 // Distributed under the Boost license, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
@@ -7,16 +7,15 @@
 #ifndef JSONCONS_EXT_CBOR_ENCODE_CBOR_HPP
 #define JSONCONS_EXT_CBOR_ENCODE_CBOR_HPP
 
-#include <istream> // std::basic_istream
-#include <memory>
-#include <string>
+#include <ostream> // std::basic_ostream
 #include <type_traits> // std::enable_if
-#include <vector>
 
+#include <jsoncons/config/compiler_support.hpp>
 #include <jsoncons/config/jsoncons_config.hpp>
 #include <jsoncons/encode_traits.hpp>
-#include <jsoncons/json.hpp>
 #include <jsoncons/json_filter.hpp>
+#include <jsoncons/basic_json.hpp>
+
 #include <jsoncons_ext/cbor/cbor_encoder.hpp>
 
 namespace jsoncons { 

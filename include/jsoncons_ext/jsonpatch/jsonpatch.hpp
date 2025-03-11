@@ -1,4 +1,4 @@
-// Copyright 2013-2024 Daniel Parker
+// Copyright 2013-2025 Daniel Parker
 // Distributed under the Boost license, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
@@ -8,12 +8,14 @@
 #define JSONCONS_EXT_JSONPATCH_JSONPATCH_HPP
 
 #include <algorithm> // std::min
-#include <memory>
+#include <cstddef>
 #include <string>
+#include <system_error>
 #include <utility> // std::move
 #include <vector> 
 
-#include <jsoncons/json.hpp>
+#include <jsoncons/tag_type.hpp>
+
 #include <jsoncons_ext/jsonpatch/jsonpatch_error.hpp>
 #include <jsoncons_ext/jsonpointer/jsonpointer.hpp>
 
@@ -165,30 +167,30 @@ namespace detail {
             {
                 for (auto it = stack.rbegin(); it != stack.rend(); ++it)
                 {
-                    if (it->op == op_type::add)
+                    if ((*it).op == op_type::add)
                     {
-                        jsonpointer::add(target,it->path,it->value,ec);
+                        jsonpointer::add(target,(*it).path,(*it).value,ec);
                         if (ec)
                         {
-                            //std::cout << "add: " << it->path << '\n';
+                            //std::cout << "add: " << (*it).path << '\n';
                             break;
                         }
                     }
-                    else if (it->op == op_type::remove)
+                    else if ((*it).op == op_type::remove)
                     {
-                        jsonpointer::remove(target,it->path,ec);
+                        jsonpointer::remove(target,(*it).path,ec);
                         if (ec)
                         {
-                            //std::cout << "remove: " << it->path << '\n';
+                            //std::cout << "remove: " << (*it).path << '\n';
                             break;
                         }
                     }
-                    else if (it->op == op_type::replace)
+                    else if ((*it).op == op_type::replace)
                     {
-                        jsonpointer::replace(target,it->path,it->value,ec);
+                        jsonpointer::replace(target,(*it).path,(*it).value,ec);
                         if (ec)
                         {
-                            //std::cout << "replace: " << it->path << '\n';
+                            //std::cout << "replace: " << (*it).path << '\n';
                             break;
                         }
                     }
@@ -256,7 +258,7 @@ namespace detail {
                 auto it = target.find(a.key());
                 if (it != target.object_range().end())
                 {
-                    auto temp_diff = from_diff(a.value(),it->value(),ss);
+                    auto temp_diff = from_diff(a.value(),(*it).value(),ss);
                     result.insert(result.array_range().end(),temp_diff.array_range().begin(),temp_diff.array_range().end());
                 }
                 else

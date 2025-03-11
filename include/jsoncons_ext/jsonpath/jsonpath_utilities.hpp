@@ -1,20 +1,13 @@
-// Copyright 2013-2024 Daniel Parker
+// Copyright 2013-2025 Daniel Parker
 // Distributed under the Boost license, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
 // See https://github.com/danielaparker/jsoncons for latest version
 
-#ifndef JSONCONS_EXT_JSONPATH_UTILITIES_HPP
-#define JSONCONS_EXT_JSONPATH_UTILITIES_HPP
+#ifndef JSONCONS_EXT_JSONPATH_JSONPATH_UTILITIES_HPP
+#define JSONCONS_EXT_JSONPATH_JSONPATH_UTILITIES_HPP
 
-#include <algorithm> // std::copy
-#include <iterator> // std::back_inserter
-#include <limits> // std::numeric_limits
-#include <memory>
-#include <string>
-#include <type_traits> // std::is_const
-#include <utility> // std::move
-#include <vector>
+#include <cstddef>
 
 namespace jsoncons { namespace jsonpath {
 
@@ -76,4 +69,4 @@ namespace jsoncons { namespace jsonpath {
 } // namespace jsonpath
 } // namespace jsoncons
 
-#endif // JSONCONS_EXT_JSONPATH_UTILITIES_HPP
+#endif // JSONCONS_EXT_JSONPATH_JSONPATH_UTILITIES_HPP

@@ -1,9 +1,9 @@
-// Copyright 2013-2024 Daniel Parker
+// Copyright 2013-2025 Daniel Parker
 // Distributed under Boost license
 
 #include <jsoncons/utility/uri.hpp>
-#include <catch/catch.hpp>
 #include <iostream>
+#include <catch/catch.hpp>
 
 TEST_CASE("uri constructor tests")
 {

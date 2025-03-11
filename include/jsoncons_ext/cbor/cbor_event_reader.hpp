@@ -1,4 +1,4 @@
-// Copyright 2013-2024 Daniel Parker
+// Copyright 2013-2025 Daniel Parker
 // Distributed under the Boost license, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
@@ -7,18 +7,17 @@
 #ifndef JSONCONS_EXT_CBOR_EVENT_READER_HPP
 #define JSONCONS_EXT_CBOR_EVENT_READER_HPP
 
+#include <cstddef>
+#include <functional>
 #include <ios>
-#include <istream> // std::basic_istream
 #include <memory> // std::allocator
-#include <stdexcept>
-#include <string>
 #include <system_error>
-#include <vector>
 
-#include <jsoncons/byte_string.hpp>
+#include <jsoncons/utility/byte_string.hpp>
 #include <jsoncons/config/jsoncons_config.hpp>
 #include <jsoncons/item_event_visitor.hpp>
 #include <jsoncons/json_exception.hpp>
+#include <jsoncons/ser_context.hpp>
 #include <jsoncons/source.hpp>
 #include <jsoncons/staj_event_reader.hpp>
 #include <jsoncons_ext/cbor/cbor_parser.hpp>
@@ -38,12 +37,12 @@ namespace cbor {
         basic_item_event_receiver<char_type> event_receiver_;
         bool eof_;
 
-        // Noncopyable and nonmoveable
-        cbor_event_reader(const cbor_event_reader&) = delete;
-        cbor_event_reader& operator=(const cbor_event_reader&) = delete;
-
     public:
         using string_view_type = string_view;
+
+        // Noncopyable and nonmoveable
+        cbor_event_reader(const cbor_event_reader&) = delete;
+        cbor_event_reader(cbor_event_reader&&) = delete;
 
         template <typename Sourceable>
         cbor_event_reader(Sourceable&& source,
@@ -96,6 +95,11 @@ namespace cbor {
                 next(ec);
             }
         }
+        
+        ~cbor_event_reader() = default;
+
+        cbor_event_reader& operator=(const cbor_event_reader&) = delete;
+        cbor_event_reader& operator=(cbor_event_reader&&) = delete;
 
         void reset()
         {

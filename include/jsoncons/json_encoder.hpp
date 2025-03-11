@@ -1,4 +1,4 @@
-// Copyright 2013-2024 Daniel Parker
+// Copyright 2013-2025 Daniel Parker
 // Distributed under the Boost license, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
@@ -8,6 +8,8 @@
 #define JSONCONS_JSON_ENCODER_HPP
 
 #include <array> // std::array
+#include <cstddef>
+#include <cstdint>
 #include <cmath> // std::isfinite, std::isnan
 #include <limits> // std::numeric_limits
 #include <memory>
@@ -15,15 +17,19 @@
 #include <utility> // std::move
 #include <vector>
 
-#include <jsoncons/byte_string.hpp>
+#include <jsoncons/utility/byte_string.hpp>
+#include <jsoncons/config/compiler_support.hpp>
 #include <jsoncons/config/jsoncons_config.hpp>
 #include <jsoncons/detail/write_number.hpp>
 #include <jsoncons/json_error.hpp>
 #include <jsoncons/json_exception.hpp>
 #include <jsoncons/json_options.hpp>
 #include <jsoncons/json_visitor.hpp>
+#include <jsoncons/ser_context.hpp>
 #include <jsoncons/sink.hpp>
+#include <jsoncons/tag_type.hpp>
 #include <jsoncons/utility/bigint.hpp>
+#include <jsoncons/utility/unicode_traits.hpp>
 
 namespace jsoncons { 
 namespace detail {
@@ -322,11 +328,12 @@ namespace detail {
         std::basic_string<CharT> open_array_bracket_str_;
         std::basic_string<CharT> close_array_bracket_str_;
         int nesting_depth_;
+    public:
 
         // Noncopyable and nonmoveable
         basic_json_encoder(const basic_json_encoder&) = delete;
-        basic_json_encoder& operator=(const basic_json_encoder&) = delete;
-    public:
+        basic_json_encoder(basic_json_encoder&&) = delete;
+
         basic_json_encoder(Sink&& sink, 
                            const Allocator& alloc = Allocator())
             : basic_json_encoder(std::forward<Sink>(sink), basic_json_encode_options<CharT>(), alloc)
@@ -406,6 +413,9 @@ namespace detail {
             {
             }
         }
+
+        basic_json_encoder& operator=(const basic_json_encoder&) = delete;
+        basic_json_encoder& operator=(basic_json_encoder&&) = delete;
 
         void reset()
         {
@@ -1124,11 +1134,12 @@ namespace detail {
         jsoncons::detail::write_double fp_;
         std::vector<encoding_context,encoding_context_allocator_type> stack_;
         int nesting_depth_;
-
-        // Noncopyable
-        basic_compact_json_encoder(const basic_compact_json_encoder&) = delete;
-        basic_compact_json_encoder& operator=(const basic_compact_json_encoder&) = delete;
     public:
+
+        // Noncopyable and nonmoveable
+        basic_compact_json_encoder(const basic_compact_json_encoder&) = delete;
+        basic_compact_json_encoder(basic_compact_json_encoder&&) = delete;
+
         basic_compact_json_encoder(Sink&& sink, 
             const Allocator& alloc = Allocator())
             : basic_compact_json_encoder(std::forward<Sink>(sink), basic_json_encode_options<CharT>(), alloc)
@@ -1146,9 +1157,6 @@ namespace detail {
         {
         }
 
-        basic_compact_json_encoder(basic_compact_json_encoder&&) = default;
-        basic_compact_json_encoder& operator=(basic_compact_json_encoder&&) = default;
-
         ~basic_compact_json_encoder() noexcept
         {
             JSONCONS_TRY
@@ -1159,6 +1167,9 @@ namespace detail {
             {
             }
         }
+
+        basic_compact_json_encoder& operator=(const basic_compact_json_encoder&) = delete;
+        basic_compact_json_encoder& operator=(basic_compact_json_encoder&&) = delete;
 
         void reset()
         {

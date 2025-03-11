@@ -1,4 +1,4 @@
-﻿// Copyright 2013-2024 Daniel Parker
+﻿// Copyright 2013-2025 Daniel Parker
 // Distributed under the Boost license, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
@@ -8,14 +8,18 @@
 #define JSONCONS_EXT_JSONPATH_JSON_LOCATION_HPP
 
 #include <algorithm> // std::reverse
+#include <cstddef>
 #include <memory>
 #include <string>
+#include <system_error>
 #include <type_traits> // std::is_const
 #include <utility> // std::move
 #include <vector>
 
+#include <jsoncons/config/compiler_support.hpp>
 #include <jsoncons/config/jsoncons_config.hpp>
-#include <jsoncons/json.hpp>
+#include <jsoncons/utility/extension_traits.hpp>
+
 #include <jsoncons_ext/jsonpath/jsonpath_error.hpp>
 #include <jsoncons_ext/jsonpath/jsonpath_utilities.hpp>
 #include <jsoncons_ext/jsonpath/path_node.hpp>
@@ -766,7 +770,7 @@ namespace jsonpath {
                     {
                         if (i < last)
                         {
-                            p_current = std::addressof(it->value());
+                            p_current = std::addressof((*it).value());
                         }
                         else
                         {
@@ -824,7 +828,7 @@ namespace jsonpath {
                     auto it = p_current->find(element.name());
                     if (it != p_current->object_range().end())
                     {
-                        p_current = std::addressof(it->value());
+                        p_current = std::addressof((*it).value());
                         if (i == last)
                         {
                             found = true;
@@ -903,7 +907,7 @@ namespace jsonpath {
                 auto it = p_current->find(element.name());
                 if (it != p_current->object_range().end())
                 {
-                    p_current = std::addressof(it->value());
+                    p_current = std::addressof((*it).value());
                     if (i == last)
                     {
                         *p_current = std::move(value);

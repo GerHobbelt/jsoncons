@@ -1,4 +1,4 @@
-// Copyright 2013-2024 Daniel Parker
+// Copyright 2013-2025 Daniel Parker
 // Distributed under the Boost license, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
@@ -7,10 +7,11 @@
 #ifndef JSONCONS_EXT_JSONSCHEMA_COMMON_SCHEMA_VALIDATORS_HPP
 #define JSONCONS_EXT_JSONSCHEMA_COMMON_SCHEMA_VALIDATORS_HPP
 
+#include <cstddef>
+#include <unordered_map>
 #include <unordered_set>
 
 #include <jsoncons/config/jsoncons_config.hpp>
-#include <jsoncons/json.hpp>
 #include <jsoncons/utility/uri.hpp>
 #include <jsoncons_ext/jsonschema/common/evaluation_context.hpp>
 #include <jsoncons_ext/jsonschema/common/keyword_validators.hpp>
@@ -308,7 +309,7 @@ namespace jsonschema {
         const schema_validator<Json>* get_schema_for_dynamic_anchor(const std::string& anchor) const final
         {
             auto it = anchor_dict_.find(anchor);
-            return (it == anchor_dict_.end()) ? nullptr : it->second->referred_schema();
+            return (it == anchor_dict_.end()) ? nullptr : (*it).second->referred_schema();
         }
 
         const jsoncons::optional<jsoncons::uri>& dynamic_anchor() const final

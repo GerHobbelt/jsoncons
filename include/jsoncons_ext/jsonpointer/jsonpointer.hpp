@@ -1,4 +1,4 @@
-// Copyright 2013-2024 Daniel Parker
+// Copyright 2013-2025 Daniel Parker
 // Distributed under the Boost license, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
@@ -7,8 +7,8 @@
 #ifndef JSONCONS_EXT_JSONPOINTER_JSONPOINTER_HPP
 #define JSONCONS_EXT_JSONPOINTER_JSONPOINTER_HPP
 
+#include <cstddef>
 #include <iostream>
-#include <iterator>
 #include <memory>
 #include <string>
 #include <system_error> // system_error
@@ -17,7 +17,10 @@
 #include <vector>
 
 #include <jsoncons/detail/write_number.hpp>
-#include <jsoncons/json.hpp>
+#include <jsoncons/json_type.hpp>
+#include <jsoncons/tag_type.hpp>
+#include <jsoncons/utility/extension_traits.hpp>
+
 #include <jsoncons_ext/jsonpointer/jsonpointer_error.hpp>
 
 namespace jsoncons { namespace jsonpointer {
@@ -1340,7 +1343,7 @@ namespace jsoncons { namespace jsonpointer {
             for (auto it = ptr.begin(); it != ptr.end(); )
             {
                 auto s = *it;
-                size_t n{0};
+                std::size_t n{0};
                 auto r = jsoncons::detail::decimal_to_integer(s.data(), s.size(), n);
                 if (r.ec == jsoncons::detail::to_integer_errc() && (index++ == n))
                 {

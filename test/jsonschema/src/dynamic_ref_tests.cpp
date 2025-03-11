@@ -1,4 +1,4 @@
-// Copyright 2013-2024 Daniel Parker
+// Copyright 2013-2025 Daniel Parker
 // Distributed under the Boost license, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
@@ -6,12 +6,13 @@
 
 #include <jsoncons_ext/jsonschema/jsonschema.hpp>
 #include <jsoncons_ext/jsonpatch/jsonpatch.hpp>
-#include <jsoncons/byte_string.hpp>
+#include <jsoncons/json.hpp>
+#include <jsoncons/utility/byte_string.hpp>
 
-#include <catch/catch.hpp>
 #include <fstream>
 #include <iostream>
 #include <regex>
+#include <catch/catch.hpp>
 
 using jsoncons::json;
 namespace jsonschema = jsoncons::jsonschema;
@@ -53,7 +54,7 @@ TEST_CASE("jsonschema $recursiveRef tests")
 
     json strict_tree_schema = json::parse(strict_tree_schema_str);
     
-    auto resolve = [tree_schema](const jsoncons::uri& uri)
+    auto resolver = [tree_schema](const jsoncons::uri& uri)
         {
             //std::cout << "resolve: " << uri.string() << "\n";
             if (uri.string() == "https://example.com/tree")
@@ -65,7 +66,7 @@ TEST_CASE("jsonschema $recursiveRef tests")
                 return json::null();
             }
         };
-    jsonschema::json_schema<json> compiled = jsonschema::make_json_schema(strict_tree_schema, resolve); 
+    jsonschema::json_schema<json> compiled = jsonschema::make_json_schema(strict_tree_schema, resolver); 
 
     SECTION("instance with misspelled field")
     {
@@ -141,7 +142,7 @@ TEST_CASE("jsonschema $dynamicRef tests")
 
     json strict_tree_schema = json::parse(strict_tree_schema_str);
     
-    auto resolve = [tree_schema](const jsoncons::uri& uri)
+    auto resolver = [tree_schema](const jsoncons::uri& uri)
         {
             //std::cout << "resolve: " << uri.string() << "\n";
             if (uri.string() == "https://example.com/tree")
@@ -153,7 +154,7 @@ TEST_CASE("jsonschema $dynamicRef tests")
                 return json::null();
             }
         };
-    jsonschema::json_schema<json> compiled = jsonschema::make_json_schema(strict_tree_schema, resolve); 
+    jsonschema::json_schema<json> compiled = jsonschema::make_json_schema(strict_tree_schema, resolver); 
 
     SECTION("instance with misspelled field")
     {

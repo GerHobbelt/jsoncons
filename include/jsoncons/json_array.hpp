@@ -1,4 +1,4 @@
-// Copyright 2013-2024 Daniel Parker
+// Copyright 2013-2025 Daniel Parker
 // Distributed under the Boost license, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
@@ -10,18 +10,15 @@
 #include <algorithm> // std::sort, std::stable_sort, std::lower_bound, std::unique
 #include <cassert> // assert
 #include <cstring>
-#include <exception>
 #include <initializer_list>
 #include <iterator> // std::iterator_traits
 #include <memory> // std::allocator
-#include <string>
 #include <type_traits> // std::enable_if
 #include <utility>
 #include <utility> // std::move
 #include <vector>
 
 #include <jsoncons/allocator_holder.hpp>
-#include <jsoncons/json_exception.hpp>
 #include <jsoncons/json_type.hpp>
 
 namespace jsoncons {

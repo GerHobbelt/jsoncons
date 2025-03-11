@@ -1,14 +1,14 @@
-// Copyright 2013-2024 Daniel Parker
+// Copyright 2013-2025 Daniel Parker
 // Distributed under Boost license
 
 #include <jsoncons/json.hpp>
 #include <jsoncons/source.hpp>
-#include <catch/catch.hpp>
 #include <sstream>
 #include <vector>
 #include <utility>
 #include <ctime>
 #include <new>
+#include <catch/catch.hpp>
 
 TEST_CASE("basic_null_istream tests")
 {

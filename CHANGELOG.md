@@ -1,29 +1,54 @@
-1.0.0 (on master)
--------
+1.1.0 
+-----
 
 - API Changes
 
-    - Non-const `basic_json::operator[const string_view_type& key]` no longer returns a proxy type. The rationale for this change is given in Git Issue #315.
-    The new behavior for the non-const overload of `operator[](const string_view_type& key)` is to return a reference to the value that is associated with `key`, inserting a default 
-    constructed value with the key if no such key already exists, which is consistent with the standard library 
-    `std::map` behavior. The new behavior for the const overload of `operator[](const string_view_type& key)` is to return 
-    a const reference to the value that is associated with `key`, returning a const reference to a default 
-    constructed value with static storage duration if no such key already exists.
+    - Reverted changes to `basic_json_parser` API introduced in 1.0.0, cf Git issue #576
 
-    - Until 1.0.0, a buffer of text is supplied to `basic_json_parser` with a call to `update()`
-    followed by a call to `parse_some()`. Once the parser reaches the end of the buffer,
-    additional JSON text can be supplied to the parser with another call to `update()`,
-    followed by another call to `parse_some()`. See [Incremental parsing (until 1.0.0)](https://github.com/danielaparker/jsoncons/blob/master/doc/ref/corelib/basic_json_parser.md#incremental-parsing-until-01790). 
-    Since 0.179, an initial buffer of text is supplied to the parse with a call to
-    `set_buffer`, and parsing commences with a call to `parse_some`. The parser can be
-    constructed with a user provided chunk reader to obtain additional JSON text
-    as needed. See [Incremental parsing (since 1.0.0)](https://github.com/danielaparker/jsoncons/blob/master/doc/ref/corelib/basic_json_parser.md#incremental-parsing-since-01790). 
+- Fixed bugs:
 
-    - enum `bigint_chars_format` is replaced by `bignum_format_kind`, and for backwards compatability, `bigint_chars_format`
-    is aliased to `bignum_format_kind`. Added `bignum_format` getter and setter functions to `basic_json_options`,
-    and deprecated `bigint_format` getter and setter functions. Changed default `bignum_format` from `bigint_chars_format::base10`
-    to `bignum_format_kind::raw`. Rationale: `bigint_chars_format` was misnamed, as it applied to `bigdec` as well as `bigint` numbers, and
-    defaulting to `bigint_chars_format::base10` produced surprising results for users of our lossless number option. 
+    - Git Issue #554: Made headers self-contained
+
+1.0.0
+-----
+
+- API Changes
+
+    - Non-const `basic_json::operator[const string_view_type& key]` no longer 
+    returns a proxy type.  The rationale for this change is given in Git Issue 
+    #315.  The new behavior for the non-const overload of `operator[](const 
+    string_view_type& key)` is to return a reference to the value that is 
+    associated with `key`, inserting a default constructed value with the key 
+    if no such key already exists, which is consistent with the standard 
+    library `std::map` behavior.  The new behavior for the const overload of 
+    `operator[](const string_view_type& key)` is to return a const reference 
+    to the value that is associated with `key`, returning a const reference to 
+    a default constructed value with static storage duration if no such key 
+    already exists.  
+
+    - Until 1.0.0, a buffer of text is supplied to `basic_json_parser` with a 
+    call to `update()` followed by a call to `parse_some()`.  Once the parser 
+    reaches the end of the buffer, additional JSON text can be supplied to the 
+    parser with another call to `update()`, followed by another call to 
+    `parse_some()`.  See [Incremental parsing (until 
+    1.0.0)](https://github.com/danielaparker/jsoncons/blob/master/doc/ref/corelib/basic_json_parser.md#incremental-parsing-until-01790).  
+    Since 0.179, an initial buffer of text is supplied to the parse with a 
+    call to `set_buffer`, and parsing commences with a call to `parse_some`.  
+    The parser can be constructed with a user provided chunk reader to obtain 
+    additional JSON text as needed.  See [Incremental parsing (since 
+    1.0.0)](https://github.com/danielaparker/jsoncons/blob/master/doc/ref/corelib/basic_json_parser.md#incremental-parsing-since-01790).  
+
+    - enum `bigint_chars_format` is deprecated and replaced by 
+    `bignum_format_kind`.  Added `bignum_format` getter and setter functions 
+    to `basic_json_options`, and deprecated `bigint_format` getter and setter 
+    functions.  Changed default `bignum_format` from 
+    `bigint_chars_format::base10` to `bignum_format_kind::raw`.  Rationale: 
+    `bigint_chars_format` was misnamed, as it applied to `bigdec` as well as 
+    `bigint` numbers, and defaulting to `bigint_chars_format::base10` produced 
+    surprising results for users of our lossless number option.  
+
+    - The URI argument passed to the jsonschema ResolveURI function object now 
+    included the fragment part of the URI.  
 
 - Fixed bugs:
 
@@ -47,6 +72,8 @@
     deprecated in 0.174.0, have been removed.
 
 - Enhancements:
+
+    - Added stream output operator (`<<`) to uri class.
 
     - Added `basic_json(json_pointer_arg_t, basic_json* j)` constructor to 
     allow a `basic_json` value to contain a non-owning view of another `basic_json`

@@ -1,4 +1,4 @@
-// Copyright 2013-2024 Daniel Parker
+// Copyright 2013-2025 Daniel Parker
 // Distributed under the Boost license, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
@@ -8,15 +8,9 @@
 #define JSONCONS_TEXT_SOURCE_ADAPTOR_HPP
 
 #include <cstddef>
-#include <memory> // std::allocator_traits
-#include <stdexcept>
-#include <string>
 #include <system_error>
-#include <vector>
-#include <vector> // std::vector
 
 #include <jsoncons/json_error.hpp> // json_errc
-#include <jsoncons/json_exception.hpp>
 #include <jsoncons/source.hpp>
 #include <jsoncons/utility/unicode_traits.hpp>
 
@@ -86,7 +80,6 @@ namespace jsoncons {
     class json_source_adaptor 
     {
     public:
-        using value_type = typename Source::value_type;
         using value_type = typename Source::value_type;
         using source_type = Source;
     private:

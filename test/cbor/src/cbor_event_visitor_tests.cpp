@@ -1,19 +1,20 @@
-// Copyright 2013-2024 Daniel Parker
+// Copyright 2013-2025 Daniel Parker
 // Distributed under Boost license
 
 #if defined(_MSC_VER)
 #include "windows.h"
 #endif
-#include <jsoncons/json.hpp>
-#include <jsoncons_ext/cbor/cbor_reader.hpp>
-#include <jsoncons/item_event_visitor.hpp>
+
 #include <jsoncons_ext/cbor/cbor.hpp>
-#include <catch/catch.hpp>
+#include <jsoncons/json.hpp>
+
+#include <jsoncons/item_event_visitor.hpp>
 #include <sstream>
 #include <vector>
 #include <utility>
 #include <ctime>
 #include <limits>
+#include <catch/catch.hpp>
 
 using namespace jsoncons;
 

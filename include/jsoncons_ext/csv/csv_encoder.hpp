@@ -1,4 +1,4 @@
-// Copyright 2013-2024 Daniel Parker
+// Copyright 2013-2025 Daniel Parker
 // Distributed under the Boost license, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
@@ -17,9 +17,11 @@
 #include <vector>
 
 #include <jsoncons/detail/write_number.hpp>
+#include <jsoncons/json_encoder.hpp>
 #include <jsoncons/json_exception.hpp>
 #include <jsoncons/json_visitor.hpp>
 #include <jsoncons/sink.hpp>
+#include <jsoncons_ext/csv/csv_error.hpp>
 #include <jsoncons_ext/csv/csv_options.hpp>
 
 namespace jsoncons { namespace csv {
@@ -57,31 +59,34 @@ private:
 
     enum class stack_item_kind
     {
+        flat_row_mapping,
         row_mapping,
         column_mapping,
+        flat_object,
+        flat_row,
+        unmapped,
         object,
         row,
         column,
-        object_multi_valued_field,
-        row_multi_valued_field,
-        column_multi_valued_field
+        multivalued_field,
+        column_multivalued_field
     };
 
     struct stack_item
     {
         stack_item_kind item_kind_;
-        std::size_t count_{0};
+        std::size_t count_;
+        std::string pathname_;
+        std::string pointer_;
 
         stack_item(stack_item_kind item_kind) noexcept
-           : item_kind_(item_kind)
+           : item_kind_(item_kind), pathname_{}, count_(0)
         {
         }
-        
-        ~stack_item() = default;
 
         bool is_object() const
         {
-            return item_kind_ == stack_item_kind::object;
+            return item_kind_ == stack_item_kind::object || stack_item_kind::flat_object;
         }
 
         stack_item_kind item_kind() const
@@ -96,33 +101,37 @@ private:
 
     std::vector<stack_item> stack_;
     jsoncons::detail::write_double fp_;
-    std::vector<string_type,string_allocator_type> strings_buffer_;
 
-    std::unordered_map<string_type,string_type, std::hash<string_type>,std::equal_to<string_type>,string_string_allocator_type> buffered_line_;
-    string_type name_;
+    std::vector<string_type,string_allocator_type> column_names_;
+    std::vector<string_type,string_allocator_type> column_pointers_;
+    std::unordered_map<string_type,string_type, std::hash<string_type>,std::equal_to<string_type>,string_string_allocator_type> cname_value_map_;
+    std::unordered_map<string_type,string_type, std::hash<string_type>,std::equal_to<string_type>,string_string_allocator_type> column_pointer_name_map_;
+
     std::size_t column_index_{0};
     std::vector<std::size_t> row_counts_;
+    string_type buffer_;
+    string_type value_buffer_;
 
     // Noncopyable and nonmoveable
     basic_csv_encoder(const basic_csv_encoder&) = delete;
     basic_csv_encoder& operator=(const basic_csv_encoder&) = delete;
 public:
-    basic_csv_encoder(Sink&& sink, 
-                      const Allocator& alloc = Allocator())
+    basic_csv_encoder(Sink&& sink, const Allocator& alloc = Allocator())
        : basic_csv_encoder(std::forward<Sink>(sink), basic_csv_encode_options<CharT>(), alloc)
     {
     }
 
     basic_csv_encoder(Sink&& sink,
-                      const basic_csv_encode_options<CharT>& options, 
-                      const Allocator& alloc = Allocator())
+        const basic_csv_encode_options<CharT>& options, 
+        const Allocator& alloc = Allocator())
       : sink_(std::forward<Sink>(sink)),
         options_(options),
         alloc_(alloc),
-        stack_(),
-        fp_(options.float_format(), options.precision())
+        fp_(options.float_format(), options.precision()),
+        buffer_(alloc),
+        value_buffer_(alloc)
     {
-        jsoncons::csv::detail::parse_column_names(options.column_names(), strings_buffer_);
+        jsoncons::csv::detail::parse_column_names(options.column_names(), column_names_);
     }
 
     ~basic_csv_encoder() noexcept
@@ -139,9 +148,8 @@ public:
     void reset()
     {
         stack_.clear();
-        strings_buffer_.clear();
-        buffered_line_.clear();
-        name_.clear();
+        column_names_.clear();
+        cname_value_map_.clear();
         column_index_ = 0;
         row_counts_.clear();
     }
@@ -191,62 +199,100 @@ private:
         }
         switch (stack_.back().item_kind_)
         {
+            case stack_item_kind::flat_row_mapping:
+                stack_.emplace_back(stack_item_kind::flat_object);
+                break;
             case stack_item_kind::row_mapping:
                 stack_.emplace_back(stack_item_kind::object);
                 return true;
+            case stack_item_kind::object:
+                stack_.emplace_back(stack_item_kind::object);
+                break;
+            case stack_item_kind::flat_object:
+                if (options_.subfield_delimiter() == char_type())
+                {
+                    stack_.emplace_back(stack_item_kind::unmapped);
+                }
+                else
+                {
+                    stack_.back().pathname_ = stack_[stack_.size()-2].pathname_;
+                    stack_.back().pointer_ = stack_[stack_.size()-2].pointer_;
+                    value_buffer_.clear();
+                    stack_.emplace_back(stack_item_kind::multivalued_field);
+                }
+                break;
+            case stack_item_kind::column_multivalued_field:
+                break;
+            case stack_item_kind::unmapped:
+                stack_.emplace_back(stack_item_kind::unmapped);
+                break;
             default: // error
+                std::cout << "visit_begin_object " << (int)stack_.back().item_kind_ << "\n"; 
                 ec = csv_errc::source_error;
                 return false;
         }
+        return true;
     }
 
-    bool visit_end_object(const ser_context&, std::error_code&) override
+    bool visit_end_object(const ser_context&, std::error_code& ec) override
     {
-        JSONCONS_ASSERT(!stack_.empty());
+        if (stack_.empty())
+        {
+            return true;
+        }
 
         switch (stack_.back().item_kind_)
         {
+            case stack_item_kind::flat_object:
             case stack_item_kind::object:
-                if (stack_[0].count_ == 0)
+                if (stack_[stack_.size()-2].item_kind_ == stack_item_kind::row_mapping || stack_[stack_.size()-2].item_kind_ == stack_item_kind::flat_row_mapping)
                 {
-                    for (std::size_t i = 0; i < strings_buffer_.size(); ++i)
+                    if (stack_[0].count_ == 0)
+                    {
+                        for (std::size_t i = 0; i < column_names_.size(); ++i)
+                        {
+                            if (i > 0)
+                            {
+                                sink_.push_back(options_.field_delimiter());
+                            }
+                            sink_.append(column_names_[i].data(), column_names_[i].length());
+                        }
+                        sink_.append(options_.line_delimiter().data(),
+                                      options_.line_delimiter().length());
+                    }
+                    for (std::size_t i = 0; i < column_names_.size(); ++i)
                     {
                         if (i > 0)
                         {
                             sink_.push_back(options_.field_delimiter());
                         }
-                        sink_.append(strings_buffer_[i].data(),
-                                      strings_buffer_[i].length());
+                        auto it = cname_value_map_.find(column_names_[i]);
+                        if (it != cname_value_map_.end())
+                        {
+                            sink_.append(it->second.data(),it->second.length());
+                            it->second.clear();
+                        }
                     }
-                    sink_.append(options_.line_delimiter().data(),
-                                  options_.line_delimiter().length());
+                    sink_.append(options_.line_delimiter().data(), options_.line_delimiter().length());
                 }
-                for (std::size_t i = 0; i < strings_buffer_.size(); ++i)
-                {
-                    if (i > 0)
-                    {
-                        sink_.push_back(options_.field_delimiter());
-                    }
-                    auto it = buffered_line_.find(strings_buffer_[i]);
-                    if (it != buffered_line_.end())
-                    {
-                        sink_.append(it->second.data(),it->second.length());
-                        it->second.clear();
-                    }
-                }
-                sink_.append(options_.line_delimiter().data(), options_.line_delimiter().length());
                 break;
             case stack_item_kind::column_mapping:
              {
-                 for (const auto& item : strings_buffer_)
+                 for (const auto& item : column_names_)
                  {
                      sink_.append(item.data(), item.size());
                      sink_.append(options_.line_delimiter().data(), options_.line_delimiter().length());
                  }
                  break;
              }
-            default:
+            case stack_item_kind::column_multivalued_field:
                 break;
+            case stack_item_kind::unmapped:
+                break;
+            default:
+                std::cout << "visit_end_object " << (int)stack_.back().item_kind_ << "\n"; 
+                ec = csv_errc::source_error;
+                return false;
         }
         stack_.pop_back();
         if (!stack_.empty())
@@ -260,76 +306,197 @@ private:
     {
         if (stack_.empty())
         {
-            stack_.emplace_back(stack_item_kind::row_mapping);
+            if (options_.flat())
+            {
+                stack_.emplace_back(stack_item_kind::flat_row_mapping);
+            }
+            else
+            {
+                stack_.emplace_back(stack_item_kind::row_mapping);
+            }
             return true;
         }
+        
+        switch (stack_.back().item_kind_)
+        {
+            case stack_item_kind::flat_row_mapping:
+                stack_.emplace_back(stack_item_kind::flat_row);
+                break;
+            case stack_item_kind::row_mapping:
+                stack_.emplace_back(stack_item_kind::row);
+                break;
+            case stack_item_kind::object:
+                stack_.emplace_back(stack_item_kind::object);
+                break;
+            case stack_item_kind::column_mapping:
+                stack_.emplace_back(stack_item_kind::column);
+                row_counts_.push_back(1);
+                if (column_names_.size() <= row_counts_.back())
+                {
+                    column_names_.emplace_back();
+                }
+                break;
+            case stack_item_kind::column:
+            {
+                if (column_names_.size() <= row_counts_.back())
+                {
+                    column_names_.emplace_back();
+                }                
+                jsoncons::string_sink<std::basic_string<CharT>> bo(column_names_[row_counts_.back()]);
+                begin_value(bo);
+                stack_.emplace_back(stack_item_kind::column_multivalued_field);
+                break;
+            }
+            case stack_item_kind::row:
+                stack_.emplace_back(stack_item_kind::row);
+                break;
+            case stack_item_kind::flat_row:
+                if (options_.subfield_delimiter() == char_type())
+                {
+                    stack_.emplace_back(stack_item_kind::unmapped);
+                }
+                else
+                {
+                    append_array_path_component();
+                    value_buffer_.clear();
+                    stack_.emplace_back(stack_item_kind::multivalued_field);
+                }
+                break;
+            case stack_item_kind::flat_object:
+                if (options_.subfield_delimiter() == char_type())
+                {
+                    stack_.emplace_back(stack_item_kind::unmapped);
+                }
+                else
+                {
+                    if (stack_[0].count_ == 0)
+                    {
+                        if (options_.column_names().empty())
+                        {
+                            column_names_.emplace_back(stack_.back().pathname_);
+                            column_pointers_.emplace_back(stack_.back().pathname_);
+                            column_pointer_name_map_.emplace(stack_.back().pathname_, stack_.back().pathname_);
+                        }
+                        cname_value_map_[stack_.back().pathname_] = std::basic_string<CharT>();
+                    }
+                    value_buffer_.clear();
+                    stack_.emplace_back(stack_item_kind::multivalued_field);
+                }
+                break;
+            case stack_item_kind::multivalued_field:
+                stack_.emplace_back(stack_item_kind::unmapped);
+                break;
+            case stack_item_kind::column_multivalued_field:
+                break;
+            case stack_item_kind::unmapped:
+                stack_.emplace_back(stack_item_kind::unmapped);
+                break;
+            default: // error
+                std::cout << "visit_begin_array " << (int)stack_.back().item_kind_ << "\n"; 
+                ec = csv_errc::source_error;
+                return false;
+        }
+        return true;
+    }
+
+    bool visit_end_array(const ser_context&, std::error_code& ec) override
+    {
+        if (stack_.empty())
+        {
+            return true;
+        }
+        
         switch (stack_.back().item_kind_)
         {
             case stack_item_kind::row_mapping:
-                stack_.emplace_back(stack_item_kind::row);
-                if (stack_[0].count_ == 0)
+            case stack_item_kind::flat_row_mapping:
+                break;
+            case stack_item_kind::flat_row:
+                if (stack_[stack_.size()-2].item_kind_ == stack_item_kind::flat_row_mapping)
                 {
-                    for (std::size_t i = 0; i < strings_buffer_.size(); ++i)
+                    if (stack_[0].count_ == 0 && !options_.column_names().empty())
+                    {
+                        for (std::size_t i = 0; i < column_names_.size(); ++i)
+                        {
+                            if (i > 0)
+                            {
+                                sink_.push_back(options_.field_delimiter());
+                            }
+                            sink_.append(column_names_[i].data(), column_names_[i].length());
+                        }
+                        sink_.append(options_.line_delimiter().data(), 
+                            options_.line_delimiter().length());
+                    }
+
+                    for (std::size_t i = 0; i < column_names_.size(); ++i)
                     {
                         if (i > 0)
                         {
                             sink_.push_back(options_.field_delimiter());
                         }
-                        sink_.append(strings_buffer_[i].data(),strings_buffer_[i].length());
+                        auto it = cname_value_map_.find(column_names_[i]);
+                        if (it != cname_value_map_.end())
+                        {
+                            sink_.append(it->second.data(),it->second.length());
+                            it->second.clear();
+                        }
                     }
-                    if (strings_buffer_.size() > 0)
-                    {
-                        sink_.append(options_.line_delimiter().data(),
-                                      options_.line_delimiter().length());
-                    }
+                    sink_.append(options_.line_delimiter().data(), options_.line_delimiter().length());
                 }
-                return true;
-            case stack_item_kind::object:
-                stack_.emplace_back(stack_item_kind::object_multi_valued_field);
-                return true;
-            case stack_item_kind::column_mapping:
-                stack_.emplace_back(stack_item_kind::column);
-                row_counts_.push_back(1);
-                if (strings_buffer_.size() <= row_counts_.back())
-                {
-                    strings_buffer_.emplace_back();
-                }
-                return true;
-            case stack_item_kind::column:
+                break;
+            case stack_item_kind::multivalued_field:
             {
-                if (strings_buffer_.size() <= row_counts_.back())
+                auto it = cname_value_map_.find(stack_[stack_.size()-2].pathname_);
+                if (it != cname_value_map_.end())
                 {
-                    strings_buffer_.emplace_back();
-                }                
-                jsoncons::string_sink<std::basic_string<CharT>> bo(strings_buffer_[row_counts_.back()]);
-                begin_value(bo);
-                stack_.emplace_back(stack_item_kind::column_multi_valued_field);
-                return true;
+                    it->second.append(value_buffer_.data(),value_buffer_.length());
+                }
+                break;
             }
             case stack_item_kind::row:
-                begin_value(sink_);
-                stack_.emplace_back(stack_item_kind::row_multi_valued_field);
-                return true;
-            default: // error
-                ec = csv_errc::source_error;
-                return false;
-        }
-    }
-
-    bool visit_end_array(const ser_context&, std::error_code&) override
-    {
-        JSONCONS_ASSERT(!stack_.empty());
-        switch (stack_.back().item_kind_)
-        {
-            case stack_item_kind::row:
-                sink_.append(options_.line_delimiter().data(),
-                              options_.line_delimiter().length());
+                if (stack_[stack_.size()-2].item_kind_ == stack_item_kind::row_mapping)
+                {
+                    if (stack_[0].count_ == 0)
+                    {
+                        for (std::size_t i = 0; i < column_names_.size(); ++i)
+                        {
+                            if (i > 0)
+                            {
+                                sink_.push_back(options_.field_delimiter());
+                            }
+                            sink_.append(column_names_[i].data(), column_names_[i].length());
+                        }
+                        sink_.append(options_.line_delimiter().data(), 
+                            options_.line_delimiter().length());
+                    }
+                    
+                    for (std::size_t i = 0; i < column_names_.size(); ++i)
+                    {
+                        if (i > 0)
+                        {
+                            sink_.push_back(options_.field_delimiter());
+                        }
+                        auto it = cname_value_map_.find(column_names_[i]);
+                        if (it != cname_value_map_.end())
+                        {
+                            sink_.append(it->second.data(),it->second.length());
+                            it->second.clear();
+                        }
+                    }
+                    sink_.append(options_.line_delimiter().data(), options_.line_delimiter().length());
+                }
                 break;
             case stack_item_kind::column:
                 ++column_index_;
                 break;
-            default:
+            case stack_item_kind::column_multivalued_field:
                 break;
+            case stack_item_kind::unmapped:
+                break;
+            default:
+                std::cout << "visit_end_array " << (int)stack_.back().item_kind_ << "\n"; 
+                ec = csv_errc::source_error;
+                return false;
         }
         stack_.pop_back();
 
@@ -345,26 +512,42 @@ private:
         JSONCONS_ASSERT(!stack_.empty());
         switch (stack_.back().item_kind_)
         {
+            case stack_item_kind::flat_object:
+            {
+                stack_.back().pointer_ = stack_[stack_.size()-2].pointer_;
+                stack_.back().pointer_.push_back('/');
+                stack_.back().pointer_.append(std::string(name));
+                stack_.back().pathname_ = std::string(name);
+                if (options_.column_names().empty())
+                {
+                    column_pointer_name_map_.emplace(stack_.back().pathname_, name);
+                }
+                break;
+            }
             case stack_item_kind::object:
             {
-                name_ = string_type(name);
-                buffered_line_[string_type(name)] = std::basic_string<CharT>();
-                if (stack_[0].count_ == 0 && options_.column_names().size() == 0)
+                stack_.back().pathname_ = stack_[stack_.size()-2].pathname_;
+                stack_.back().pathname_.push_back('/');
+                stack_.back().pathname_.append(std::string(name));
+                stack_.back().pointer_ = stack_[stack_.size()-2].pointer_;
+                stack_.back().pointer_.push_back('/');
+                stack_.back().pointer_.append(std::string(name));
+                if (options_.column_names().empty())
                 {
-                    strings_buffer_.emplace_back(name);
+                    column_pointer_name_map_.emplace(stack_.back().pathname_, stack_.back().pathname_);
                 }
                 break;
             }
             case stack_item_kind::column_mapping:
             {
-                if (strings_buffer_.empty())
+                if (column_names_.empty())
                 {
-                    strings_buffer_.emplace_back(name);
+                    column_names_.emplace_back(name);
                 }
                 else
                 {
-                    strings_buffer_[0].push_back(options_.field_delimiter());
-                    strings_buffer_[0].append(string_type(name));
+                    column_names_[0].push_back(options_.field_delimiter());
+                    column_names_[0].append(string_type(name));
                 }
                 break;
             }
@@ -373,17 +556,43 @@ private:
         }
         return true;
     }
+    
+    void append_array_path_component()
+    {
+        buffer_.clear();
+        jsoncons::detail::from_integer(stack_.back().count_, buffer_);
+
+        stack_.back().pathname_ = stack_[stack_.size()-2].pathname_;
+        stack_.back().pathname_.push_back('/');
+        stack_.back().pathname_.append(buffer_);
+        stack_.back().pointer_ = stack_[stack_.size()-2].pointer_;
+        stack_.back().pointer_.push_back('/');
+        stack_.back().pointer_.append(buffer_);
+        if (stack_[0].count_ == 0 && options_.column_names().empty())
+        {
+            column_names_.emplace_back(stack_.back().pathname_);
+            column_pointer_name_map_.emplace(stack_.back().pathname_, stack_.back().pathname_);
+        }
+    }
 
     bool visit_null(semantic_tag, const ser_context&, std::error_code&) override
     {
         JSONCONS_ASSERT(!stack_.empty());
         switch (stack_.back().item_kind_)
         {
+            case stack_item_kind::flat_object:
             case stack_item_kind::object:
-            case stack_item_kind::object_multi_valued_field:
             {
-                auto it = buffered_line_.find(name_);
-                if (it != buffered_line_.end())
+                if (stack_[0].count_ == 0)
+                {
+                    if (options_.column_names().empty())
+                    {
+                        column_names_.emplace_back(stack_.back().pathname_);
+                    }
+                    cname_value_map_[stack_.back().pathname_] = std::basic_string<CharT>();
+                }
+                auto it = cname_value_map_.find(stack_.back().pathname_);
+                if (it != cname_value_map_.end())
                 {
                     std::basic_string<CharT> s;
                     jsoncons::string_sink<std::basic_string<CharT>> bo(s);
@@ -397,23 +606,48 @@ private:
                 }
                 break;
             }
+            case stack_item_kind::flat_row:
             case stack_item_kind::row:
-            case stack_item_kind::row_multi_valued_field:
-                write_null_value(sink_);
-                break;
-            case stack_item_kind::column:
             {
-                if (strings_buffer_.size() <= row_counts_.back())
+                append_array_path_component();
+                if (stack_[0].count_ == 0)
                 {
-                    strings_buffer_.emplace_back();
+                    cname_value_map_[stack_.back().pathname_] = std::basic_string<CharT>();
                 }
-                jsoncons::string_sink<std::basic_string<CharT>> bo(strings_buffer_[row_counts_.back()]);
+                auto it = cname_value_map_.find(stack_.back().pathname_);
+                if (it != cname_value_map_.end())
+                {
+                    std::basic_string<CharT> s;
+                    jsoncons::string_sink<std::basic_string<CharT>> bo(s);
+                    write_null_value(bo);
+                    bo.flush();
+                    it->second.append(s);
+                }
+                break;
+            }
+            case stack_item_kind::multivalued_field:
+            {
+                if (!value_buffer_.empty())
+                {
+                    value_buffer_.push_back(options_.subfield_delimiter());
+                }
+                jsoncons::string_sink<std::basic_string<CharT>> bo(value_buffer_);
                 write_null_value(bo);
                 break;
             }
-            case stack_item_kind::column_multi_valued_field:
+            case stack_item_kind::column:
             {
-                jsoncons::string_sink<std::basic_string<CharT>> bo(strings_buffer_[row_counts_.back()]);
+                if (column_names_.size() <= row_counts_.back())
+                {
+                    column_names_.emplace_back();
+                }
+                jsoncons::string_sink<std::basic_string<CharT>> bo(column_names_[row_counts_.back()]);
+                write_null_value(bo);
+                break;
+            }
+            case stack_item_kind::column_multivalued_field:
+            {
+                jsoncons::string_sink<std::basic_string<CharT>> bo(column_names_[row_counts_.back()]);
                 write_null_value(bo);
                 break;
             }
@@ -428,41 +662,71 @@ private:
         JSONCONS_ASSERT(!stack_.empty());
         switch (stack_.back().item_kind_)
         {
+            case stack_item_kind::flat_object:
             case stack_item_kind::object:
-            case stack_item_kind::object_multi_valued_field:
             {
-                auto it = buffered_line_.find(name_);
-                if (it != buffered_line_.end())
+                //stack_.back().pathname_ = stack_[stack_.size()-2].pathname_;
+                if (stack_[0].count_ == 0)
+                {
+                    if (options_.column_names().empty())
+                    {
+                        column_names_.emplace_back(stack_.back().pathname_);
+                    }
+                    cname_value_map_[stack_.back().pathname_] = std::basic_string<CharT>();
+                }
+                auto it = cname_value_map_.find(stack_.back().pathname_);
+                if (it != cname_value_map_.end())
                 {
                     std::basic_string<CharT> s;
                     jsoncons::string_sink<std::basic_string<CharT>> bo(s);
                     write_string_value(sv,bo);
                     bo.flush();
-                    if (!it->second.empty() && options_.subfield_delimiter() != char_type())
-                    {
-                        it->second.push_back(options_.subfield_delimiter());
-                    }
+                    cname_value_map_[stack_.back().pathname_] = s;
+                }
+                break;
+            }
+            case stack_item_kind::flat_row:
+            case stack_item_kind::row:
+            {
+                append_array_path_component();
+                if (stack_[0].count_ == 0)
+                {
+                    cname_value_map_[stack_.back().pathname_] = std::basic_string<CharT>();
+                }
+                auto it = cname_value_map_.find(stack_.back().pathname_);
+                if (it != cname_value_map_.end())
+                {
+                    std::basic_string<CharT> s;
+                    jsoncons::string_sink<std::basic_string<CharT>> bo(s);
+                    write_string_value(sv,bo);
+                    bo.flush();
                     it->second.append(s);
                 }
                 break;
             }
-            case stack_item_kind::row:
-            case stack_item_kind::row_multi_valued_field:
-                write_string_value(sv,sink_);
+            case stack_item_kind::multivalued_field:
+            {
+                if (!value_buffer_.empty())
+                {
+                    value_buffer_.push_back(options_.subfield_delimiter());
+                }
+                jsoncons::string_sink<std::basic_string<CharT>> bo(value_buffer_);
+                write_string_value(sv, bo);
                 break;
+            }
             case stack_item_kind::column:
             {
-                if (strings_buffer_.size() <= row_counts_.back())
+                if (column_names_.size() <= row_counts_.back())
                 {
-                    strings_buffer_.emplace_back();
+                    column_names_.emplace_back();
                 }
-                jsoncons::string_sink<std::basic_string<CharT>> bo(strings_buffer_[row_counts_.back()]);
+                jsoncons::string_sink<std::basic_string<CharT>> bo(column_names_[row_counts_.back()]);
                 write_string_value(sv,bo);
                 break;
             }
-            case stack_item_kind::column_multi_valued_field:
+            case stack_item_kind::column_multivalued_field:
             {
-                jsoncons::string_sink<std::basic_string<CharT>> bo(strings_buffer_[row_counts_.back()]);
+                jsoncons::string_sink<std::basic_string<CharT>> bo(column_names_[row_counts_.back()]);
                 write_string_value(sv,bo);
                 break;
             }
@@ -477,6 +741,8 @@ private:
                               const ser_context& context,
                               std::error_code& ec) override
     {
+        JSONCONS_ASSERT(!stack_.empty());
+
         byte_string_chars_format encoding_hint;
         switch (tag)
         {
@@ -533,11 +799,19 @@ private:
         JSONCONS_ASSERT(!stack_.empty());
         switch (stack_.back().item_kind_)
         {
+            case stack_item_kind::flat_object:
             case stack_item_kind::object:
-            case stack_item_kind::object_multi_valued_field:
             {
-                auto it = buffered_line_.find(name_);
-                if (it != buffered_line_.end())
+                if (stack_[0].count_ == 0)
+                {
+                    if (options_.column_names().empty())
+                    {
+                        column_names_.emplace_back(stack_.back().pathname_);
+                    }
+                    cname_value_map_[stack_.back().pathname_] = std::basic_string<CharT>();
+                }
+                auto it = cname_value_map_.find(stack_.back().pathname_);
+                if (it != cname_value_map_.end())
                 {
                     std::basic_string<CharT> s;
                     jsoncons::string_sink<std::basic_string<CharT>> bo(s);
@@ -551,23 +825,48 @@ private:
                 }
                 break;
             }
+            case stack_item_kind::flat_row:
             case stack_item_kind::row:
-            case stack_item_kind::row_multi_valued_field:
-                write_double_value(val, context, sink_, ec);
-                break;
-            case stack_item_kind::column:
             {
-                if (strings_buffer_.size() <= row_counts_.back())
+                append_array_path_component();
+                if (stack_[0].count_ == 0)
                 {
-                    strings_buffer_.emplace_back();
+                    cname_value_map_[stack_.back().pathname_] = std::basic_string<CharT>();
                 }
-                jsoncons::string_sink<std::basic_string<CharT>> bo(strings_buffer_[row_counts_.back()]);
+                auto it = cname_value_map_.find(stack_.back().pathname_);
+                if (it != cname_value_map_.end())
+                {
+                    std::basic_string<CharT> s;
+                    jsoncons::string_sink<std::basic_string<CharT>> bo(s);
+                    write_double_value(val, context, bo, ec);
+                    bo.flush();
+                    it->second.append(s);
+                }
+                break;
+            }
+            case stack_item_kind::multivalued_field:
+            {
+                if (!value_buffer_.empty())
+                {
+                    value_buffer_.push_back(options_.subfield_delimiter());
+                }
+                jsoncons::string_sink<std::basic_string<CharT>> bo(value_buffer_);
                 write_double_value(val, context, bo, ec);
                 break;
             }
-            case stack_item_kind::column_multi_valued_field:
+            case stack_item_kind::column:
             {
-                jsoncons::string_sink<std::basic_string<CharT>> bo(strings_buffer_[row_counts_.back()]);
+                if (column_names_.size() <= row_counts_.back())
+                {
+                    column_names_.emplace_back();
+                }
+                jsoncons::string_sink<std::basic_string<CharT>> bo(column_names_[row_counts_.back()]);
+                write_double_value(val, context, bo, ec);
+                break;
+            }
+            case stack_item_kind::column_multivalued_field:
+            {
+                jsoncons::string_sink<std::basic_string<CharT>> bo(column_names_[row_counts_.back()]);
                 write_double_value(val, context, bo, ec);
                 break;
             }
@@ -585,11 +884,19 @@ private:
         JSONCONS_ASSERT(!stack_.empty());
         switch (stack_.back().item_kind_)
         {
+            case stack_item_kind::flat_object:
             case stack_item_kind::object:
-            case stack_item_kind::object_multi_valued_field:
             {
-                auto it = buffered_line_.find(name_);
-                if (it != buffered_line_.end())
+                if (stack_[0].count_ == 0)
+                {
+                    if (options_.column_names().empty())
+                    {
+                        column_names_.emplace_back(stack_.back().pathname_);
+                    }
+                    cname_value_map_[stack_.back().pathname_] = std::basic_string<CharT>();
+                }
+                auto it = cname_value_map_.find(stack_.back().pathname_);
+                if (it != cname_value_map_.end())
                 {
                     std::basic_string<CharT> s;
                     jsoncons::string_sink<std::basic_string<CharT>> bo(s);
@@ -603,23 +910,48 @@ private:
                 }
                 break;
             }
+            case stack_item_kind::flat_row:
             case stack_item_kind::row:
-            case stack_item_kind::row_multi_valued_field:
-                write_int64_value(val,sink_);
-                break;
-            case stack_item_kind::column:
             {
-                if (strings_buffer_.size() <= row_counts_.back())
+                append_array_path_component();
+                if (stack_[0].count_ == 0)
                 {
-                    strings_buffer_.emplace_back();
+                    cname_value_map_[stack_.back().pathname_] = std::basic_string<CharT>();
                 }
-                jsoncons::string_sink<std::basic_string<CharT>> bo(strings_buffer_[row_counts_.back()]);
+                auto it = cname_value_map_.find(stack_.back().pathname_);
+                if (it != cname_value_map_.end())
+                {
+                    std::basic_string<CharT> s;
+                    jsoncons::string_sink<std::basic_string<CharT>> bo(s);
+                    write_int64_value(val,bo);
+                    bo.flush();
+                    it->second.append(s);
+                }
+                break;
+            }
+            case stack_item_kind::multivalued_field:
+            {
+                if (!value_buffer_.empty())
+                {
+                    value_buffer_.push_back(options_.subfield_delimiter());
+                }
+                jsoncons::string_sink<std::basic_string<CharT>> bo(value_buffer_);
                 write_int64_value(val, bo);
                 break;
             }
-            case stack_item_kind::column_multi_valued_field:
+            case stack_item_kind::column:
             {
-                jsoncons::string_sink<std::basic_string<CharT>> bo(strings_buffer_[row_counts_.back()]);
+                if (column_names_.size() <= row_counts_.back())
+                {
+                    column_names_.emplace_back();
+                }
+                jsoncons::string_sink<std::basic_string<CharT>> bo(column_names_[row_counts_.back()]);
+                write_int64_value(val, bo);
+                break;
+            }
+            case stack_item_kind::column_multivalued_field:
+            {
+                jsoncons::string_sink<std::basic_string<CharT>> bo(column_names_[row_counts_.back()]);
                 write_int64_value(val, bo);
                 break;
             }
@@ -637,11 +969,19 @@ private:
         JSONCONS_ASSERT(!stack_.empty());
         switch (stack_.back().item_kind_)
         {
+            case stack_item_kind::flat_object:
             case stack_item_kind::object:
-            case stack_item_kind::object_multi_valued_field:
             {
-                auto it = buffered_line_.find(name_);
-                if (it != buffered_line_.end())
+                if (stack_[0].count_ == 0)
+                {
+                    if (options_.column_names().empty())
+                    {
+                        column_names_.emplace_back(stack_.back().pathname_);
+                    }
+                    cname_value_map_[stack_.back().pathname_] = std::basic_string<CharT>();
+                }
+                auto it = cname_value_map_.find(stack_.back().pathname_);
+                if (it != cname_value_map_.end())
                 {
                     std::basic_string<CharT> s;
                     jsoncons::string_sink<std::basic_string<CharT>> bo(s);
@@ -655,23 +995,48 @@ private:
                 }
                 break;
             }
+            case stack_item_kind::flat_row:
             case stack_item_kind::row:
-            case stack_item_kind::row_multi_valued_field:
-                write_uint64_value(val,sink_);
-                break;
-            case stack_item_kind::column:
             {
-                if (strings_buffer_.size() <= row_counts_.back())
+                append_array_path_component();
+                if (stack_[0].count_ == 0)
                 {
-                    strings_buffer_.emplace_back();
+                    cname_value_map_[stack_.back().pathname_] = std::basic_string<CharT>();
                 }
-                jsoncons::string_sink<std::basic_string<CharT>> bo(strings_buffer_[row_counts_.back()]);
+                auto it = cname_value_map_.find(stack_.back().pathname_);
+                if (it != cname_value_map_.end())
+                {
+                    std::basic_string<CharT> s;
+                    jsoncons::string_sink<std::basic_string<CharT>> bo(s);
+                    write_uint64_value(val, bo);
+                    bo.flush();
+                    it->second.append(s);
+                }
+                break;
+            }
+            case stack_item_kind::multivalued_field:
+            {
+                if (!value_buffer_.empty())
+                {
+                    value_buffer_.push_back(options_.subfield_delimiter());
+                }
+                jsoncons::string_sink<std::basic_string<CharT>> bo(value_buffer_);
                 write_uint64_value(val, bo);
                 break;
             }
-            case stack_item_kind::column_multi_valued_field:
+            case stack_item_kind::column:
             {
-                jsoncons::string_sink<std::basic_string<CharT>> bo(strings_buffer_[row_counts_.back()]);
+                if (column_names_.size() <= row_counts_.back())
+                {
+                    column_names_.emplace_back();
+                }
+                jsoncons::string_sink<std::basic_string<CharT>> bo(column_names_[row_counts_.back()]);
+                write_uint64_value(val, bo);
+                break;
+            }
+            case stack_item_kind::column_multivalued_field:
+            {
+                jsoncons::string_sink<std::basic_string<CharT>> bo(column_names_[row_counts_.back()]);
                 write_uint64_value(val, bo);
                 break;
             }
@@ -686,11 +1051,19 @@ private:
         JSONCONS_ASSERT(!stack_.empty());
         switch (stack_.back().item_kind_)
         {
+            case stack_item_kind::flat_object:
             case stack_item_kind::object:
-            case stack_item_kind::object_multi_valued_field:
             {
-                auto it = buffered_line_.find(name_);
-                if (it != buffered_line_.end())
+                if (stack_[0].count_ == 0)
+                {
+                    if (options_.column_names().empty())
+                    {
+                        column_names_.emplace_back(stack_.back().pathname_);
+                    }
+                    cname_value_map_[stack_.back().pathname_] = std::basic_string<CharT>();
+                }
+                auto it = cname_value_map_.find(stack_.back().pathname_);
+                if (it != cname_value_map_.end())
                 {
                     std::basic_string<CharT> s;
                     jsoncons::string_sink<std::basic_string<CharT>> bo(s);
@@ -704,23 +1077,48 @@ private:
                 }
                 break;
             }
+            case stack_item_kind::flat_row:
             case stack_item_kind::row:
-            case stack_item_kind::row_multi_valued_field:
-                write_bool_value(val,sink_);
-                break;
-            case stack_item_kind::column:
             {
-                if (strings_buffer_.size() <= row_counts_.back())
+                append_array_path_component();
+                if (stack_[0].count_ == 0)
                 {
-                    strings_buffer_.emplace_back();
+                    cname_value_map_[stack_.back().pathname_] = std::basic_string<CharT>();
                 }
-                jsoncons::string_sink<std::basic_string<CharT>> bo(strings_buffer_[row_counts_.back()]);
+                auto it = cname_value_map_.find(stack_.back().pathname_);
+                if (it != cname_value_map_.end())
+                {
+                    std::basic_string<CharT> s;
+                    jsoncons::string_sink<std::basic_string<CharT>> bo(s);
+                    write_bool_value(val,bo);
+                    bo.flush();
+                    it->second.append(s);
+                }
+                break;
+            }
+            case stack_item_kind::multivalued_field:
+            {
+                if (!value_buffer_.empty())
+                {
+                    value_buffer_.push_back(options_.subfield_delimiter());
+                }
+                jsoncons::string_sink<std::basic_string<CharT>> bo(value_buffer_);
                 write_bool_value(val, bo);
                 break;
             }
-            case stack_item_kind::column_multi_valued_field:
+            case stack_item_kind::column:
             {
-                jsoncons::string_sink<std::basic_string<CharT>> bo(strings_buffer_[row_counts_.back()]);
+                if (column_names_.size() <= row_counts_.back())
+                {
+                    column_names_.emplace_back();
+                }
+                jsoncons::string_sink<std::basic_string<CharT>> bo(column_names_[row_counts_.back()]);
+                write_bool_value(val, bo);
+                break;
+            }
+            case stack_item_kind::column_multivalued_field:
+            {
+                jsoncons::string_sink<std::basic_string<CharT>> bo(column_names_[row_counts_.back()]);
                 write_bool_value(val, bo);
                 break;
             }
@@ -869,14 +1267,14 @@ private:
     template <typename AnyWriter>
     void begin_value(AnyWriter& sink)
     {
-        JSONCONS_ASSERT(!stack_.empty());
+        if (stack_.empty())
+        {
+            return;
+        }
         switch (stack_.back().item_kind_)
         {
+            case stack_item_kind::flat_row:
             case stack_item_kind::row:
-                if (stack_.back().count_ > 0)
-                {
-                    sink.push_back(options_.field_delimiter());
-                }
                 break;
             case stack_item_kind::column:
             {
@@ -900,8 +1298,9 @@ private:
                 }
                 break;
             }
-            case stack_item_kind::row_multi_valued_field:
-            case stack_item_kind::column_multi_valued_field:
+            case stack_item_kind::multivalued_field:
+                break;
+            case stack_item_kind::column_multivalued_field:
                 if (stack_.back().count_ > 0 && options_.subfield_delimiter() != char_type())
                 {
                     sink.push_back(options_.subfield_delimiter());
@@ -914,9 +1313,13 @@ private:
 
     void end_value()
     {
-        JSONCONS_ASSERT(!stack_.empty());
+        if (stack_.empty())
+        {
+            return;
+        }
         switch(stack_.back().item_kind_)
         {
+            case stack_item_kind::flat_row:
             case stack_item_kind::row:
             {
                 ++stack_.back().count_;
@@ -939,7 +1342,6 @@ using csv_string_encoder = basic_csv_encoder<char,jsoncons::string_sink<std::str
 using csv_wstream_encoder = basic_csv_encoder<wchar_t>;
 using wcsv_string_encoder = basic_csv_encoder<wchar_t,jsoncons::string_sink<std::wstring>>;
 
-} // namespace jsonpath
-} // namespace jsoncons
+}}
 
-#endif // JSONCONS_EXT_CSV_CSV_ENCODER_HPP
+#endif

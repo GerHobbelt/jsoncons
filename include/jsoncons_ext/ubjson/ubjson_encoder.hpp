@@ -1,4 +1,4 @@
-// Copyright 2013-2024 Daniel Parker
+// Copyright 2013-2025 Daniel Parker
 // Distributed under the Boost license, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
@@ -7,17 +7,25 @@
 #ifndef JSONCONS_EXT_UBJSON_UBJSON_ENCODER_HPP
 #define JSONCONS_EXT_UBJSON_UBJSON_ENCODER_HPP
 
+#include <cstddef>
+#include <cstdint>
 #include <limits> // std::numeric_limits
 #include <memory>
-#include <string>
+#include <system_error>
 #include <utility> // std::move
 #include <vector>
 
+#include <jsoncons/config/compiler_support.hpp>
 #include <jsoncons/config/jsoncons_config.hpp>
 #include <jsoncons/detail/parse_number.hpp>
 #include <jsoncons/json_exception.hpp>
 #include <jsoncons/json_visitor.hpp>
+#include <jsoncons/ser_context.hpp>
 #include <jsoncons/sink.hpp>
+#include <jsoncons/tag_type.hpp>
+#include <jsoncons/utility/binary.hpp>
+#include <jsoncons/utility/unicode_traits.hpp>
+
 #include <jsoncons_ext/ubjson/ubjson_error.hpp>
 #include <jsoncons_ext/ubjson/ubjson_options.hpp>
 #include <jsoncons_ext/ubjson/ubjson_type.hpp>
@@ -78,11 +86,12 @@ private:
 
     std::vector<stack_item> stack_;
     int nesting_depth_;
+public:
 
     // Noncopyable and nonmoveable
     basic_ubjson_encoder(const basic_ubjson_encoder&) = delete;
-    basic_ubjson_encoder& operator=(const basic_ubjson_encoder&) = delete;
-public:
+    basic_ubjson_encoder(basic_ubjson_encoder&&) = delete;
+
     basic_ubjson_encoder(Sink&& sink, 
                          const Allocator& alloc = Allocator())
        : basic_ubjson_encoder(std::forward<Sink>(sink), ubjson_encode_options(), alloc)
@@ -99,6 +108,20 @@ public:
     {
     }
 
+    ~basic_ubjson_encoder() noexcept
+    {
+        JSONCONS_TRY
+        {
+            sink_.flush();
+        }
+        JSONCONS_CATCH(...)
+        {
+        }
+    }
+
+    basic_ubjson_encoder& operator=(const basic_ubjson_encoder&) = delete;
+    basic_ubjson_encoder& operator=(basic_ubjson_encoder&&) = delete;
+
     void reset()
     {
         stack_.clear();
@@ -109,17 +132,6 @@ public:
     {
         sink_ = std::move(sink);
         reset();
-    }
-
-    ~basic_ubjson_encoder() noexcept
-    {
-        JSONCONS_TRY
-        {
-            sink_.flush();
-        }
-        JSONCONS_CATCH(...)
-        {
-        }
     }
 
 private:
@@ -376,10 +388,8 @@ private:
         return true;
     }
 
-    bool visit_int64(int64_t val, 
-                        semantic_tag, 
-                        const ser_context&,
-                        std::error_code&) override
+    bool visit_int64(int64_t val, semantic_tag, const ser_context&, 
+        std::error_code&) override
     {
         if (val >= 0)
         {
@@ -405,7 +415,7 @@ private:
             {
                 // int 64 stores a 64-bit big-endian signed integer
                 sink_.push_back(jsoncons::ubjson::ubjson_type::int64_type);
-                binary::native_to_big(static_cast<int64_t>(val),std::back_inserter(sink_));
+                binary::native_to_big(val,std::back_inserter(sink_));
             }
             else
             {
@@ -436,7 +446,7 @@ private:
             {
                 // int 64 stores a 64-bit big-endian signed integer
                 sink_.push_back(jsoncons::ubjson::ubjson_type::int64_type);
-                binary::native_to_big(static_cast<int64_t>(val),std::back_inserter(sink_));
+                binary::native_to_big(val,std::back_inserter(sink_));
             }
         }
         end_value();

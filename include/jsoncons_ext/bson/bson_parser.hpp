@@ -1,4 +1,4 @@
-// Copyright 2013-2024 Daniel Parker
+// Copyright 2013-2025 Daniel Parker
 // Distributed under the Boost license, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
@@ -7,15 +7,23 @@
 #ifndef JSONCONS_EXT_BSON_BSON_PARSER_HPP
 #define JSONCONS_EXT_BSON_BSON_PARSER_HPP
 
+#include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <string>
+#include <system_error>
 #include <utility> // std::move
 #include <vector>
 
+#include <jsoncons/config/compiler_support.hpp>
 #include <jsoncons/config/jsoncons_config.hpp>
-#include <jsoncons/json.hpp>
 #include <jsoncons/json_visitor.hpp>
+#include <jsoncons/ser_context.hpp>
 #include <jsoncons/source.hpp>
+#include <jsoncons/tag_type.hpp>
+#include <jsoncons/utility/binary.hpp>
+#include <jsoncons/utility/unicode_traits.hpp>
+
 #include <jsoncons_ext/bson/bson_decimal128.hpp>
 #include <jsoncons_ext/bson/bson_error.hpp>
 #include <jsoncons_ext/bson/bson_oid.hpp>
@@ -224,7 +232,7 @@ private:
         } 
 
         uint8_t buf[sizeof(int32_t)]; 
-        size_t n = source_.read(buf, sizeof(int32_t));
+        std::size_t n = source_.read(buf, sizeof(int32_t));
         if (JSONCONS_UNLIKELY(n != sizeof(int32_t)))
         {
             ec = bson_errc::unexpected_eof;

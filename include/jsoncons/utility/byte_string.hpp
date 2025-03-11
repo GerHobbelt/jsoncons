@@ -1,4 +1,4 @@
-// Copyright 2013-2024 Daniel Parker
+// Copyright 2013-2025 Daniel Parker
 // Distributed under the Boost license, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
@@ -8,21 +8,22 @@
 #define JSONCONS_BYTE_STRING_HPP
 
 #include <cmath>
+#include <cstdint>
 #include <cstring> // std::memcmp
-#include <exception>
 #include <initializer_list>
 #include <iomanip> // std::setw
 #include <iterator>
 #include <memory> // std::allocator
 #include <ostream>
 #include <sstream>
+#include <type_traits>
 #include <utility> // std::move
 #include <vector>
 
+#include <jsoncons/config/compiler_support.hpp>
 #include <jsoncons/config/jsoncons_config.hpp>
 #include <jsoncons/conv_error.hpp>
 #include <jsoncons/utility/extension_traits.hpp>
-#include <jsoncons/json_exception.hpp>
 
 namespace jsoncons {
 
@@ -366,7 +367,7 @@ namespace detail {
         template <typename Allocator>
         constexpr byte_string_view(const basic_byte_string<Allocator>& bytes);
 
-        constexpr byte_string_view(const byte_string_view&) noexcept = default;
+        constexpr byte_string_view(const byte_string_view&) = default;
 
         JSONCONS_CPP14_CONSTEXPR byte_string_view(byte_string_view&& other) noexcept
             : data_(nullptr), size_(0)

@@ -1,24 +1,31 @@
-// Copyright 2013-2024 Daniel Parker
+// Copyright 2013-2025 Daniel Parker
 // Distributed under the Boost license, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
 // See https://github.com/danielaparker/jsoncons for latest version
 
-#ifndef JSONCONS_EXT_JSONPATH_JSONPATH_EXPRESSION_HPP
-#define JSONCONS_EXT_JSONPATH_JSONPATH_EXPRESSION_HPP
+#ifndef JSONCONS_EXT_JSONPATH_JSONPATH_PARSER_HPP
+#define JSONCONS_EXT_JSONPATH_JSONPATH_PARSER_HPP
 
 #include <algorithm> // std::reverse
-#include <limits> // std::numeric_limits
-#include <memory>
+#include <cstddef>
+#include <cstdint>
 #include <regex>
-#include <string>
+#include <system_error>
 #include <type_traits> // std::is_const
 #include <utility> // std::move
 #include <vector>
 
-#include <jsoncons/json.hpp>
+#include <jsoncons/config/compiler_support.hpp>
+#include <jsoncons/json_decoder.hpp>
+#include <jsoncons/json_parser.hpp>
+#include <jsoncons/ser_context.hpp>
+#include <jsoncons/tag_type.hpp>
+#include <jsoncons/utility/unicode_traits.hpp>
+
 #include <jsoncons_ext/jsonpath/expression.hpp>
 #include <jsoncons_ext/jsonpath/jsonpath_error.hpp>
+#include <jsoncons_ext/jsonpath/path_node.hpp>
 #include <jsoncons_ext/jsonpath/jsonpath_selector.hpp>
 
 namespace jsoncons { 
@@ -146,12 +153,12 @@ namespace detail {
         {
         }
 
-        std::size_t line() const
+        std::size_t line() const final
         {
             return line_;
         }
 
-        std::size_t column() const
+        std::size_t column() const final
         {
             return column_;
         }
@@ -377,7 +384,7 @@ namespace detail {
                             {
                                 json_decoder<Json> decoder(alloc_);
                                 basic_json_parser<char_type> parser;
-                                parser.set_buffer(buffer.data(),buffer.size());
+                                parser.update(buffer.data(),buffer.size());
                                 parser.parse_some(decoder, ec);
                                 if (ec)
                                 {
@@ -401,7 +408,7 @@ namespace detail {
                     {
                         json_decoder<Json> decoder(alloc_);
                         basic_json_parser<char_type> parser;
-                        parser.set_buffer(buffer.data(),buffer.size());
+                        parser.update(buffer.data(),buffer.size());
                         parser.parse_some(decoder, ec);
                         if (ec)
                         {
@@ -429,7 +436,7 @@ namespace detail {
                             {
                                 json_decoder<Json> decoder(alloc_);
                                 basic_json_parser<char_type> parser;
-                                parser.set_buffer(p_,end_input_ - p_);
+                                parser.update(p_,end_input_ - p_);
                                 parser.parse_some(decoder, ec);
                                 if (ec)
                                 {
@@ -1446,20 +1453,19 @@ namespace detail {
                                     ec = jsonpath_errc::invalid_number;
                                     return path_expression_type(alloc_);
                                 }
-                                else
-                                {
-                                    int64_t n{0};
-                                    auto r = jsoncons::detail::to_integer(buffer.data(), buffer.size(), n);
-                                    if (!r)
-                                    {
-                                        ec = jsonpath_errc::invalid_number;
-                                        return path_expression_type(alloc_);
-                                    }
-                                    push_token(resources, token_type(resources.new_selector(index_selector<Json,JsonReference>(n))), ec);
-                                    if (ec) {return path_expression_type(alloc_);}
 
-                                    buffer.clear();
+                                int64_t n{0};
+                                auto r = jsoncons::detail::to_integer(buffer.data(), buffer.size(), n);
+                                if (!r)
+                                {
+                                    ec = jsonpath_errc::invalid_number;
+                                    return path_expression_type(alloc_);
                                 }
+                                push_token(resources, token_type(resources.new_selector(index_selector<Json,JsonReference>(n))), ec);
+                                if (ec) {return path_expression_type(alloc_);}
+
+                                buffer.clear();
+                                
                                 push_token(resources, token_type(separator_arg), ec);
                                 if (ec) {return path_expression_type(alloc_);}
                                 buffer.clear();
@@ -1724,20 +1730,19 @@ namespace detail {
                                     ec = jsonpath_errc::invalid_number;
                                     return path_expression_type(alloc_);
                                 }
-                                else
+                                
+                                int64_t n{0};
+                                auto r = jsoncons::detail::to_integer(buffer.data(), buffer.size(), n);
+                                if (!r)
                                 {
-                                    int64_t n{0};
-                                    auto r = jsoncons::detail::to_integer(buffer.data(), buffer.size(), n);
-                                    if (!r)
-                                    {
-                                        ec = jsonpath_errc::invalid_number;
-                                        return path_expression_type(alloc_);
-                                    }
-                                    push_token(resources, token_type(resources.new_selector(index_selector<Json,JsonReference>(n))), ec);
-                                    if (ec) {return path_expression_type(alloc_);}
-
-                                    buffer.clear();
+                                    ec = jsonpath_errc::invalid_number;
+                                    return path_expression_type(alloc_);
                                 }
+                                push_token(resources, token_type(resources.new_selector(index_selector<Json,JsonReference>(n))), ec);
+                                if (ec) {return path_expression_type(alloc_);}
+
+                                buffer.clear();
+                                
                                 state_stack_.pop_back(); // bracket_specifier
                                 break;
                             }
@@ -2097,7 +2102,7 @@ namespace detail {
             //std::cout << "\nTokens\n\n";
             //for (const auto& tok : output_stack_)
             //{
-            //    std::cout << tok.to_string() << "\n";
+            //    std::cout << tok.to_string(0) << "\n";
             //}
             //std::cout << "\n";
 
@@ -2120,7 +2125,9 @@ namespace detail {
                     break;
                 case '\r':
                     if (p_+1 < end_input_ && *(p_+1) == '\n')
+                    {
                         ++p_;
+                    }
                     ++line_;
                     column_ = 1;
                     ++p_;
@@ -2138,7 +2145,7 @@ namespace detail {
         void unwind_rparen(std::error_code& ec)
         {
             auto it = operator_stack_.rbegin();
-            while (it != operator_stack_.rend() && !it->is_lparen())
+            while (it != operator_stack_.rend() && !(*it).is_lparen())
             {
                 output_stack_.emplace_back(std::move(*it));
                 ++it;
@@ -2154,7 +2161,7 @@ namespace detail {
 
         void push_token(jsoncons::jsonpath::detail::static_resources<value_type>& resources, token_type&& tok, std::error_code& ec)
         {
-            //std::cout << tok.to_string() << "\n";
+            //std::cout << tok.to_string(0) << "\n";
             switch (tok.token_kind())
             {
                 case jsonpath_token_kind::begin_filter:
@@ -2166,7 +2173,7 @@ namespace detail {
                     //std::cout << "push_token end_filter 1\n";
                     //for (const auto& tok2 : output_stack_)
                     //{
-                    //    std::cout << tok2.to_string() << "\n";
+                    //    std::cout << tok2.to_string(0) << "\n";
                     //}
                     //std::cout << "\n\n";
                     unwind_rparen(ec);
@@ -2176,7 +2183,7 @@ namespace detail {
                     }
                     std::vector<token_type> toks;
                     auto it = output_stack_.rbegin();
-                    while (it != output_stack_.rend() && it->token_kind() != jsonpath_token_kind::begin_filter)
+                    while (it != output_stack_.rend() && (*it).token_kind() != jsonpath_token_kind::begin_filter)
                     {
                         toks.emplace_back(std::move(*it));
                         ++it;
@@ -2201,7 +2208,7 @@ namespace detail {
                     //std::cout << "push_token end_filter 2\n";
                     //for (const auto& tok2 : output_stack_)
                     //{
-                    //    std::cout << tok2.to_string() << "\n";
+                    //    std::cout << tok2.to_string(0) << "\n";
                     //}
                     //std::cout << "\n\n";
                     break;
@@ -2216,7 +2223,7 @@ namespace detail {
                     //std::cout << "jsonpath_token_kind::end_index_expression\n";
                     //for (const auto& t : output_stack_)
                     //{
-                    //    std::cout << t.to_string() << "\n";
+                    //    std::cout << t.to_string(0) << "\n";
                     //}
                     //std::cout << "/jsonpath_token_kind::end_index_expression\n";
                     unwind_rparen(ec);
@@ -2226,7 +2233,7 @@ namespace detail {
                     }
                     std::vector<token_type> toks;
                     auto it = output_stack_.rbegin();
-                    while (it != output_stack_.rend() && it->token_kind() != jsonpath_token_kind::begin_expression)
+                    while (it != output_stack_.rend() && (*it).token_kind() != jsonpath_token_kind::begin_expression)
                     {
                         toks.emplace_back(std::move(*it));
                         ++it;
@@ -2255,7 +2262,7 @@ namespace detail {
                     //std::cout << "jsonpath_token_kind::end_index_expression\n";
                     //for (const auto& t : output_stack_)
                     //{
-                    //    std::cout << t.to_string() << "\n";
+                    //    std::cout << t.to_string(0) << "\n";
                     //}
                     //std::cout << "/jsonpath_token_kind::end_index_expression\n";
                     unwind_rparen(ec);
@@ -2265,7 +2272,7 @@ namespace detail {
                     }
                     std::vector<token_type> toks;
                     auto it = output_stack_.rbegin();
-                    while (it != output_stack_.rend() && it->token_kind() != jsonpath_token_kind::begin_expression)
+                    while (it != output_stack_.rend() && (*it).token_kind() != jsonpath_token_kind::begin_expression)
                     {
                         toks.emplace_back(std::move(*it));
                         ++it;
@@ -2303,18 +2310,18 @@ namespace detail {
                 {
                     std::vector<selector_type*> expressions;
                     auto it = output_stack_.rbegin();
-                    while (it != output_stack_.rend() && it->token_kind() != jsonpath_token_kind::begin_union)
+                    while (it != output_stack_.rend() && (*it).token_kind() != jsonpath_token_kind::begin_union)
                     {
-                        if (it->token_kind() == jsonpath_token_kind::selector)
+                        if ((*it).token_kind() == jsonpath_token_kind::selector)
                         {
-                            expressions.emplace_back(std::move(it->selector_));
+                            expressions.emplace_back(std::move((*it).selector_));
                         }
                         do
                         {
                             ++it;
                         } 
-                        while (it != output_stack_.rend() && it->token_kind() != jsonpath_token_kind::begin_union && it->token_kind() != jsonpath_token_kind::separator);
-                        if (it->token_kind() == jsonpath_token_kind::separator)
+                        while (it != output_stack_.rend() && (*it).token_kind() != jsonpath_token_kind::begin_union && (*it).token_kind() != jsonpath_token_kind::separator);
+                        if ((*it).token_kind() == jsonpath_token_kind::separator)
                         {
                             ++it;
                         }
@@ -2357,9 +2364,9 @@ namespace detail {
                     std::vector<token_type> toks;
                     auto it = output_stack_.rbegin();
                     std::size_t arg_count = 0;
-                    while (it != output_stack_.rend() && it->token_kind() != jsonpath_token_kind::function)
+                    while (it != output_stack_.rend() && (*it).token_kind() != jsonpath_token_kind::function)
                     {
-                        if (it->token_kind() == jsonpath_token_kind::argument)
+                        if ((*it).token_kind() == jsonpath_token_kind::argument)
                         {
                             ++arg_count;
                         }
@@ -2372,7 +2379,7 @@ namespace detail {
                         return;
                     }
                     std::reverse(toks.begin(), toks.end());
-                    if (it->arity() && arg_count != *(it->arity()))
+                    if ((*it).arity() && arg_count != *((*it).arity()))
                     {
                         ec = jsonpath_errc::invalid_arity;
                         return;
@@ -2427,9 +2434,9 @@ namespace detail {
                     else
                     {
                         auto it = operator_stack_.rbegin();
-                        while (it != operator_stack_.rend() && it->is_operator()
-                               && (tok.precedence_level() > it->precedence_level()
-                             || (tok.precedence_level() == it->precedence_level() && tok.is_right_associative())))
+                        while (it != operator_stack_.rend() && (*it).is_operator()
+                               && (tok.precedence_level() > (*it).precedence_level()
+                             || (tok.precedence_level() == (*it).precedence_level() && tok.is_right_associative())))
                         {
                             output_stack_.emplace_back(std::move(*it));
                             ++it;
@@ -2486,4 +2493,4 @@ namespace detail {
 } // namespace jsonpath
 } // namespace jsoncons
 
-#endif // JSONCONS_EXT_JSONPATH_JSONPATH_EXPRESSION_HPP
+#endif // JSONCONS_EXT_JSONPATH_JSONPATH_PARSER_HPP

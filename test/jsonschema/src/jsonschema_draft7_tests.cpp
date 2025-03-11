@@ -1,4 +1,4 @@
-// Copyright 2013-2024 Daniel Parker
+// Copyright 2013-2025 Daniel Parker
 // Distributed under the Boost license, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
@@ -8,15 +8,17 @@
 #include <fstream>
 #include <iostream>
 #include <regex>
+
 #include <jsoncons_ext/jsonschema/jsonschema.hpp>
-#include <jsoncons/byte_string.hpp>
+#include <jsoncons/json.hpp>
+#include <jsoncons/utility/byte_string.hpp>
 
 using jsoncons::json;
 namespace jsonschema = jsoncons::jsonschema;
 
 namespace {
 
-    json resolve(const jsoncons::uri& uri)
+    json resolver(const jsoncons::uri& uri)
     {
         //std::cout << uri.string() << ", " << uri.path() << "\n";
         std::string pathname = "./jsonschema/JSON-Schema-Test-Suite/remotes";
@@ -50,7 +52,7 @@ namespace {
             ++count;
             try
             {
-                jsonschema::json_schema<json> compiled = jsonschema::make_json_schema(test_group.at("schema"), resolve, 
+                jsonschema::json_schema<json> compiled = jsonschema::make_json_schema(test_group.at("schema"), resolver, 
                     options);
 
                 int count_test = 0;

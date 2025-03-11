@@ -1,4 +1,4 @@
-// Copyright 2013-2024 Daniel Parker
+// Copyright 2013-2025 Daniel Parker
 // Distributed under the Boost license, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
@@ -8,16 +8,23 @@
 #define JSONCONS_EXT_CBOR_CBOR_PARSER_HPP
 
 #include <bitset> // std::bitset
+#include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <string>
+#include <system_error>
 #include <utility> // std::move
 #include <vector>
 
 #include <jsoncons/config/jsoncons_config.hpp>
 #include <jsoncons/item_event_visitor.hpp>
-#include <jsoncons/json.hpp>
 #include <jsoncons/json_visitor.hpp>
+#include <jsoncons/ser_context.hpp>
 #include <jsoncons/source.hpp>
+#include <jsoncons/tag_type.hpp>
+#include <jsoncons/utility/binary.hpp>
+#include <jsoncons/utility/unicode_traits.hpp>
+
 #include <jsoncons_ext/cbor/cbor_detail.hpp>
 #include <jsoncons_ext/cbor/cbor_error.hpp>
 #include <jsoncons_ext/cbor/cbor_options.hpp>
@@ -40,6 +47,8 @@ struct parse_state
 
     parse_state(const parse_state&) = default;
     parse_state(parse_state&&) = default;
+    parse_state& operator=(const parse_state&) = default;
+    parse_state& operator=(parse_state&&) = default;
     
     ~parse_state() = default;
 };
@@ -88,8 +97,10 @@ class basic_cbor_parser : public ser_context
         }
 
         mapped_string(const mapped_string&) = default;
+        mapped_string(mapped_string&&) = default;
 
-        mapped_string(mapped_string&&) noexcept = default;
+        mapped_string& operator=(const mapped_string&) = default;
+        mapped_string& operator=(mapped_string&&) = default;
 
         mapped_string(const mapped_string& other, const allocator_type& alloc) 
             :  type(other.type), str(other.str,alloc), bytes(other.bytes,alloc)
@@ -101,9 +112,7 @@ class basic_cbor_parser : public ser_context
         {
         }
 
-        mapped_string& operator=(const mapped_string&) = default;
-
-        mapped_string& operator=(mapped_string&&) = default;
+        ~mapped_string() = default;
     };
 
     using mapped_string_allocator_type = typename std::allocator_traits<allocator_type>:: template rebind_alloc<mapped_string>;                           
@@ -121,8 +130,8 @@ class basic_cbor_parser : public ser_context
     Source source_;
     cbor_decode_options options_;
 
-    bool more_;
-    bool done_;
+    bool more_{true};
+    bool done_{false};
     string_type text_buffer_;
     byte_string_type bytes_buffer_;
     uint64_t item_tag_;
@@ -176,8 +185,6 @@ public:
        : alloc_(alloc),
          source_(std::forward<Sourceable>(source)),
          options_(options),
-         more_(true), 
-         done_(false),
          text_buffer_(alloc),
          bytes_buffer_(alloc),
          item_tag_(0),
@@ -189,6 +196,13 @@ public:
     {
         state_stack_.emplace_back(parse_mode::root,0);
     }
+    
+    basic_cbor_parser(const basic_cbor_parser&) = delete;
+    basic_cbor_parser(basic_cbor_parser&&) = delete;
+    basic_cbor_parser& operator=(const basic_cbor_parser&) = delete;
+    basic_cbor_parser& operator=(basic_cbor_parser&&) = delete;
+    
+    ~basic_cbor_parser() = default;
 
     void restart()
     {

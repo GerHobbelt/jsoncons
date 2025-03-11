@@ -353,7 +353,7 @@ Output:
 
 #### Resolving references to schemas defined in external files  
 
-In this example, the main schema is
+In this example, the main schema is defined by
 
 ```cpp
     std::string main_schema = R"(
@@ -369,7 +369,7 @@ In this example, the main schema is
     )";
 ```
 
-The main schema defines a reference using the `$ref` keyword to a
+The main schema includes a reference using the `$ref` keyword to a
 second schema defined in an external file, `name-defs.json`,  
 
 ```json
@@ -392,11 +392,11 @@ second schema defined in an external file, `name-defs.json`,
 }
 ```
 
-jsoncons allows you to write a resolve function object to handle the URI
+jsoncons allows you to write a resolver function object to handle the URI
 of the external file and translate it into a physical pathname.
 
 ```cpp
-auto resolve = [](const jsoncons::uri& uri) -> json
+auto resolver = [](const jsoncons::uri& uri) -> json
     {
         std::cout << "Requested URI: " << uri.string() << "\n";
         std::cout << "base: " << uri.base().string() << ", path: " << uri.path() << "\n\n";
@@ -435,9 +435,9 @@ int main()
     try
     {
         // Throws schema_error if JSON Schema compilation fails
-        jsonschema::json_schema<json> compiled = jsonschema::make_json_schema(schema, resolve);
+        jsonschema::json_schema<json> compiled = jsonschema::make_json_schema(schema, resolver);
 
-        auto report = [](const jsonschema::validation_message& msg) -> jsonschema::walk_result
+        auto reporter = [](const jsonschema::validation_message& msg) -> jsonschema::walk_result
         {
             std::cout << msg.instance_location().string() << ": " << msg.message() << "\n";
             for (const auto& detail : msg.details())
@@ -447,8 +447,8 @@ int main()
             return jsonschema::walk_result::advance;
         };
 
-        // Will call report function object for each schema violation
-        compiled.validate(data, report);
+        // Will call the message handler function object for each schema violation
+        compiled.validate(data, reporter);
     }
     catch (const std::exception& e)
     {
@@ -636,7 +636,7 @@ int main()
         json data = json::parse("{}");
 
         // will throw schema_error if JSON Schema compilation fails 
-        jsonschema::json_schema<json> compiled = jsonschema::make_json_schema(schema, resolve); 
+        jsonschema::json_schema<json> compiled = jsonschema::make_json_schema(schema); 
 
         // will throw a validation_error when a schema violation happens 
         json patch;

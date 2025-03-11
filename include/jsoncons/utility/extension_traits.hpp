@@ -1,4 +1,4 @@
-// Copyright 2013-2024 Daniel Parker
+// Copyright 2013-2025 Daniel Parker
 // Distributed under the Boost license, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
@@ -9,12 +9,12 @@
 
 #include <array> // std::array
 #include <climits> // CHAR_BIT
+#include <cstddef>
+#include <cstdint>
 #include <cmath>
 #include <cstddef> // std::byte
-#include <exception>
 #include <iterator> // std::iterator_traits
 #include <memory>
-#include <stdexcept>
 #include <string>
 #include <type_traits> // std::enable_if, std::true_type
 #include <utility> // std::declval

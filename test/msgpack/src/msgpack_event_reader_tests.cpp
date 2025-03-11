@@ -1,13 +1,15 @@
-// Copyright 2013-2024 Daniel Parker
+// Copyright 2013-2025 Daniel Parker
 // Distributed under Boost license
 
 #if defined(_MSC_VER)
 #include "windows.h" // test no inadvertant macro expansions
 #endif
-#include <jsoncons/json.hpp>
+
 #include <jsoncons/json_encoder.hpp>
 #include <jsoncons_ext/msgpack/msgpack_event_reader.hpp>
 #include <jsoncons_ext/msgpack/msgpack.hpp>
+#include <jsoncons/json.hpp>
+
 #include <catch/catch.hpp>
 #include <sstream>
 #include <vector>

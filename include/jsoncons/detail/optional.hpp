@@ -1,4 +1,4 @@
-// Copyright 2013-2024 Daniel Parker
+// Copyright 2013-2025 Daniel Parker
 // Distributed under the Boost license, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
@@ -8,7 +8,7 @@
 #define JSONCONS_DETAIL_OPTIONAL_HPP
 
 #include <memory>
-#include <new> // placement new
+#include <stdexcept>
 #include <type_traits>
 #include <utility> // std::swap
 
@@ -209,7 +209,7 @@ namespace detail
                                 !is_constructible_convertible_or_assignable_from_optional<T,U>::value &&
                                 std::is_assignable<T&, U>::value,
             optional&>::type
-        operator=(optional<U>&& other)
+        operator=(optional<U>&& other) noexcept
         {
             if (other) 
             {

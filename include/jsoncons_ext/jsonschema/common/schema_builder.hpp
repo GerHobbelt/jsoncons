@@ -1,4 +1,4 @@
-// Copyright 2013-2024 Daniel Parker
+// Copyright 2013-2025 Daniel Parker
 // Distributed under the Boost license, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
@@ -7,7 +7,14 @@
 #ifndef JSONCONS_EXT_JSONSCHEMA_COMMON_SCHEMA_BUILDER_HPP
 #define JSONCONS_EXT_JSONSCHEMA_COMMON_SCHEMA_BUILDER_HPP
 
+#include <cstddef>
+#include <functional>
 #include <memory>
+#include <string>
+#include <unordered_map>
+#include <utility>
+
+#include <jsoncons/config/compiler_support.hpp>
 
 #include <jsoncons_ext/jsonschema/common/compilation_context.hpp>
 #include <jsoncons_ext/jsonschema/common/schema_validators.hpp>
@@ -171,11 +178,11 @@ namespace jsonschema {
                 {
                     JSONCONS_THROW(schema_error("Undefined reference " + ref.first.string()));
                 }
-                if (it->second == nullptr)
+                if ((*it).second == nullptr)
                 {
                     JSONCONS_THROW(schema_error("Null referred schema " + ref.first.string()));
                 }
-                ref.second->set_referred_schema(it->second);
+                ref.second->set_referred_schema((*it).second);
             }
         }
 
@@ -224,7 +231,7 @@ namespace jsonschema {
             auto it = this->schema_store_ptr_->find(identifier.uri());
             if (it != this->schema_store_ptr_->end())
             {
-                return jsoncons::make_unique<ref_validator_type>(schema, identifier.uri(), it->second);
+                return jsoncons::make_unique<ref_validator_type>(schema, identifier.uri(), (*it).second);
             }
 
             // referencing an unknown keyword, turn it into schema
@@ -303,7 +310,7 @@ namespace jsonschema {
                     auto it = std::move(sch).find("$schema");
                     if (it != std::move(sch).object_range().end())
                     {
-                        if (it->value().as_string_view() == schema())
+                        if ((*it).value().as_string_view() == schema())
                         {
                             return make_schema_validator(context, std::move(sch), keys, anchor_dict);
                         }
@@ -353,7 +360,7 @@ namespace jsonschema {
             uri schema_location = context.make_schema_location("maxLength");
             if (!sch.is_number())
             {
-                std::string message("maxLength must be a number value");
+                const std::string message("maxLength must be a number value");
                 JSONCONS_THROW(schema_error(schema_location.string() + ": " + message));
             }
             auto value = sch.template as<std::size_t>();
@@ -366,7 +373,7 @@ namespace jsonschema {
             uri schema_location = context.make_schema_location("minLength");
             if (!sch.is_number())
             {
-                std::string message("minLength must be an integer value");
+                const std::string message("minLength must be an integer value");
                 JSONCONS_THROW(schema_error(schema_location.string() + ": " + message));
             }
             auto value = sch.template as<std::size_t>();
@@ -409,7 +416,7 @@ namespace jsonschema {
             uri schema_location = context.make_schema_location("maximum");
             if (!sch.is_number())
             {
-                std::string message("maximum must be a number value");
+                const std::string message("maximum must be a number value");
                 JSONCONS_THROW(schema_error(schema_location.string() + ": " + message));
             }
             return jsoncons::make_unique<maximum_validator<Json>>(parent, schema_location, sch);
@@ -421,7 +428,7 @@ namespace jsonschema {
             uri schema_location = context.make_schema_location("exclusiveMaximum");
             if (!sch.is_number())
             {
-                std::string message("exclusiveMaximum must be a number value");
+                const std::string message("exclusiveMaximum must be a number value");
                 JSONCONS_THROW(schema_error(schema_location.string() + ": " + message));
             }
             return jsoncons::make_unique<exclusive_maximum_validator<Json>>(parent, schema_location, sch);
@@ -434,7 +441,7 @@ namespace jsonschema {
                 
             if (!sch.is_number())
             {
-                std::string message("minimum must be an integer");
+                const std::string message("minimum must be an integer");
                 JSONCONS_THROW(schema_error(schema_location.string() + ": " + message));
             }
             return jsoncons::make_unique<minimum_validator<Json>>(parent, schema_location, sch);
@@ -446,7 +453,7 @@ namespace jsonschema {
             uri schema_location = context.make_schema_location("exclusiveMinimum");
             if (!sch.is_number())
             {
-                std::string message("exclusiveMinimum must be a number value");
+                const std::string message("exclusiveMinimum must be a number value");
                 JSONCONS_THROW(schema_error(schema_location.string() + ": " + message));
             }
             return jsoncons::make_unique<exclusive_minimum_validator<Json>>(parent, schema_location, sch);
@@ -458,7 +465,7 @@ namespace jsonschema {
             uri schema_location = context.make_schema_location("multipleOf");
             if (!sch.is_number())
             {
-                std::string message("multipleOf must be a number value");
+                const std::string message("multipleOf must be a number value");
                 JSONCONS_THROW(schema_error(schema_location.string() + ": " + message));
             }
             auto value = sch.template as<double>();
@@ -559,7 +566,7 @@ namespace jsonschema {
             uri schema_location = context.make_schema_location("contentEncoding");
             if (!sch.is_string())
             {
-                std::string message("contentEncoding must be a string");
+                const std::string message("contentEncoding must be a string");
                 JSONCONS_THROW(schema_error(schema_location.string() + ": " + message));
             }
             auto value = sch.template as<std::string>();
@@ -572,7 +579,7 @@ namespace jsonschema {
             uri schema_location = context.make_schema_location("contentMediaType");
             if (!sch.is_string())
             {
-                std::string message("contentMediaType must be a string");
+                const std::string message("contentMediaType must be a string");
                 JSONCONS_THROW(schema_error(schema_location.string() + ": " + message));
             }
             
@@ -580,13 +587,13 @@ namespace jsonschema {
             auto it = parent.find("contentEncoding");
             if (it != parent.object_range().end())
             {
-                if (!it->value().is_string())
+                if (!(*it).value().is_string())
                 {
-                    std::string message("contentEncoding must be a string");
+                    const std::string message("contentEncoding must be a string");
                     JSONCONS_THROW(schema_error(schema_location.string() + ": " + message));
                 }
 
-                content_encoding = it->value().as_string();
+                content_encoding = (*it).value().as_string();
             }
             
             auto value = sch.template as<std::string>();
@@ -671,7 +678,7 @@ namespace jsonschema {
             uri schema_location = context.make_schema_location("maxItems");
             if (!sch.is_number())
             {
-                std::string message("maxItems must be a number value");
+                const std::string message("maxItems must be a number value");
                 JSONCONS_THROW(schema_error(schema_location.string() + ": " + message));
             }
             auto value = sch.template as<std::size_t>();
@@ -684,7 +691,7 @@ namespace jsonschema {
             uri schema_location = context.make_schema_location("minItems");
             if (!sch.is_number())
             {
-                std::string message("minItems must be a number value");
+                const std::string message("minItems must be a number value");
                 JSONCONS_THROW(schema_error(schema_location.string() + ": " + message));
             }
             auto value = sch.template as<std::size_t>();
@@ -697,7 +704,7 @@ namespace jsonschema {
             uri schema_location = context.make_schema_location("maxProperties");
             if (!sch.is_number())
             {
-                std::string message("maxProperties must be a number value");
+                const std::string message("maxProperties must be a number value");
                 JSONCONS_THROW(schema_error(schema_location.string() + ": " + message));
             }
             auto value = sch.template as<std::size_t>();
@@ -710,7 +717,7 @@ namespace jsonschema {
             uri schema_location = context.make_schema_location("minProperties");
             if (!sch.is_number())
             {
-                std::string message("minProperties must be a number value");
+                const std::string message("minProperties must be a number value");
                 JSONCONS_THROW(schema_error(schema_location.string() + ": " + message));
             }
             auto value = sch.template as<std::size_t>();
@@ -729,7 +736,7 @@ namespace jsonschema {
             if (it != parent.object_range().end()) 
             {
                 uri path = context.make_schema_location("maxContains");
-                auto value = it->value().template as<std::size_t>();
+                auto value = (*it).value().template as<std::size_t>();
                 max_contains = jsoncons::make_unique<max_contains_keyword<Json>>(parent, path, value);
             }
             else
@@ -743,7 +750,7 @@ namespace jsonschema {
             if (it != parent.object_range().end()) 
             {
                 uri path = context.make_schema_location("minContains");
-                auto value = it->value().template as<std::size_t>();
+                auto value = (*it).value().template as<std::size_t>();
                 min_contains = jsoncons::make_unique<min_contains_keyword<Json>>(parent, path, value);
             }
             else
@@ -770,7 +777,7 @@ namespace jsonschema {
             uri schema_location = context.make_schema_location("allOf");
             std::vector<schema_validator_type> subschemas;
 
-            size_t c = 0;
+            std::size_t c = 0;
             for (const auto& subsch : sch.array_range())
             {
                 std::string sub_keys[] = { "allOf", std::to_string(c++) };
@@ -785,7 +792,7 @@ namespace jsonschema {
             uri schema_location = context.make_schema_location("anyOf");
             std::vector<schema_validator_type> subschemas;
 
-            size_t c = 0;
+            std::size_t c = 0;
             for (const auto& subsch : sch.array_range())
             {
                 std::string sub_keys[] = { "anyOf", std::to_string(c++) };
@@ -800,7 +807,7 @@ namespace jsonschema {
             uri schema_location{ context.make_schema_location("oneOf") };
             std::vector<schema_validator_type> subschemas;
 
-            size_t c = 0;
+            std::size_t c = 0;
             for (const auto& subsch : sch.array_range())
             {
                 std::string sub_keys[] = { "oneOf", std::to_string(c++) };
@@ -933,7 +940,7 @@ namespace jsonschema {
 
             if (sch.type() == json_type::array_value) 
             {
-                size_t c = 0;
+                std::size_t c = 0;
                 for (const auto& subsch : sch.array_range())
                 {
                     std::string sub_keys[] = {"items", std::to_string(c++)};
@@ -947,7 +954,7 @@ namespace jsonschema {
                     uri items_location{context.make_schema_location("additionalItems")};
                     std::string sub_keys[] = {"additionalItems"};
                     items_val = jsoncons::make_unique<items_keyword<Json>>("additionalItems", parent, items_location,
-                        this->make_cross_draft_schema_validator(context, it->value(), sub_keys, anchor_dict));
+                        this->make_cross_draft_schema_validator(context, (*it).value(), sub_keys, anchor_dict));
                 }
             }
 

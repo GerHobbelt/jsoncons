@@ -1,4 +1,4 @@
-// Copyright 2013-2024 Daniel Parker
+// Copyright 2013-2025 Daniel Parker
 // Distributed under the Boost license, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
@@ -7,18 +7,17 @@
 #ifndef JSONCONS_EXT_CBOR_CBOR_CURSOR_HPP
 #define JSONCONS_EXT_CBOR_CBOR_CURSOR_HPP
 
+#include <cstddef>
+#include <functional>
 #include <ios>
-#include <istream> // std::basic_istream
 #include <memory> // std::allocator
-#include <stdexcept>
-#include <string>
 #include <system_error>
-#include <vector>
 
-#include <jsoncons/byte_string.hpp>
+#include <jsoncons/utility/byte_string.hpp>
 #include <jsoncons/config/jsoncons_config.hpp>
 #include <jsoncons/json_exception.hpp>
 #include <jsoncons/json_visitor.hpp>
+#include <jsoncons/ser_context.hpp>
 #include <jsoncons/source.hpp>
 #include <jsoncons/staj_cursor.hpp>
 #include <jsoncons_ext/cbor/cbor_parser.hpp>
@@ -39,12 +38,12 @@ private:
     basic_item_event_visitor_to_json_visitor<char_type,Allocator> cursor_handler_adaptor_;
     bool eof_;
 
-    // Noncopyable and nonmoveable
-    basic_cbor_cursor(const basic_cbor_cursor&) = delete;
-    basic_cbor_cursor& operator=(const basic_cbor_cursor&) = delete;
-
 public:
     using string_view_type = string_view;
+
+    // Noncopyable and nonmoveable
+    basic_cbor_cursor(const basic_cbor_cursor&) = delete;
+    basic_cbor_cursor(basic_cbor_cursor&&) = delete;
 
     template <typename Sourceable>
     basic_cbor_cursor(Sourceable&& source,
@@ -99,6 +98,11 @@ public:
             next(ec);
         }
     }
+
+    ~basic_cbor_cursor() = default;
+    
+    basic_cbor_cursor& operator=(const basic_cbor_cursor&) = delete;
+    basic_cbor_cursor& operator=(basic_cbor_cursor&&) = delete;
 
     void reset()
     {

@@ -1,4 +1,4 @@
-// Copyright 2013-2024 Daniel Parker
+// Copyright 2013-2025 Daniel Parker
 // Distributed under the Boost license, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
@@ -7,8 +7,26 @@
 #ifndef JSONCONS_ITEM_EVENT_VISITOR_HPP
 #define JSONCONS_ITEM_EVENT_VISITOR_HPP
 
-#include <jsoncons/json_encoder.hpp>
+#include <cstddef>
+#include <cstdint>
+#include <iostream>
+#include <memory>
+#include <string>
+#include <system_error>
+#include <type_traits>
+#include <vector>
+
+#include <jsoncons/config/compiler_support.hpp>
+#include <jsoncons/config/jsoncons_config.hpp>
+#include <jsoncons/utility/byte_string.hpp>
+#include <jsoncons/json_exception.hpp>
+#include <jsoncons/json_options.hpp>
 #include <jsoncons/json_visitor.hpp>
+#include <jsoncons/ser_context.hpp>
+#include <jsoncons/sink.hpp>
+#include <jsoncons/tag_type.hpp>
+#include <jsoncons/detail/write_number.hpp>
+#include <jsoncons/utility/extension_traits.hpp>
 
 namespace jsoncons { 
 
@@ -32,7 +50,7 @@ namespace jsoncons {
 
         basic_item_event_visitor() = default;
 
-        virtual ~basic_item_event_visitor() noexcept = default;
+        virtual ~basic_item_event_visitor() = default;
 
         void flush()
         {
