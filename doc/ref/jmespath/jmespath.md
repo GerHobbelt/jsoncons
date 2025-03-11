@@ -4,6 +4,10 @@ The jmespath extension implements [JMESPath](https://jmespath.org/). JMESPath is
 for transforming JSON documents into other JSON documents.
 It's supported in both the AWS and Azure CLI and has libraries available in a number of languages.
 
+Since 1.3.0, the jsoncons implementation supports JMESPath Lexical Scoping using the new 
+[let expression](https://github.com/jmespath/jmespath.jep/blob/main/proposals/0018-lexical-scope.md), 
+added to the language [on Mar 31, 2023](https://github.com/jmespath/jmespath.jep/pull/18).  
+
 ### Compliance level
 
 Fully compliant. The jsoncons implementation passes all [compliance tests](https://github.com/jmespath/jmespath.test).
@@ -34,6 +38,8 @@ Fully compliant. The jsoncons implementation passes all [compliance tests](https
 [search function](#eg1)  
 [jmespath_expression](#eg2)  
 [custom_functions (since 1.0.0)](#eg3)  
+[JMESPath Lexical Scoping using the new let expression (since 1.3.0)](#eg4)  
+[Late binding of variables to an initial (global) scope via parameters (since 1.3.0)](#eg5)  
 
  <div id="eg1"/>
 
@@ -47,7 +53,6 @@ compile and evaluate a JMESPath expression.
 #include <jsoncons/json.hpp>
 #include <jsoncons_ext/jmespath/jmespath.hpp>
 
-// for brevity
 using jsoncons::json; 
 namespace jmespath = jsoncons::jmespath;
 
@@ -96,7 +101,6 @@ A `jmespath_expression` is immutable and thread-safe.
 #include <jsoncons/json.hpp>
 #include <jsoncons_ext/jmespath/jmespath.hpp>
 
-// for brevity
 using jsoncons::json; 
 namespace jmespath = jsoncons::jmespath;
 
@@ -155,7 +159,6 @@ Credit to [JMESPath Tutorial](https://jmespath.org/tutorial.html) for this Examp
 #include <jsoncons/json.hpp>
 #include <jsoncons_ext/jmespath/jmespath.hpp>
 
-// for brevity
 namespace jmespath = jsoncons::jmespath;
 
 // When adding custom functions, they are generally placed in their own project's source code and namespace.
@@ -197,7 +200,7 @@ public:
                 reference ctx = params[0].value();
                 reference countValue = get_value(ctx, context, params[1]);
                 const auto& expr = params[2].expression();
-                auto argDefault = params[3];
+                const auto& argDefault = params[3];
 
                 if (!countValue.is_number())
                 {
@@ -286,7 +289,6 @@ thread_local size_t my_custom_functions<Json>::current_index = 0;
 
 } // namespace myspace
 
-// for brevity
 using json = jsoncons::json;
    
 int main()
@@ -320,7 +322,9 @@ int main()
   
     auto result = expr.evaluate(doc);
   
-    std::cout << pretty_print(result) << "\n\n";
+    auto options = jsoncons::json_options{}
+        .array_object_line_splits(jsoncons::line_split_kind::same_line);
+    std::cout << pretty_print(result, options) << "\n\n";
 }
 ```
 
@@ -328,87 +332,137 @@ Output:
 
 ```json
 [
-    {
-        "id": "id-xxx",
-        "position": 1,
-        "state": 1
-    },
-    {
-        "id": "",
-        "position": 2,
-        "state": 0
-    },
-    {
-        "id": "",
-        "position": 3,
-        "state": 0
-    },
-    {
-        "id": "",
-        "position": 4,
-        "state": 0
-    },
-    {
-        "id": "id-yyy",
-        "position": 5,
-        "state": 1
-    },
-    {
-        "id": "",
-        "position": 6,
-        "state": 0
-    },
-    {
-        "id": "",
-        "position": 7,
-        "state": 0
-    },
-    {
-        "id": "",
-        "position": 8,
-        "state": 0
-    },
-    {
-        "id": "id-mmm",
-        "position": 9,
-        "state": 2
-    },
-    {
-        "id": "",
-        "position": 10,
-        "state": 0
-    },
-    {
-        "id": "",
-        "position": 11,
-        "state": 0
-    },
-    {
-        "id": "",
-        "position": 12,
-        "state": 0
-    },
-    {
-        "id": "",
-        "position": 13,
-        "state": 0
-    },
-    {
-        "id": "",
-        "position": 14,
-        "state": 0
-    },
-    {
-        "id": "",
-        "position": 15,
-        "state": 0
-    },
-    {
-        "id": "",
-        "position": 16,
-        "state": 0
-    }
+    {"id": "id-xxx", "position": 1, "state": 1},
+    {"id": "", "position": 2, "state": 0},
+    {"id": "", "position": 3, "state": 0},
+    {"id": "", "position": 4, "state": 0},
+    {"id": "id-yyy", "position": 5, "state": 1},
+    {"id": "", "position": 6, "state": 0},
+    {"id": "", "position": 7, "state": 0},
+    {"id": "", "position": 8, "state": 0},
+    {"id": "id-mmm", "position": 9, "state": 2},
+    {"id": "", "position": 10, "state": 0},
+    {"id": "", "position": 11, "state": 0},
+    {"id": "", "position": 12, "state": 0},
+    {"id": "", "position": 13, "state": 0},
+    {"id": "", "position": 14, "state": 0},
+    {"id": "", "position": 15, "state": 0},
+    {"id": "", "position": 16, "state": 0}
 ]
 ```
 
 Credit to [PR #560](https://github.com/danielaparker/jsoncons/pull/560) for this example
+
+
+ <div id="eg4"/>
+
+#### JMESPath Lexical Scoping using the new let expression (since 1.3.0)
+
+```cpp
+#include <jsoncons/json.hpp>
+#include <jsoncons_ext/jmespath/jmespath.hpp>
+#include <iostream>
+
+using jsoncons::json; 
+namespace jmespath = jsoncons::jmespath;
+
+int main()
+{
+    auto doc = json::parse(R"(
+[
+  {"home_state": "WA",
+   "states": [
+     {"name": "WA", "cities": ["Seattle", "Bellevue", "Olympia"]},
+     {"name": "CA", "cities": ["Los Angeles", "San Francisco"]},
+     {"name": "NY", "cities": ["New York City", "Albany"]}
+   ]
+  },
+  {"home_state": "NY",
+   "states": [
+     {"name": "WA", "cities": ["Seattle", "Bellevue", "Olympia"]},
+     {"name": "CA", "cities": ["Los Angeles", "San Francisco"]},
+     {"name": "NY", "cities": ["New York City", "Albany"]}
+   ]
+  }
+]
+    )");
+
+    std::string query = R"([*].[let $home_state = home_state in states[? name == $home_state].cities[]][])";
+    auto expr = jmespath::make_expression<json>(query);
+
+    json result = expr.evaluate(doc);
+
+    auto options = jsoncons::json_options{}
+        .array_array_line_splits(jsoncons::line_split_kind::same_line);
+    std::cout << pretty_print(result, options) << "\n";
+```
+
+Output:
+
+```json
+[
+    ["Seattle", "Bellevue", "Olympia"],
+    ["New York City", "Albany"]
+]
+```
+
+Credit to [JEP: 18 Lexical Scoping](https://github.com/jmespath/jmespath.jep/blob/main/proposals/0018-lexical-scope.md) for this example
+
+ <div id="eg5"/>
+
+#### Late binding of variables to an initial (global) scope via parameters (since 1.3.0)
+
+```cpp
+#include <jsoncons/json.hpp>
+#include <jsoncons_ext/jmespath/jmespath.hpp>
+#include <iostream>
+
+using jsoncons::json;
+namespace jmespath = jsoncons::jmespath;
+
+int main()
+{
+    auto doc = json::parse(R"(
+{
+    "results": [
+         {
+              "name": "test1",
+              "uuid": "33bb9554-c616-42e6-a9c6-88d3bba4221c"
+          },
+          {
+              "name": "test2",
+              "uuid": "acde070d-8c4c-4f0d-9d8a-162843c10333"
+          }
+    ]
+}
+    )");
+
+    auto expr = jmespath::make_expression<json>("results[*].[name, uuid, $hostname]");
+
+    auto result = expr.evaluate(doc, {{"hostname", json{"localhost"}}});
+
+    auto options = jsoncons::json_options{}
+        .array_array_line_splits(jsoncons::line_split_kind::same_line);
+    std::cout << pretty_print(result) << "\n";
+}
+```
+
+Output:
+
+```json
+[
+    [
+        "test1",
+        "33bb9554-c616-42e6-a9c6-88d3bba4221c",
+        "localhost"
+    ],
+    [
+        "test2",
+        "acde070d-8c4c-4f0d-9d8a-162843c10333",
+        "localhost"
+    ]
+]
+```
+
+Credit to [JEP: 18 Lexical Scoping](https://github.com/jmespath/jmespath.jep/blob/main/proposals/0018-lexical-scope.md) for this example
+

@@ -34,6 +34,7 @@ void jmespath_tests(const std::string& fpath)
         for (const auto& test_case : test_group["cases"].array_range())
         {
             std::string expr = test_case["expression"].as<std::string>();
+            //std::cout << (fpath + "-" + expr) << "\n";
             try
             {
                 json actual = jmespath::search(root, expr);
@@ -51,7 +52,7 @@ void jmespath_tests(const std::string& fpath)
                         std::cout << "Actual: " << pretty_print(actual) << "\n\n";
                         std::cout << "Expected: " << pretty_print(expected) << "\n\n";
                     }
-                    CHECK(actual == expected); //-V521
+                    CHECK(expected == actual); //-V521
                 }
                 else if (test_case.contains("error"))
                 {

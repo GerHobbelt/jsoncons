@@ -8,7 +8,6 @@
 #include <thread>
 #include <string>
 
-// for brevity
 namespace jmespath = jsoncons::jmespath;
 
 // When adding custom functions, they are generally placed in their own project's source code and namespace.
@@ -61,7 +60,7 @@ public:
                 reference ctx = params[0].value();
                 reference countValue = get_value(ctx, context, params[1]);
                 const auto& expr = params[2].expression();
-                auto argDefault = params[3];
+                const auto& argDefault = params[3];
 
                 if (!countValue.is_number())
                 {
@@ -150,7 +149,6 @@ thread_local size_t my_custom_functions<Json>::current_index = 0;
 
 } // namespace myspace
 
-// for brevity
 using json = jsoncons::json;
    
 void jmespath_custom_function_example()
@@ -184,7 +182,9 @@ void jmespath_custom_function_example()
   
     auto result = expr.evaluate(doc);
   
-    std::cout << pretty_print(result) << "\n\n";
+    auto options = jsoncons::json_options{}
+        .array_object_line_splits(jsoncons::line_split_kind::same_line);
+    std::cout << pretty_print(result, options) << "\n\n";
 }
 
 int main()

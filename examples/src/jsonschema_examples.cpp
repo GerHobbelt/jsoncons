@@ -123,12 +123,13 @@ void resolve_uri_example()
 }
     )";
     
-    auto resolver = [](const jsoncons::uri& uri) -> json
+    std::string root_dir = "./input/jsonschema";
+    auto resolver = [&](const jsoncons::uri& uri) -> json
         {
             std::cout << "Requested URI: " << uri.string() << "\n";
             std::cout << "base: " << uri.base().string() << ", path: " << uri.path() << "\n\n";
 
-            std::string pathname = "./input/jsonschema" + std::string(uri.path());
+            std::string pathname = root_dir + uri.path();
 
             std::fstream is(pathname.c_str());
             if (!is)
@@ -156,14 +157,14 @@ void resolve_uri_example()
         jsonschema::json_schema<json> compiled = jsonschema::make_json_schema(schema, resolver);
 
         auto report = [](const jsonschema::validation_message& msg) -> jsonschema::walk_result
-        {
-            std::cout << msg.instance_location().string() << ": " << msg.message() << "\n";
-            for (const auto& detail : msg.details())
             {
-                std::cout << "    "  << detail.message() << "\n";
-            }
-            return jsonschema::walk_result::advance;
-        };
+                std::cout << msg.instance_location().string() << ": " << msg.message() << "\n";
+                for (const auto& detail : msg.details())
+                {
+                    std::cout << "    "  << detail.message() << "\n";
+                }
+                return jsonschema::walk_result::advance;
+            };
 
         // Will call report function object for each schema violation
         compiled.validate(data, report);
@@ -437,8 +438,9 @@ void draft_07_example()
 )");
 
     // Need to supply default version because schema does not have $schema keyword  
-    jsonschema::json_schema<json> compiled = jsonschema::make_json_schema(schema,
-        jsonschema::evaluation_options{}.default_version(jsonschema::schema_version::draft7()));
+    auto options = jsonschema::evaluation_options{}
+        .default_version(jsonschema::schema_version::draft7());
+    auto compiled = jsonschema::make_json_schema(schema, options);
 
     json data = json::parse(R"([ null, 2, 3, "foo" ])");
 

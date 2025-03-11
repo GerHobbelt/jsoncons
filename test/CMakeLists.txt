@@ -81,7 +81,9 @@ add_executable(unit_tests
                csv/src/csv_subfield_tests.cpp
                csv/src/csv_tests.cpp
                csv/src/encode_decode_csv_tests.cpp
+               jmespath/src/jmespath_custom_function_tests.cpp
                jmespath/src/jmespath_expression_tests.cpp
+               jmespath/src/jmespath_let_tests.cpp
                jmespath/src/jmespath_tests.cpp
                mergepatch/src/mergepatch_test_suite.cpp
                jsonpatch/src/jsonpatch_test_suite.cpp
@@ -209,7 +211,7 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_
     message(STATUS Version " ${CMAKE_CXX_COMPILER_VERSION}")
     # older GCC versions don't support 
    target_compile_options(unit_tests PRIVATE
-       $<$<CXX_COMPILER_ID:GNU>:-Werror=maybe-uninitialized -Wnon-virtual-dtor -Werror=stringop-overflow -Werror -Wall -Wextra -Wcast-align -Wcast-qual -Wimplicit-fallthrough -Wsign-compare -pedantic -Wnonnull -Werror=nonnull>
+       $<$<CXX_COMPILER_ID:GNU>:-Werror=maybe-uninitialized -Wnon-virtual-dtor -Werror=stringop-overflow -Werror -Wall -Wextra -Wcast-align -Wcast-qual -Wimplicit-fallthrough -Wsign-compare -pedantic -Wnonnull -Wnull-dereference -Werror=nonnull>
    )
 endif()
 

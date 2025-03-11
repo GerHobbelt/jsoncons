@@ -1,5 +1,34 @@
-1.2.0 (pending on master)
+1.3.0
 -----
+
+- Fixed bugs:
+
+    - Git Issue #600: Added "-Wnull-dereference" to CI and worked around some false positives.
+
+    - Git Issue #597: Invalid json schema compiled successfully
+
+    - Git Issue #595: SIGABRT when serialising unmapped enum value
+
+    - Fixed a jmespath issue with parenthesized expressions involving projections (wildcard expressions, 
+      the flatten operator, slices and filter expressions) where the right parenthesis did not stop the projection.
+      For example, given JSON `{"foo" : [[0, 1], [2, 3]]}`, the JMESPath query `(foo[*])[0]` 
+      returned `[0,2]` rather than the correct `[0,1]`.
+
+    - Fixed a `json_encoder` formatting issue when `array_object_line_splits` option set to `line_split_kind::same_line`.
+
+- Implemented new features:
+
+    - JMESPath Lexical Scoping using the new [let expression](https://github.com/jmespath/jmespath.jep/blob/main/proposals/0018-lexical-scope.md)
+
+    - JMESPath evaluation now supports late binding of variables to an initial (global) scope
+      via parameters.
+
+    - New `json_options` members `allow_comments` and `allow_trailing_comma`. These options should
+      be preferred over using an error handler.
+
+
+1.2.0 
+----- 
 
 - Fixed bugs:
 
