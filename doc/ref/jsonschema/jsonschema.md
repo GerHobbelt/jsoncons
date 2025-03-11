@@ -40,7 +40,7 @@ For earlier releases, please refer to [jsonschema (until 0.174.0)](https://githu
   </tr>
   <tr>
     <td><a href="make_schema.md">make_schema</a></td>
-    <td>Loads a JSON Schema and returns a shared pointer to a <code>json_schema</code>. Deprecated (since 0.174.0)
+    <td>Loads a JSON Schema and returns a shared pointer to a <code>json_schema</code>. Deprecated since 0.174.0. Removed in 1.0.0.
   </tr>
 
 </table>
@@ -141,7 +141,7 @@ the [JSON Schema Test Suite](https://github.com/json-schema-org/JSON-Schema-Test
 
 [Three ways of validating](#eg1)  
 [Format validation](#eg2)  
-[Using a URIResolver to resolve references to schemas defined in external files](#eg3)  
+[Using a ResolveURI to resolve references to schemas defined in external files](#eg3)  
 [Validate before decoding JSON into C++ class objects](#eg4)  
 [Default values](#eg5)  
 
@@ -349,7 +349,7 @@ Output:
 
 <div id="eg3"/>
 
-#### Using a URIResolver to resolve references to schemas defined in external files
+#### Using a ResolveURI to resolve references to schemas defined in external files
 
 In this example, the main schema defines a reference using the `$ref` property to a
 second schema, defined in an external file `name-defs.json`,
@@ -374,7 +374,7 @@ second schema, defined in an external file `name-defs.json`,
 ```
 
 jsoncons needs to know how to turn a URI reference to `name-defs.json` into a JSON Schema document,
-and for that it needs you to provide a `URIResolver`.
+and for that it needs you to provide a `ResolveURI`.
 
 ```cpp
 #include <jsoncons/json.hpp>
@@ -388,7 +388,7 @@ namespace jsonschema = jsoncons::jsonschema;
 // Until 0.174.0, throw a `schema_error` instead of returning json::null() 
 json resolver(const jsoncons::uri& uri)
 {
-    std::cout << "base: " << uri.base() << ", path: " << uri.path() << "\n\n";
+    std::cout << "base: " << uri.base().string() << ", path: " << uri.path() << "\n\n";
 
     std::string pathname = "./input/jsonschema/";
     pathname += std::string(uri.path());

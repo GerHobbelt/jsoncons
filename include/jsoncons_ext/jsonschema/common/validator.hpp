@@ -8,7 +8,7 @@
 #define JSONCONS_JSONSCHEMA_COMMON_VALIDATOR_HPP
 
 #include <jsoncons/config/jsoncons_config.hpp>
-#include <jsoncons/uri.hpp>
+#include <jsoncons/utility/uri.hpp>
 #include <jsoncons/json.hpp>
 #include <jsoncons_ext/jsonschema/common/evaluation_context.hpp>
 #include <jsoncons_ext/jsonschema/jsonschema_error.hpp>
@@ -172,9 +172,10 @@ namespace jsonschema {
         }
         void merge(std::unordered_set<std::string>&& properties)
         {
-            for (auto&& name : properties)
+            auto end = std::make_move_iterator(properties.end());
+            for (auto it = std::make_move_iterator(properties.begin()); it != end; ++it)
             {
-                evaluated_properties.insert(std::move(name));
+                evaluated_properties.insert(*it);
             }
         }
         void merge(const range_collection& ranges)

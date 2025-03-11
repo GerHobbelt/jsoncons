@@ -1,7 +1,7 @@
-0.179.0 (on master)
+1.0.0 (on master)
 -------
 
-Changes:
+Changes to basic_json::operator[]:
 
 - Removed `basic_json` proxy type. The rationale for this change is given in #315.
 
@@ -12,6 +12,45 @@ constructed value with the key if no such key already exists.
 - The new behavior for the const overload of operator[](const string_view_type&) will be to return 
 a const reference to the value that is associated with key, returning a const reference to a default 
 constructed value with static storage duration if no such key already exists.
+
+Changes to basic_json_parser:
+
+Until 1.0.0, a buffer of text is supplied to the parser with a call to `update()`
+followed by a call to `parse_some()`. Once the parser reaches the end of the buffer,
+additional JSON text can be supplied to the parser with another call to `update()`,
+followed by another call to `parse_some()`. See [Incremental parsing (until 1.0.0)](https://github.com/danielaparker/jsoncons/blob/master/doc/ref/corelib/basic_json_parser.md#incremental-parsing-until-01790). 
+
+Since 0.179, an initial buffer of text is supplied to the parse with a call to
+`set_buffer`, and parsing commences with a call to `parse_some`. The parser can be
+constructed with a user provided chunk reader to obtain additional JSON text
+as needed. See [Incremental parsing (since 1.0.0)](https://github.com/danielaparker/jsoncons/blob/master/doc/ref/corelib/basic_json_parser.md#incremental-parsing-since-01790). 
+
+Defect fixes:
+
+- Fixed a bug in jmespath avg function via PR #560
+
+- Fixed a number of issues in `uri::resolve`, used in jsonschema, related to abnormal references,
+particulay ones containing dots in path segments. 
+
+Removal of deprecated jsonschema classes and functions
+
+- The jsonschema function `make_schema`, classes `json_validator` and `validation_output`,
+header file `json_validator.hpp` and example `legacy_jsonschema_examples.cpp`, 
+deprecated in 0.174.0, have been removed.
+
+Enhancements:
+
+- New `basic_json(json_reference_arg_t, basic_json& j)` constructor to 
+allow a `basic_json` value to contain a non-owning view of another `basic_json`
+value.
+
+- Added constant `null_arg` so that a null json value can be 
+constructed with
+```
+json j{jsoncons::null_arg};
+```
+
+- Custom jmespath functions are now supported via PR #560
 
 0.178.0
 -------

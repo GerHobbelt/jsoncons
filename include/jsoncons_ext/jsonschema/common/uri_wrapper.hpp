@@ -8,7 +8,7 @@
 #define JSONCONS_JSONSCHEMA_COMMON_SCHEMA_IDENTIFIER_HPP
 
 #include <jsoncons/config/jsoncons_config.hpp>
-#include <jsoncons/uri.hpp>
+#include <jsoncons/utility/uri.hpp>
 #include <jsoncons/json.hpp>
 #include <jsoncons_ext/jsonpointer/jsonpointer.hpp>
 #include <jsoncons_ext/jsonschema/jsonschema_error.hpp>
@@ -30,7 +30,7 @@ namespace jsonschema {
         explicit uri_wrapper(const std::string& uri)
         {
             uri_ = jsoncons::uri(uri);
-            if (!uri_.encoded_fragment().empty())
+            if (!uri_.raw_fragment().empty())
             {
                 identifier_ = uri_.fragment();
                 std::error_code ec;
@@ -47,7 +47,7 @@ namespace jsonschema {
             : uri_{uri}
         {
             uri_ = jsoncons::uri(uri);
-            if (!uri_.encoded_fragment().empty())
+            if (!uri_.raw_fragment().empty())
             {
                 identifier_ = uri_.fragment();
                 std::error_code ec;
@@ -67,7 +67,7 @@ namespace jsonschema {
 
         bool has_fragment() const
         {
-            return !uri_.encoded_fragment().empty();
+            return !uri_.raw_fragment().empty();
         }
 
         bool has_plain_name_fragment() const
@@ -95,11 +95,6 @@ namespace jsonschema {
             return identifier_;
         }
 
-        uri_wrapper resolve(const uri_wrapper& uri) const
-        {
-            return uri_wrapper(uri_.resolve(uri.uri_));
-        }
-
         int compare(const uri_wrapper& other) const
         {
             int result = uri_.compare(other.uri_);
@@ -115,7 +110,7 @@ namespace jsonschema {
             if (has_plain_name_fragment())
                 return *this;
 
-            jsoncons::jsonpointer::json_pointer pointer(std::string(uri_.encoded_fragment()));
+            jsoncons::jsonpointer::json_pointer pointer(std::string(uri_.fragment()));
             pointer /= field;
 
             jsoncons::uri new_uri(uri_, uri_fragment_part, pointer.to_string());
@@ -128,7 +123,7 @@ namespace jsonschema {
             if (has_plain_name_fragment())
                 return *this;
 
-            jsoncons::jsonpointer::json_pointer pointer(std::string(uri_.encoded_fragment()));
+            jsoncons::jsonpointer::json_pointer pointer(std::string(uri_.raw_fragment()));
             pointer /= index;
 
             jsoncons::uri new_uri(uri_, uri_fragment_part, pointer.to_string());

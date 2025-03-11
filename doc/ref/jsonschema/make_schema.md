@@ -1,4 +1,6 @@
-### jsoncons::jsonschema::make_schema: deprecated (since 0.174.0)
+### jsoncons::jsonschema::make_schema: 
+(deprecated since 0.174.0) 
+(removed in 1.0.0)
 
 ```cpp
 #include <jsoncons_ext/jsonschema/jsonschema.hpp>
@@ -10,13 +12,13 @@ template <typename Json>
 std::shared_ptr<json_schema<Json>> make_schema(const Json& schema,
     const std::string& retrieval_uri);                               (2) (since 0.173.0)
 
-template <typename Json,class URIResolver>
+template <typename Json,class ResolveURI>
 std::shared_ptr<json_schema<Json>> make_schema(const Json& schema,
-    const std::string& retrieval_uri, const URIResolver& resolver);  (3) (since 0.173.0)
+    const std::string& retrieval_uri, const ResolveURI& resolver);  (3) (since 0.173.0)
 
-template <typename Json,class URIResolver>
+template <typename Json,class ResolveURI>
 std::shared_ptr<json_schema<Json>> make_schema(const Json& schema, 
-    const URIResolver& resolver);                                    (4)
+    const ResolveURI& resolver);                                    (4)
 ```
 
 Returns a `shared_ptr` to a `json_schema<Json>`.
@@ -32,8 +34,7 @@ Returns a `shared_ptr` to a `json_schema<Json>`.
     <td>resolver</td>
     <td>A function object with the signature of <code>resolver</code> being equivalent to 
     <pre>
-    Json fun(const jsoncons::uri& uri)   
-    </pre></td>   
+    Json fun(const <a href="../corelib/uri.md">jsoncons::uri</a>& uri);</pre></td>   
   </tr>
 </table>
 

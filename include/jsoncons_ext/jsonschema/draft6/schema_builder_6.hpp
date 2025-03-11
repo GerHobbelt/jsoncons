@@ -7,7 +7,7 @@
 #ifndef JSONCONS_JSONSCHEMA_DRAFT6_SCHEMA_BUILDER_6_HPP
 #define JSONCONS_JSONSCHEMA_DRAFT6_SCHEMA_BUILDER_6_HPP
 
-#include <jsoncons/uri.hpp>
+#include <jsoncons/utility/uri.hpp>
 #include <jsoncons/json.hpp>
 #include <jsoncons_ext/jsonpointer/jsonpointer.hpp>
 #include <jsoncons_ext/jsonschema/common/compilation_context.hpp>
@@ -162,9 +162,9 @@ namespace draft6 {
                         }
 
                         Json default_value{ jsoncons::null_type() };
-                        uri_wrapper relative(it->value().template as<std::string>()); 
-                        auto id = relative.resolve(uri_wrapper{ context.get_base_uri() });
-                        validators.push_back(this->get_or_create_reference(sch, id));
+                        uri relative(it->value().template as<std::string>()); 
+                        auto id = context.get_base_uri().resolve(relative)                   ;
+                        validators.push_back(this->get_or_create_reference(sch, uri_wrapper{id}));
                         schema_validator_ptr = jsoncons::make_unique<object_schema_validator<Json>>(
                             new_context.get_base_uri(), context.id(),
                             std::move(validators), std::move(defs), std::move(default_value));
@@ -297,11 +297,10 @@ namespace draft6 {
             
             for (const auto& prop : sch.object_range())
             {
-                std::string sub_keys[] = {prop.key()};
                 pattern_properties.emplace_back(
                     std::make_pair(
                         std::regex(prop.key(), std::regex::ECMAScript),
-                        make_schema_validator(context, prop.value(), sub_keys, anchor_dict)));
+                        make_schema_validator(context, prop.value(), {}, anchor_dict)));
             }
 
             return jsoncons::make_unique<pattern_properties_validator<Json>>(parent, std::move(schema_location),
@@ -339,9 +338,11 @@ namespace draft6 {
                 auto it = sch.find("$id"); // If $id is found, this schema can be referenced by the id
                 if (it != sch.object_range().end()) 
                 {
-                    uri_wrapper relative(it->value().template as<std::string>()); 
-                    uri_wrapper new_uri = relative.resolve(uri_wrapper{ parent.get_base_uri() });
-                    id = new_uri.uri();
+                    uri relative(it->value().template as<std::string>()); 
+                    auto resolved = parent.get_base_uri().resolve(relative);
+                    id = resolved;
+                    uri_wrapper new_uri{resolved};
+
                     //std::cout << "$id: " << id << ", " << new_uri.string() << "\n";
                     // Add it to the list if it is not already there
                     if (std::find(new_uris.begin(), new_uris.end(), new_uri) == new_uris.end())

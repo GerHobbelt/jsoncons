@@ -1,98 +1,92 @@
 // Copyright 2013-2024 Daniel Parker
 // Distributed under Boost license
 
-#include <string>
-#include <sstream>
 #include <jsoncons/json.hpp>
-#include <jsoncons/json_parser.hpp>
+#include <iostream>
 
-using namespace jsoncons;
+#if JSONCONS_VERSION_MAJOR == 0 && JSONCONS_VERSION_MINOR < 179
 
-void incremental_parsing_example1()
+void incremental_parsing_example()
 {
-    jsoncons::json_decoder<json> decoder;
-    json_parser parser;
+    jsoncons::json_decoder<jsoncons::json> decoder;
+    jsoncons::json_parser parser;
     try
     {
         parser.update("[fal");
         parser.parse_some(decoder);
         std::cout << "(1) done: " << std::boolalpha << parser.done() << ", source_exhausted: " << parser.source_exhausted() << "\n\n";
 
-        parser.update("se]");
+        parser.update("se,");
         parser.parse_some(decoder);
         std::cout << "(2) done: " << std::boolalpha << parser.done() << ", source_exhausted: " << parser.source_exhausted() << "\n\n";
+
+        parser.update("9");
+        parser.parse_some(decoder);
+        std::cout << "(3) done: " << std::boolalpha << parser.done() << ", source_exhausted: " << parser.source_exhausted() << "\n\n";
+
+        parser.update("0]");
+        parser.parse_some(decoder);
+        std::cout << "(4) done: " << std::boolalpha << parser.done() << ", source_exhausted: " << parser.source_exhausted() << "\n\n";
 
         parser.finish_parse(decoder);
-        std::cout << "(3) done: " << std::boolalpha << parser.done() << ", source_exhausted: " << parser.source_exhausted() << "\n\n";
+        std::cout << "(5) done: " << std::boolalpha << parser.done() << ", source_exhausted: " << parser.source_exhausted() << "\n\n";
 
         parser.check_done();
-        std::cout << "(4) done: " << std::boolalpha << parser.done() << ", source_exhausted: " << parser.source_exhausted() << "\n\n";
+        std::cout << "(6) done: " << std::boolalpha << parser.done() << ", source_exhausted: " << parser.source_exhausted() << "\n\n";
 
-        json j = decoder.get_result();
-        std::cout << "(5) " << j << "\n\n";
+        jsoncons::json j = decoder.get_result();
+        std::cout << "(7) " << j << "\n\n";
     }
-    catch (const ser_error& e)
+    catch (const jsoncons::ser_error& e)
     {
         std::cout << e.what() << std::endl;
     }
 }
 
-void incremental_parsing_example2()
+#else
+
+void incremental_parsing_example()
 {
-    jsoncons::json_decoder<json> decoder;
-    json_parser parser;
+    std::vector<std::string> chunks = {"[fal", "se,", "9", "0]"};
+    std::size_t index = 0;
+
+    auto read_chunk = [&](jsoncons::parser_input& input, std::error_code& /*ec*/) -> bool
+    {
+        if (index < chunks.size())
+        {
+            input.set_buffer(chunks[index].data(), chunks[index].size());
+            ++index;
+            return true;
+        }
+        else
+        {
+            return false;
+        }
+    };
+
+    jsoncons::json_decoder<jsoncons::json> decoder;
+    jsoncons::json_parser parser{read_chunk};
+
+    parser.reset();
     try
     {
-        parser.update("10");
         parser.parse_some(decoder);
         std::cout << "(1) done: " << std::boolalpha << parser.done() << ", source_exhausted: " << parser.source_exhausted() << "\n\n";
-
-        parser.update(".5");
-        parser.parse_some(decoder); // This is the end, but the parser can't tell
+        parser.finish_parse(decoder);
         std::cout << "(2) done: " << std::boolalpha << parser.done() << ", source_exhausted: " << parser.source_exhausted() << "\n\n";
-
-        parser.finish_parse(decoder); // Indicates that this is the end
+        parser.check_done();
         std::cout << "(3) done: " << std::boolalpha << parser.done() << ", source_exhausted: " << parser.source_exhausted() << "\n\n";
 
-        parser.check_done(); // Checks if there are any unconsumed 
-                             // non-whitespace characters in the input
-        std::cout << "(4) done: " << std::boolalpha << parser.done() << ", source_exhausted: " << parser.source_exhausted() << "\n\n";
-
-        json j = decoder.get_result();
-        std::cout << "(5) " << j << "\n";
+        jsoncons::json j = decoder.get_result();
+        std::cout << "(4) " << j << "\n\n";
     }
-    catch (const ser_error& e)
+    catch (const jsoncons::ser_error& e)
     {
         std::cout << e.what() << std::endl;
     }
 }
 
-void incremental_parsing_example3()
-{
-    jsoncons::json_decoder<json> decoder;
-    json_parser parser;
-    try
-    {
-        parser.update("[10");
-        parser.parse_some(decoder);
-        std::cout << "(1) done: " << std::boolalpha << parser.done() << ", source_exhausted: " << parser.source_exhausted() << "\n\n";
-
-        parser.update(".5]{}");
-        parser.parse_some(decoder); // The parser reaches the end at ']'
-        std::cout << "(2) done: " << std::boolalpha << parser.done() << ", source_exhausted: " << parser.source_exhausted() << "\n\n";
-
-        parser.finish_parse(decoder); // Indicates that this is the end
-        std::cout << "(3) done: " << std::boolalpha << parser.done() << ", source_exhausted: " << parser.source_exhausted() << "\n\n";
-
-        parser.check_done(); // Checks if there are any unconsumed 
-                             // non-whitespace characters in the input
-                             // (there are)
-    }
-    catch (const ser_error& e)
-    {
-        std::cout << "(4) " << e.what() << std::endl;
-    }
-}
+#endif
 
 void parse_nan_replacement_example()
 {
@@ -104,25 +98,29 @@ void parse_nan_replacement_example()
         }
     )";
 
-    auto options = json_options{}
+    auto options = jsoncons::json_options{}
         .nan_to_str("NaN")
         .inf_to_str("Infinity");
 
-    jsoncons::json_decoder<json> decoder;
-    json_parser parser(options);
+    jsoncons::json_decoder<jsoncons::json> decoder;
+    jsoncons::json_parser parser(options);
     try
     {
-        parser.update(s);
+#if JSONCONS_VERSION_MAJOR == 0 && JSONCONS_VERSION_MINOR < 179
+        parser.update(s);     // until 1.0.0
+#else        
+        parser.set_buffer(s.data(), s.size());   // since 1.0.0
+#endif        
         parser.parse_some(decoder);
         parser.finish_parse(decoder);
         parser.check_done();
     }
-    catch (const ser_error& e)
+    catch (const jsoncons::ser_error& e)
     {
         std::cout << e.what() << std::endl;
     }
 
-    json j = decoder.get_result(); // performs move
+    jsoncons::json j = decoder.get_result(); // performs move
     if (j["A"].is<double>())
     {
         std::cout << "A: " << j["A"].as<double>() << std::endl;
@@ -140,9 +138,8 @@ void parse_nan_replacement_example()
 int main()
 {
     std::cout << "\njson_parser examples\n\n";
-    incremental_parsing_example1();
-    incremental_parsing_example2();
-    incremental_parsing_example3();
+    
+    incremental_parsing_example();
     parse_nan_replacement_example();
 
     std::cout << std::endl;

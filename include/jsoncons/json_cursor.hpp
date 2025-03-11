@@ -63,7 +63,19 @@ public:
     {
         if (!done())
         {
-            next();
+            std::error_code local_ec;
+            read_next(local_ec);
+            if (local_ec)
+            {
+                if (local_ec == json_errc::unexpected_eof)
+                {
+                    done_ = true;
+                }
+                else
+                {
+                    JSONCONS_THROW(ser_error(local_ec, 1, 1));
+                }
+            }
         }
     }
 
@@ -133,7 +145,19 @@ public:
     {
         if (!done())
         {
-            next(ec);
+            std::error_code local_ec;
+            read_next(local_ec);
+            if (local_ec)
+            {
+                if (local_ec == json_errc::unexpected_eof)
+                {
+                    done_ = true;
+                }
+                else
+                {
+                    ec = local_ec;
+                }
+            }
         }
     }
 
@@ -304,7 +328,7 @@ public:
                     if (ec) return;
                     if (s.size() > 0)
                     {
-                        parser_.update(s.data(),s.size());
+                        parser_.set_buffer(s.data(),s.size());
                     }
                 }
                 if (!parser_.source_exhausted())
@@ -348,18 +372,11 @@ private:
 
     void initialize_with_string_view(string_view_type sv)
     {
-        auto r = unicode_traits::detect_json_encoding(sv.data(), sv.size());
-        if (!(r.encoding == unicode_traits::encoding_kind::utf8 || r.encoding == unicode_traits::encoding_kind::undetected))
+        std::error_code local_ec;
+        initialize_with_string_view(sv, local_ec);
+        if (local_ec)
         {
-            JSONCONS_THROW(ser_error(json_errc::illegal_unicode_character,parser_.line(),parser_.column()));
-        }
-        std::size_t offset = (r.ptr - sv.data());
-        parser_.update(sv.data()+offset,sv.size()-offset);
-
-        bool is_done = parser_.done() || done_;
-        if (!is_done)
-        {
-            read_next();
+            JSONCONS_THROW(ser_error(local_ec, 1, 1));
         }
     }
 
@@ -372,11 +389,23 @@ private:
             return;
         }
         std::size_t offset = (r.ptr - sv.data());
-        parser_.update(sv.data()+offset,sv.size()-offset);
+        parser_.set_buffer(sv.data()+offset,sv.size()-offset);
         bool is_done = parser_.done() || done_;
         if (!is_done)
         {
-            read_next(ec);
+            std::error_code local_ec;
+            read_next(local_ec);
+            if (local_ec)
+            {
+                if (local_ec == json_errc::unexpected_eof)
+                {
+                    done_ = true;
+                }
+                else
+                {
+                    ec = local_ec;
+                }
+            }
         }
     }
 
@@ -406,7 +435,7 @@ private:
                 if (ec) return;
                 if (s.size() > 0)
                 {
-                    parser_.update(s.data(),s.size());
+                    parser_.set_buffer(s.data(),s.size());
                     if (ec) return;
                 }
             }

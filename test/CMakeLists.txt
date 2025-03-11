@@ -76,6 +76,7 @@ add_executable(unit_tests
                cbor/src/cbor_typed_array_tests.cpp
                cbor/src/decode_cbor_tests.cpp
                cbor/src/encode_cbor_tests.cpp
+               csv/src/csv_reader_tests.cpp
                csv/src/csv_cursor_tests.cpp
                csv/src/csv_subfield_tests.cpp
                csv/src/csv_tests.cpp
@@ -127,19 +128,21 @@ add_executable(unit_tests
                corelib/src/detail/span_tests.cpp
                corelib/src/detail/string_view_tests.cpp
                corelib/src/utility/heap_string_tests.cpp
+               corelib/src/utility/uri_tests.cpp
                corelib/src/detail/to_integer_tests.cpp
                corelib/src/double_round_trip_tests.cpp
                corelib/src/double_to_string_tests.cpp
                corelib/src/dtoa_tests.cpp
                corelib/src/encode_decode_json_tests.cpp
                corelib/src/encode_traits_tests.cpp
-               corelib/src/error_recovery_tests.cpp
+               corelib/src/json_parser_recovery_tests.cpp
                corelib/src/json_array_tests.cpp
                corelib/src/json_as_tests.cpp
                corelib/src/json_bitset_traits_tests.cpp
                corelib/src/json_checker_tests.cpp
                corelib/src/json_comparator_tests.cpp
-               corelib/src/json_const_pointer_tests.cpp
+               corelib/src/json_const_pointer_arg_tests.cpp
+               corelib/src/json_reference_arg_tests.cpp
                corelib/src/json_assignment_tests.cpp
                corelib/src/json_constructor_tests.cpp
                corelib/src/json_cursor_tests.cpp
@@ -154,7 +157,7 @@ add_executable(unit_tests
                corelib/src/json_object_tests.cpp
                corelib/src/ojson_object_tests.cpp
                corelib/src/json_options_tests.cpp
-               corelib/src/json_parse_error_tests.cpp
+               corelib/src/json_parser_error_tests.cpp
                corelib/src/json_parser_position_tests.cpp
                corelib/src/json_parser_tests.cpp
                corelib/src/json_push_back_tests.cpp
@@ -169,7 +172,6 @@ add_executable(unit_tests
                corelib/src/json_type_traits_chrono_tests.cpp
                corelib/src/json_type_traits_container_tests.cpp
                corelib/src/json_type_traits_tests.cpp
-               corelib/src/uri_tests.cpp
                corelib/src/json_validation_tests.cpp 
                corelib/src/jsoncons_tests.cpp
                corelib/src/JSONTestSuite_tests.cpp

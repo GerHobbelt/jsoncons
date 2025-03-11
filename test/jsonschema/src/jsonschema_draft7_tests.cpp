@@ -105,6 +105,7 @@ TEST_CASE("jsonschema draft7 tests")
             jsonschema::evaluation_options{}.default_version(jsonschema::schema_version::draft7()).
                 require_format_validation(true));
     }
+
     SECTION("tests")
     {
         jsonschema_tests("./jsonschema/JSON-Schema-Test-Suite/tests/draft7/additionalItems.json");

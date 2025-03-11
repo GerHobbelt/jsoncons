@@ -518,23 +518,20 @@ namespace jsoncons {
 
         void uninitialized_init(index_key_value<Json>* items, std::size_t count)
         {
-            auto first = items;
             if (count > 0)
             {
                 members_.reserve(count);
 
-                auto last = first + count;
-
-                std::sort(first, last, compare);
-                members_.emplace_back(key_type(first->name.c_str(), first->name.size(), get_allocator()), std::move(first->value));
-                auto prev_it = first;
-                for (auto it = first+1; it != last; ++it)
+                std::sort(items, items+count, compare);
+                members_.emplace_back(key_type(items[0].name.data(), items[0].name.size(), get_allocator()), std::move(items[0].value));
+                
+                for (std::size_t i = 1; i < count; ++i)
                 {
-                    if (it->name != prev_it->name)
+                    auto& item = items[i];
+                    if (item.name != items[i-1].name)
                     {
-                        members_.emplace_back(key_type(it->name.c_str(), it->name.size(), get_allocator()), std::move(it->value));
+                        members_.emplace_back(key_type(item.name.data(), item.name.size(), get_allocator()), std::move(item.value));
                     }
-                    ++prev_it;
                 }
             }
         }
@@ -1295,10 +1292,7 @@ namespace jsoncons {
         {
             if (length > 0)
             {
-                auto first = items;
-                auto last = first + length;
-
-                std::sort(first, last, compare1);
+                std::sort(items, items+length, compare1);
 
                 std::size_t count = 1;
                 for (std::size_t i = 1; i < length; ++i)
@@ -1309,18 +1303,21 @@ namespace jsoncons {
                     }
                     if (i < length)
                     {
-                        items[count] = items[i];
+                        if (i != count)
+                        {
+                            items[count] = std::move(items[i]);
+                        }
                         ++count;
                     }
                 }
 
-                last = first+count;
-                std::sort(first, last, compare2);
+                std::sort(items, items+count, compare2);
 
                 members_.reserve(count);
-                for (auto it = first; it != last; ++it)
+
+                for (std::size_t i = 0; i < count; ++i)
                 {
-                    members_.emplace_back(std::move(it->name), std::move(it->value));
+                    members_.emplace_back(std::move(items[i].name), std::move(items[i].value));
                 }
             }
         }

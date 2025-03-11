@@ -17,6 +17,8 @@ struct null_type
     explicit null_type() = default; 
 };
 
+constexpr null_type null_arg{};
+
 struct temp_allocator_arg_t
 {
     explicit temp_allocator_arg_t() = default; 
@@ -58,6 +60,13 @@ struct json_const_pointer_arg_t
 };
 
 constexpr json_const_pointer_arg_t json_const_pointer_arg{};
+
+struct json_reference_arg_t
+{
+    explicit json_reference_arg_t() = default; 
+};
+
+constexpr json_reference_arg_t json_reference_arg{};
  
 enum class semantic_tag : uint8_t 
 {

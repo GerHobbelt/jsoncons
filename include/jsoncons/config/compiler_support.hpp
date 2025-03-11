@@ -17,11 +17,11 @@
 #   if defined(__GNUC_PATCHLEVEL__)
 #       define JSONCONS_GCC_AVAILABLE(major, minor, patch) \
             ((__GNUC__ * 10000 + __GNUC_MINOR__ * 100 + __GNUC_PATCHLEVEL__) \
-            >= (major * 10000 + minor * 100 + patch))
+            >= ((major) * 10000 + (minor) * 100 + (patch)))
 #   else
 #       define JSONCONS_GCC_AVAILABLE(major, minor, patch) \
             ((__GNUC__ * 10000 + __GNUC_MINOR__ * 100) \
-            >= (major * 10000 + minor * 100 + patch))
+            >= ((major) * 10000 + (minor) * 100 + (patch)))
 #   endif
 #   else
 #       define JSONCONS_GCC_AVAILABLE(major, minor, patch) 0
@@ -30,7 +30,7 @@
 #if defined(__clang__)
 #   define JSONCONS_CLANG_AVAILABLE(major, minor, patch) \
             ((__clang_major__ * 10000 + __clang_minor__ * 100 + __clang_patchlevel__) \
-            >= (major * 10000 + minor * 100 + patch))
+            >= ((major) * 10000 + (minor) * 100 + (patch)))
 #   else
 #       define JSONCONS_CLANG_AVAILABLE(major, minor, patch) 0
 #endif
@@ -42,16 +42,6 @@
 // MIT license
 
 // https://gcc.gnu.org/bugzilla/show_bug.cgi?id=54577
-
-#if defined(__clang__)
-#  define JSONCONS_FALLTHROUGH [[clang::fallthrough]]
-#elif defined(__GNUC__) && ((__GNUC__ >= 7))
-#  define JSONCONS_FALLTHROUGH __attribute__((fallthrough))
-#elif defined (__GNUC__)
-#  define JSONCONS_FALLTHROUGH // FALLTHRU
-#else
-#  define JSONCONS_FALLTHROUGH
-#endif
 
 #if defined(__GNUC__) || defined(__clang__)
 #define JSONCONS_LIKELY(x) __builtin_expect(!!(x), 1)
@@ -414,4 +404,17 @@ namespace jsoncons {
             JSONCONS_STR( 0 ))); }
 #endif // _DEBUG
 
+#if defined(JSONCONS_HAS_2017)
+#  define JSONCONS_FALLTHROUGH [[fallthrough]]
+#elif defined(__clang__)
+#  define JSONCONS_FALLTHROUGH [[clang::fallthrough]]
+#elif defined(__GNUC__) && ((__GNUC__ >= 7))
+#  define JSONCONS_FALLTHROUGH __attribute__((fallthrough))
+#elif defined (__GNUC__)
+#  define JSONCONS_FALLTHROUGH // FALLTHRU
+#else
+#  define JSONCONS_FALLTHROUGH
+#endif
+        
+        
 #endif // JSONCONS_COMPILER_SUPPORT_HPP

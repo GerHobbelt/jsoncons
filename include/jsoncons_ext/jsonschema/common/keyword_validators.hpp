@@ -9,7 +9,7 @@
 #define JSONCONS_JSONSCHEMA_COMMON_KEYWORD_VALIDATORS_HPP
 
 #include <jsoncons/config/jsoncons_config.hpp>
-#include <jsoncons/uri.hpp>
+#include <jsoncons/utility/uri.hpp>
 #include <jsoncons/json.hpp>
 #include <jsoncons_ext/jsonpointer/jsonpointer.hpp>
 #include <jsoncons_ext/jsonschema/common/format_validator.hpp>
@@ -39,7 +39,8 @@ namespace jsonschema {
 
     public:
         recursive_ref_validator(const Json& schema, const uri& schema_location) 
-            : keyword_validator_base<Json>("$recursiveRef", schema, schema_location)
+            : keyword_validator_base<Json>("$recursiveRef", schema, schema_location),
+              tentative_target_(nullptr)
         {}
 
         uri get_base_uri() const
@@ -136,7 +137,8 @@ namespace jsonschema {
 
     public:
         dynamic_ref_validator(const Json& schema, const uri& schema_location, const uri_wrapper& value) 
-            : keyword_validator_base<Json>("$dynamicRef", schema, schema_location), value_(value)
+            : keyword_validator_base<Json>("$dynamicRef", schema, schema_location), value_(value),
+            tentative_target_(nullptr)
         {
             //std::cout << "dynamic_ref_validator path: " << schema_location.string() << ", value: " << value.string() << "\n";
         }
@@ -2797,7 +2799,7 @@ namespace jsonschema {
                             {
                                 result = reporter.error(validation_message(this->keyword_name(),
                                     this_context.eval_path(), 
-                                    additional_properties_->schema_location().string(),
+                                    additional_properties_->schema_location(),
                                     instance_location, 
                                     "Additional property '" + prop.key() + "' found but was invalid."));
                                 if (result == walk_result::abort)

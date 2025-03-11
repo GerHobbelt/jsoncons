@@ -234,6 +234,18 @@ TEST_CASE("test_positive_integer_overflow")
     CHECK(s2 == j2.as<std::string>());
 }
 
-
-
-
+TEST_CASE("test json_parser errors")
+{
+    SECTION("empty string")
+    {
+        std::vector<std::string> vec{ "", "  ", "  \t  ", " \n "};
+        for (const auto& str : vec)
+        {
+            jsoncons::json_string_reader reader(str);
+            std::error_code ec;
+            reader.read(ec);
+            reader.check_done();
+            CHECK(ec == json_errc::unexpected_eof);
+        }
+    }
+}

@@ -2,15 +2,112 @@
 // Distributed under Boost license
 
 #include <jsoncons/json.hpp>
-#include <jsoncons/json_encoder.hpp>
 #include <jsoncons/json_reader.hpp>
 #include <catch/catch.hpp>
-#include <sstream>
-#include <vector>
-#include <utility>
-#include <ctime>
 
-using namespace jsoncons;
+using namespace jsoncons; 
+
+TEST_CASE("test json_reader buffered read")
+{
+    SECTION("string with split buffer")
+    {
+        std::string str(stream_source<char>::default_max_buffer_size+10, '1');
+        for (std::size_t i = 0; i < str.size(); i+= 2)
+        {
+            str[i] = '0';
+        }
+
+        std::string input;
+        input.push_back('"');
+        input.append(str);
+        input.push_back('"');
+        std::stringstream is(input);
+
+        auto j = json::parse(is);
+        REQUIRE(j.is_string());
+        CHECK(j.as<std::string>() == str);
+    }
+
+    SECTION("number with split buffer")
+    {
+        std::string str(stream_source<char>::default_max_buffer_size-7, 'a');
+        std::string neg_num("-123456789.123456789");
+
+        std::string input;
+        input.push_back('[');
+        input.push_back('"');
+        input.append(str);
+        input.push_back('"');
+        input.push_back(',');
+        input.append(neg_num);
+        input.push_back(']');
+
+        std::stringstream is(input);
+
+        auto j = json::parse(is);
+
+        REQUIRE(j.is_array());
+        REQUIRE(j.size() == 2);
+        CHECK(j[1].as<double>() == -123456789.123456789);
+    }
+
+    SECTION("false with split buffer")
+    {
+        std::string str;
+        str.push_back('[');
+        str.push_back('"');
+        str.append(stream_source<char>::default_max_buffer_size-8, 'a');
+        str.push_back('"');
+        str.push_back(',');
+        str.append("false");
+        str.push_back(']');
+
+        std::stringstream is(str);
+
+        auto j = json::parse(is);
+        REQUIRE(j.is_array());
+        REQUIRE(j.size() == 2);
+        CHECK_FALSE(j[1].as<bool>());
+    }
+
+    SECTION("true with split buffer")
+    {
+        std::string str;
+        str.push_back('[');
+        str.push_back('"');
+        str.append(stream_source<char>::default_max_buffer_size - 6, 'a');
+        str.push_back('"');
+        str.push_back(',');
+        str.append("true");
+        str.push_back(']');
+
+        std::stringstream is(str);
+
+        auto j = json::parse(is);
+        REQUIRE(j.is_array());
+        REQUIRE(j.size() == 2);
+        CHECK(j[1].as<bool>());
+    }
+
+    SECTION("null with split buffer")
+    {
+        std::string str;
+        str.push_back('[');
+        str.push_back('"');
+        str.append(stream_source<char>::default_max_buffer_size - 5, 'a');
+        str.push_back('"');
+        str.push_back(',');
+        str.append("null");
+        str.push_back(']');
+
+        std::stringstream is(str);
+
+        auto j = json::parse(is);
+        REQUIRE(j.is_array());
+        REQUIRE(j.size() == 2);
+        CHECK(j[1].is_null());
+    }
+}
 
 void test_json_reader_error(const std::string& text, const std::error_code& ec)
 {
@@ -238,18 +335,18 @@ TEST_CASE("json_reader json lines")
         json_decoder<json> decoder;
         json_stream_reader reader(is, decoder);
 
-        CHECK(!reader.eof());
+        REQUIRE(!reader.eof());
         reader.read_next();
-        CHECK(!reader.eof());
+        CHECK(decoder.get_result() == json::parse(R"(["Name", "Session", "Score", "Completed"])"));
+        REQUIRE(!reader.eof());
         reader.read_next();
-        CHECK(!reader.eof());
+        REQUIRE(!reader.eof());
         reader.read_next();
-        CHECK(!reader.eof());
+        REQUIRE(!reader.eof());
         reader.read_next();
-        CHECK(!reader.eof());
+        REQUIRE(!reader.eof());
         reader.read_next();
-        CHECK(!reader.eof());
-        reader.read_next();
+        CHECK(decoder.get_result() == json::parse(R"(["Deloise", "2012A", 19, true])"));
         CHECK(reader.eof());
     }
 }
@@ -301,3 +398,4 @@ TEST_CASE("json_reader stateful allocator tests")
     }
 }
 #endif
+

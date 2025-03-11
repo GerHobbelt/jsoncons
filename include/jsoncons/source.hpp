@@ -16,6 +16,7 @@
 #include <exception>
 #include <iterator>
 #include <type_traits> // std::enable_if
+#include <functional>
 #include <jsoncons/config/jsoncons_config.hpp>
 #include <jsoncons/byte_string.hpp> // jsoncons::byte_traits
 #include <jsoncons/extension_traits.hpp>
@@ -72,9 +73,9 @@ namespace jsoncons {
     template <typename CharT>
     class stream_source 
     {
-        static constexpr std::size_t default_max_buffer_size = 16384;
     public:
         using value_type = CharT;
+        static constexpr std::size_t default_max_buffer_size = 16384;
     private:
         using char_type = typename std::conditional<sizeof(CharT) == sizeof(char),char,CharT>::type;
         basic_null_istream<char_type> null_is_;
