@@ -257,7 +257,7 @@ private:
         sink_.flush();
     }
 
-    bool visit_begin_object(semantic_tag, const ser_context&, std::error_code& ec) override
+    JSONCONS_VISITOR_RET_TYPE visit_begin_object(semantic_tag, const ser_context&, std::error_code& ec) override
     {
         if (stack_.empty())
         {
@@ -275,12 +275,12 @@ private:
                 }
                 has_column_mapping_ = true;
             }
-            return true;
+            JSONCONS_VISITOR_RET_STAT;
         }
         if (JSONCONS_UNLIKELY(stack_.size() >= max_nesting_depth_))
         {
             ec = csv_errc::max_nesting_depth_exceeded;
-            return false;
+            JSONCONS_VISITOR_RET_STAT;
         } 
         
         // legacy        
@@ -307,7 +307,7 @@ private:
                 break;
             case stack_item_kind::row_mapping:
                 stack_.emplace_back(stack_item_kind::object);
-                return true;
+                break;
             case stack_item_kind::object:
                 stack_.emplace_back(stack_item_kind::object);
                 break;
@@ -331,12 +331,12 @@ private:
             default: // error
                 //std::cout << "visit_begin_object " << (int)stack_.back().item_kind_ << "\n"; 
                 ec = csv_errc::source_error;
-                return false;
+                JSONCONS_VISITOR_RET_STAT;
         }
-        return true;
+        JSONCONS_VISITOR_RET_STAT;
     }
 
-    bool visit_end_object(const ser_context&, std::error_code& ec) override
+    JSONCONS_VISITOR_RET_TYPE visit_end_object(const ser_context&, std::error_code& ec) override
     {
         JSONCONS_ASSERT(!stack_.empty());
 
@@ -477,17 +477,17 @@ private:
             default:
                 //std::cout << "visit_end_object " << (int)stack_.back().item_kind_ << "\n"; 
                 ec = csv_errc::source_error;
-                return false;
+                JSONCONS_VISITOR_RET_STAT;
         }
         stack_.pop_back();
         if (!stack_.empty())
         {
             ++stack_.back().count_;
         }
-        return true;
+        JSONCONS_VISITOR_RET_STAT;
     }
 
-    bool visit_begin_array(semantic_tag, const ser_context&, std::error_code& ec) override
+    JSONCONS_VISITOR_RET_TYPE visit_begin_array(semantic_tag, const ser_context&, std::error_code& ec) override
     {
         if (stack_.empty())
         {
@@ -499,12 +499,12 @@ private:
             {
                 stack_.emplace_back(stack_item_kind::row_mapping);
             }
-            return true;
+            JSONCONS_VISITOR_RET_STAT;
         }
         if (JSONCONS_UNLIKELY(stack_.size() >= max_nesting_depth_))
         {
             ec = csv_errc::max_nesting_depth_exceeded;
-            return false;
+            JSONCONS_VISITOR_RET_STAT;
         }
         // legacy        
         if (has_column_names_ && stack_.back().count_ == 0)
@@ -613,12 +613,12 @@ private:
             default: // error
                 //std::cout << "visit_begin_array " << (int)stack_.back().item_kind_ << "\n"; 
                 ec = csv_errc::source_error;
-                return false;
+                JSONCONS_VISITOR_RET_STAT;
         }
-        return true;
+        JSONCONS_VISITOR_RET_STAT;
     }
 
-    bool visit_end_array(const ser_context&, std::error_code& ec) override
+    JSONCONS_VISITOR_RET_TYPE visit_end_array(const ser_context&, std::error_code& ec) override
     {
         JSONCONS_ASSERT(!stack_.empty());
         
@@ -739,7 +739,7 @@ private:
             default:
                 //std::cout << "visit_end_array " << (int)stack_.back().item_kind_ << "\n"; 
                 ec = csv_errc::source_error;
-                return false;
+                JSONCONS_VISITOR_RET_STAT;
         }
         stack_.pop_back();
 
@@ -747,10 +747,10 @@ private:
         {
             ++stack_.back().count_;
         }
-        return true;
+        JSONCONS_VISITOR_RET_STAT;
     }
 
-    bool visit_key(const string_view_type& name, const ser_context&, std::error_code&) override
+    JSONCONS_VISITOR_RET_TYPE visit_key(const string_view_type& name, const ser_context&, std::error_code&) override
     {
         JSONCONS_ASSERT(!stack_.empty());
         switch (stack_.back().item_kind_)
@@ -795,7 +795,7 @@ private:
             default:
                 break;
         }
-        return true;
+        JSONCONS_VISITOR_RET_STAT;
     }
     
     void append_array_path_component()
@@ -818,7 +818,7 @@ private:
         }
     }
 
-    bool visit_null(semantic_tag, const ser_context&, std::error_code&) override
+    JSONCONS_VISITOR_RET_TYPE visit_null(semantic_tag, const ser_context&, std::error_code&) override
     {
         JSONCONS_ASSERT(!stack_.empty());
         switch (stack_.back().item_kind_)
@@ -885,10 +885,10 @@ private:
                 break;
         }
         ++stack_.back().count_;
-        return true;
+        JSONCONS_VISITOR_RET_STAT;
     }
 
-    bool visit_string(const string_view_type& sv, semantic_tag, const ser_context&, std::error_code&) override
+    JSONCONS_VISITOR_RET_TYPE visit_string(const string_view_type& sv, semantic_tag, const ser_context&, std::error_code&) override
     {
         JSONCONS_ASSERT(!stack_.empty());
         switch (stack_.back().item_kind_)
@@ -956,10 +956,10 @@ private:
                 break;
         }
         ++stack_.back().count_;
-        return true;
+        JSONCONS_VISITOR_RET_STAT;
     }
 
-    bool visit_byte_string(const byte_string_view& b, 
+    JSONCONS_VISITOR_RET_TYPE visit_byte_string(const byte_string_view& b, 
                               semantic_tag tag, 
                               const ser_context& context,
                               std::error_code& ec) override
@@ -1011,10 +1011,10 @@ private:
             }
         }
 
-        return true;
+        JSONCONS_VISITOR_RET_STAT;
     }
 
-    bool visit_double(double val, 
+    JSONCONS_VISITOR_RET_TYPE visit_double(double val, 
                          semantic_tag, 
                          const ser_context& context,
                          std::error_code& ec) override
@@ -1060,9 +1060,9 @@ private:
                 }
                 value_buffer_.clear();
                 write_double_value(val, context, value_buffer_, ec);
-                if (ec)
+                if (JSONCONS_UNLIKELY(ec))
                 {
-                    return false;
+                    JSONCONS_VISITOR_RET_STAT;
                 }
                 sink_.append(value_buffer_.data(), value_buffer_.size());
                 break;
@@ -1088,10 +1088,10 @@ private:
                 break;
         }
         ++stack_.back().count_;
-        return true;
+        JSONCONS_VISITOR_RET_STAT;
     }
 
-    bool visit_int64(int64_t val, 
+    JSONCONS_VISITOR_RET_TYPE visit_int64(int64_t val, 
                         semantic_tag, 
                         const ser_context&,
                         std::error_code&) override
@@ -1161,10 +1161,10 @@ private:
                 break;
         }
         ++stack_.back().count_;
-        return true;
+        JSONCONS_VISITOR_RET_STAT;
     }
 
-    bool visit_uint64(uint64_t val, 
+    JSONCONS_VISITOR_RET_TYPE visit_uint64(uint64_t val, 
                       semantic_tag, 
                       const ser_context&,
                       std::error_code&) override
@@ -1234,10 +1234,10 @@ private:
                 break;
         }
         ++stack_.back().count_;
-        return true;
+        JSONCONS_VISITOR_RET_STAT;
     }
 
-    bool visit_bool(bool val, semantic_tag, const ser_context&, std::error_code&) override
+    JSONCONS_VISITOR_RET_TYPE visit_bool(bool val, semantic_tag, const ser_context&, std::error_code&) override
     {
         JSONCONS_ASSERT(!stack_.empty());
         switch (stack_.back().item_kind_)
@@ -1304,7 +1304,7 @@ private:
                 break;
         }
         ++stack_.back().count_;
-        return true;
+        JSONCONS_VISITOR_RET_STAT;
     }
 
     void write_string_value(const string_view_type& value, string_type& str)

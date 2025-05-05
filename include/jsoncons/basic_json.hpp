@@ -1535,7 +1535,7 @@ namespace jsoncons {
                 {
                     value_converter<jsoncons::string_view, byte_string_type> converter;
                     byte_string_type v = converter.convert(as_string_view(),tag(), ec);
-                    if (ec)
+                    if (JSONCONS_UNLIKELY(ec))
                     {
                         JSONCONS_THROW(ser_error(ec));
                     }
@@ -2642,7 +2642,7 @@ namespace jsoncons {
         {
             std::error_code ec;
             dump(cont, options, indent, ec);
-            if (ec)
+            if (JSONCONS_UNLIKELY(ec))
             {
                 JSONCONS_THROW(ser_error(ec));
             }
@@ -2655,7 +2655,7 @@ namespace jsoncons {
         {
             std::error_code ec;
             dump_pretty(cont, options, ec);
-            if (ec)
+            if (JSONCONS_UNLIKELY(ec))
             {
                 JSONCONS_THROW(ser_error(ec));
             }
@@ -2667,7 +2667,7 @@ namespace jsoncons {
         {
             std::error_code ec;
             dump(os, options, indent, ec);
-            if (ec)
+            if (JSONCONS_UNLIKELY(ec))
             {
                 JSONCONS_THROW(ser_error(ec));
             }
@@ -2696,7 +2696,7 @@ namespace jsoncons {
         {
             std::error_code ec;
             dump_pretty(os, options, ec);
-            if (ec)
+            if (JSONCONS_UNLIKELY(ec))
             {
                 JSONCONS_THROW(ser_error(ec));
             }
@@ -2723,7 +2723,7 @@ namespace jsoncons {
             std::error_code ec;
 
             dump(cont, indent, ec);
-            if (ec)
+            if (JSONCONS_UNLIKELY(ec))
             {
                 JSONCONS_THROW(ser_error(ec));
             }
@@ -2735,7 +2735,7 @@ namespace jsoncons {
             std::error_code ec;
 
             dump(os, indent, ec);
-            if (ec)
+            if (JSONCONS_UNLIKELY(ec))
             {
                 JSONCONS_THROW(ser_error(ec));
             }
@@ -2745,7 +2745,7 @@ namespace jsoncons {
         {
             std::error_code ec;
             dump(visitor, ec);
-            if (ec)
+            if (JSONCONS_UNLIKELY(ec))
             {
                 JSONCONS_THROW(ser_error(ec));
             }
@@ -2854,7 +2854,7 @@ namespace jsoncons {
                   std::error_code& ec) const
         {
             dump_noflush(visitor, ec);
-            if (ec)
+            if (JSONCONS_UNLIKELY(ec))
             {
                 return;
             }
@@ -3309,7 +3309,7 @@ namespace jsoncons {
                         {
                             value_converter<jsoncons::basic_string_view<char_type>,T> converter;
                             T v = converter.convert(as_string_view(),tag(), ec);
-                            if (ec)
+                            if (JSONCONS_UNLIKELY(ec))
                             {
                                 JSONCONS_THROW(ser_error(ec));
                             }
@@ -3319,7 +3319,7 @@ namespace jsoncons {
                         {
                             value_converter<jsoncons::basic_string_view<char_type>, T> converter;
                             T v = converter.convert(as_string_view(), hint, ec);
-                            if (ec)
+                            if (JSONCONS_UNLIKELY(ec))
                             {
                                 JSONCONS_THROW(ser_error(ec));
                             }
@@ -3535,7 +3535,7 @@ namespace jsoncons {
                 {
                     value_converter<byte_string_view,string_type2> converter;
                     auto s = converter.convert(as_byte_string_view(), tag(), ec);
-                    if (ec)
+                    if (JSONCONS_UNLIKELY(ec))
                     {
                         JSONCONS_THROW(ser_error(ec));
                     }
@@ -4468,31 +4468,25 @@ namespace jsoncons {
                     break;
                 case json_storage_kind::object:
                 {
-                    bool more = visitor.begin_object(size(), tag(), context, ec);
+                    visitor.begin_object(size(), tag(), context, ec);
                     const object& o = cast<object_storage>().value();
-                    for (auto it = o.begin(); more && it != o.end(); ++it)
+                    for (auto it = o.begin(); it != o.end(); ++it)
                     {
                         visitor.key(string_view_type(((*it).key()).data(),(*it).key().length()), context, ec);
                         (*it).value().dump_noflush(visitor, ec);
                     }
-                    if (more)
-                    {
-                        visitor.end_object(context, ec);
-                    }
+                    visitor.end_object(context, ec);
                     break;
                 }
                 case json_storage_kind::array:
                 {
-                    bool more = visitor.begin_array(size(), tag(), context, ec);
+                    visitor.begin_array(size(), tag(), context, ec);
                     const array& o = cast<array_storage>().value();
-                    for (const_array_iterator it = o.begin(); more && it != o.end(); ++it)
+                    for (const_array_iterator it = o.begin(); it != o.end(); ++it)
                     {
                         (*it).dump_noflush(visitor, ec);
                     }
-                    if (more)
-                    {
-                        visitor.end_array(context, ec);
-                    }
+                    visitor.end_array(context, ec);
                     break;
                 }
                 case json_storage_kind::json_const_reference:
