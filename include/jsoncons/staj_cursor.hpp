@@ -46,7 +46,6 @@ public:
     using char_type = CharT;
     using typename super_type::string_view_type;
 private:
-    std::function<bool(const basic_staj_event<CharT>&, const ser_context&)> pred_;
     basic_staj_event<CharT> event_;
 
     staj_cursor_state state_;
@@ -55,13 +54,7 @@ private:
     std::size_t index_{0};
 public:
     basic_staj_visitor()
-        : pred_(accept), event_(staj_event_type::null_value),
-          state_(), data_(), shape_()
-    {
-    }
-
-    basic_staj_visitor(std::function<bool(const basic_staj_event<CharT>&, const ser_context&)> pred)
-        : pred_(pred), event_(staj_event_type::null_value),
+        : event_(staj_event_type::null_value),
           state_(), data_(), shape_()
     {
     }
@@ -368,118 +361,118 @@ private:
         return true;
     }
 
-    bool visit_begin_object(semantic_tag tag, const ser_context& context, std::error_code&) override
+    bool visit_begin_object(semantic_tag tag, const ser_context&, std::error_code&) override
     {
         event_ = basic_staj_event<CharT>(staj_event_type::begin_object, tag);
-        return !pred_(event_, context);
+        return true;
     }
 
-    bool visit_begin_object(std::size_t length, semantic_tag tag, const ser_context& context, std::error_code&) override
+    bool visit_begin_object(std::size_t length, semantic_tag tag, const ser_context&, std::error_code&) override
     {
         event_ = basic_staj_event<CharT>(staj_event_type::begin_object, length, tag);
-        return !pred_(event_, context);
+        return true;
     }
 
-    bool visit_end_object(const ser_context& context, std::error_code&) override
+    bool visit_end_object(const ser_context&, std::error_code&) override
     {
         event_ = basic_staj_event<CharT>(staj_event_type::end_object);
-        return !pred_(event_, context);
+        return true;
     }
 
-    bool visit_begin_array(semantic_tag tag, const ser_context& context, std::error_code&) override
+    bool visit_begin_array(semantic_tag tag, const ser_context&, std::error_code&) override
     {
         event_ = basic_staj_event<CharT>(staj_event_type::begin_array, tag);
-        return !pred_(event_, context);
+        return true;
     }
 
-    bool visit_begin_array(std::size_t length, semantic_tag tag, const ser_context& context, std::error_code&) override
+    bool visit_begin_array(std::size_t length, semantic_tag tag, const ser_context&, std::error_code&) override
     {
         event_ = basic_staj_event<CharT>(staj_event_type::begin_array, length, tag);
-        return !pred_(event_, context);
+        return true;
     }
 
-    bool visit_end_array(const ser_context& context, std::error_code&) override
+    bool visit_end_array(const ser_context&, std::error_code&) override
     {
         event_ = basic_staj_event<CharT>(staj_event_type::end_array);
-        return !pred_(event_, context);
+        return true;
     }
 
-    bool visit_key(const string_view_type& name, const ser_context& context, std::error_code&) override
+    bool visit_key(const string_view_type& name, const ser_context&, std::error_code&) override
     {
         event_ = basic_staj_event<CharT>(name, staj_event_type::key);
-        return !pred_(event_, context);
+        return true;
     }
 
-    bool visit_null(semantic_tag tag, const ser_context& context, std::error_code&) override
+    bool visit_null(semantic_tag tag, const ser_context&, std::error_code&) override
     {
         event_ = basic_staj_event<CharT>(staj_event_type::null_value, tag);
-        return !pred_(event_, context);
+        return true;
     }
 
-    bool visit_bool(bool value, semantic_tag tag, const ser_context& context, std::error_code&) override
+    bool visit_bool(bool value, semantic_tag tag, const ser_context&, std::error_code&) override
     {
         event_ = basic_staj_event<CharT>(value, tag);
-        return !pred_(event_, context);
+        return true;
     }
 
-    bool visit_string(const string_view_type& s, semantic_tag tag, const ser_context& context, std::error_code&) override
+    bool visit_string(const string_view_type& s, semantic_tag tag, const ser_context&, std::error_code&) override
     {
         event_ = basic_staj_event<CharT>(s, staj_event_type::string_value, tag);
-        return !pred_(event_, context);
+        return true;
     }
 
     bool visit_byte_string(const byte_string_view& s, 
                            semantic_tag tag,
-                           const ser_context& context,
+                           const ser_context&,
                            std::error_code&) override
     {
         event_ = basic_staj_event<CharT>(s, staj_event_type::byte_string_value, tag);
-        return !pred_(event_, context);
+        return true;
     }
 
     bool visit_byte_string(const byte_string_view& s, 
                            uint64_t ext_tag,
-                           const ser_context& context,
+                           const ser_context&,
                            std::error_code&) override
     {
         event_ = basic_staj_event<CharT>(s, staj_event_type::byte_string_value, ext_tag);
-        return !pred_(event_, context);
+        return true;
     }
 
     bool visit_uint64(uint64_t value, 
                          semantic_tag tag, 
-                         const ser_context& context,
+                         const ser_context&,
                          std::error_code&) override
     {
         event_ = basic_staj_event<CharT>(value, tag);
-        return !pred_(event_, context);
+        return true;
     }
 
     bool visit_int64(int64_t value, 
                   semantic_tag tag,
-                  const ser_context& context,
+                  const ser_context&,
                   std::error_code&) override
     {
         event_ = basic_staj_event<CharT>(value, tag);
-        return !pred_(event_, context);
+        return true;
     }
 
     bool visit_half(uint16_t value, 
                  semantic_tag tag,
-                 const ser_context& context,
+                 const ser_context&,
                  std::error_code&) override
     {
         event_ = basic_staj_event<CharT>(half_arg, value, tag);
-        return !pred_(event_, context);
+        return true;
     }
 
     bool visit_double(double value, 
                    semantic_tag tag, 
-                   const ser_context& context,
+                   const ser_context&,
                    std::error_code&) override
     {
         event_ = basic_staj_event<CharT>(value, tag);
-        return !pred_(event_, context);
+        return true;
     }
 
     bool visit_typed_array(const jsoncons::span<const uint8_t>& v, 

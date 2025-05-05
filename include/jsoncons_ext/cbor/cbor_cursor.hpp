@@ -36,7 +36,7 @@ private:
     basic_cbor_parser<Source,Allocator> parser_;
     basic_staj_visitor<char_type> cursor_visitor_;
     basic_item_event_visitor_to_json_visitor<char_type,Allocator> cursor_handler_adaptor_;
-    bool eof_;
+    bool eof_{false};
 
 public:
     using string_view_type = string_view;
@@ -50,10 +50,9 @@ public:
                       const cbor_decode_options& options = cbor_decode_options(),
                       const Allocator& alloc = Allocator())
         : parser_(std::forward<Sourceable>(source), options, alloc), 
-          cursor_visitor_(accept_all), 
-          cursor_handler_adaptor_(cursor_visitor_, alloc),
-          eof_(false)
+          cursor_handler_adaptor_(cursor_visitor_, alloc)
     {
+        parser_.cursor_mode(true);
         if (!done())
         {
             next();
@@ -89,10 +88,10 @@ public:
                       const cbor_decode_options& options,
                       std::error_code& ec)
        : parser_(std::forward<Sourceable>(source), options, alloc), 
-         cursor_visitor_(accept_all),
          cursor_handler_adaptor_(cursor_visitor_, alloc),
          eof_(false)
     {
+        parser_.cursor_mode(true);
         if (!done())
         {
             next(ec);
@@ -187,9 +186,26 @@ public:
     void read_to(basic_json_visitor<char_type>& visitor,
                  std::error_code& ec) override
     {
-        if (cursor_visitor_.dump(visitor, *this, ec))
+        if (is_typed_array())
         {
+            cursor_visitor_.dump(visitor, *this, ec);
+        }
+        else if (is_begin_container(current().event_type()))
+        {
+            parser_.cursor_mode(false);
+            parser_.mark_level(parser_.level());
+            cursor_visitor_.event().send_json_event(visitor, *this, ec);
+            if (JSONCONS_UNLIKELY(ec))
+            {
+                return;
+            }
             read_next(visitor, ec);
+            parser_.cursor_mode(true);
+            parser_.mark_level(0);
+        }
+        else
+        {
+            cursor_visitor_.event().send_json_event(visitor, *this, ec);
         }
     }
 
@@ -236,11 +252,6 @@ public:
     }
 
 private:
-    static bool accept_all(const staj_event&, const ser_context&) 
-    {
-        return true;
-    }
-
     void read_next(std::error_code& ec)
     {
         if (cursor_visitor_.in_available())

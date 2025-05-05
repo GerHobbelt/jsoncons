@@ -30,7 +30,7 @@ NY,LON,TOR;LON
 )";
     auto options = csv::csv_options{}
         .assume_header(true)
-           .subfield_delimiter(';');
+        .subfield_delimiter(';');
 
     json expected = R"(
 [
@@ -121,8 +121,8 @@ NY,LON,TOR;LON
 )";
     auto options = csv::csv_options{}
         .assume_header(true)
-           .mapping_kind(csv::csv_mapping_kind::m_columns)
-           .subfield_delimiter(';');
+        .mapping_kind(csv::csv_mapping_kind::m_columns)
+        .subfield_delimiter(';');
 
     json expected = R"(
 {

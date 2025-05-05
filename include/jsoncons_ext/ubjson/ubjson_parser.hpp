@@ -58,13 +58,16 @@ class basic_ubjson_parser : public ser_context
     using byte_allocator_type = typename std::allocator_traits<temp_allocator_type>:: template rebind_alloc<uint8_t>;                  
     using parse_state_allocator_type = typename std::allocator_traits<temp_allocator_type>:: template rebind_alloc<parse_state>;                         
 
+    bool more_{true};
+    bool done_{false};
+    int nesting_depth_{0};
+    bool cursor_mode_{false};
+    int mark_level_{0};
+
     Source source_;
     ubjson_decode_options options_;
-    bool more_;
-    bool done_;
     std::basic_string<char,std::char_traits<char>,char_allocator_type> text_buffer_;
     std::vector<parse_state,parse_state_allocator_type> state_stack_;
-    int nesting_depth_;
 public:
     template <typename Sourceable>
         basic_ubjson_parser(Sourceable&& source,
@@ -72,11 +75,8 @@ public:
                           const Allocator& alloc = Allocator())
        : source_(std::forward<Sourceable>(source)), 
          options_(options),
-         more_(true), 
-         done_(false),
          text_buffer_(alloc),
-         state_stack_(alloc),
-         nesting_depth_(0)
+         state_stack_(alloc)
     {
         state_stack_.emplace_back(parse_mode::root,0);
     }
@@ -101,6 +101,26 @@ public:
     {
         source_ = std::forward<Sourceable>(source);
         reset();
+    }
+
+    void cursor_mode(bool value)
+    {
+        cursor_mode_ = value;
+    }
+
+    int level() const
+    {
+        return static_cast<int>(state_stack_.size());
+    }
+
+    int mark_level() const 
+    {
+        return mark_level_;
+    }
+
+    void mark_level(int value)
+    {
+        mark_level_ = value;
     }
 
     bool done() const
@@ -346,7 +366,8 @@ private:
         {
             case jsoncons::ubjson::ubjson_type::null_type: 
             {
-                more_ = visitor.null_value(semantic_tag::none, *this, ec);
+                visitor.null_value(semantic_tag::none, *this, ec);
+                more_ = !cursor_mode_;
                 break;
             }
             case jsoncons::ubjson::ubjson_type::no_op_type: 
@@ -355,12 +376,14 @@ private:
             }
             case jsoncons::ubjson::ubjson_type::true_type:
             {
-                more_ = visitor.bool_value(true, semantic_tag::none, *this, ec);
+                visitor.bool_value(true, semantic_tag::none, *this, ec);
+                more_ = !cursor_mode_;
                 break;
             }
             case jsoncons::ubjson::ubjson_type::false_type:
             {
-                more_ = visitor.bool_value(false, semantic_tag::none, *this, ec);
+                visitor.bool_value(false, semantic_tag::none, *this, ec);
+                more_ = !cursor_mode_;
                 break;
             }
             case jsoncons::ubjson::ubjson_type::int8_type: 
@@ -373,7 +396,8 @@ private:
                     return;
                 }
                 int8_t val = binary::big_to_native<int8_t>(buf, sizeof(buf));
-                more_ = visitor.int64_value(val, semantic_tag::none, *this, ec);
+                visitor.int64_value(val, semantic_tag::none, *this, ec);
+                more_ = !cursor_mode_;
                 break;
             }
             case jsoncons::ubjson::ubjson_type::uint8_type: 
@@ -385,7 +409,8 @@ private:
                     more_ = false;
                     return;
                 }
-                more_ = visitor.uint64_value(b, semantic_tag::none, *this, ec);
+                visitor.uint64_value(b, semantic_tag::none, *this, ec);
+                more_ = !cursor_mode_;
                 break;
             }
             case jsoncons::ubjson::ubjson_type::int16_type: 
@@ -398,7 +423,8 @@ private:
                     return;
                 }
                 int16_t val = binary::big_to_native<int16_t>(buf, sizeof(buf));
-                more_ = visitor.int64_value(val, semantic_tag::none, *this, ec);
+                visitor.int64_value(val, semantic_tag::none, *this, ec);
+                more_ = !cursor_mode_;
                 break;
             }
             case jsoncons::ubjson::ubjson_type::int32_type: 
@@ -411,7 +437,8 @@ private:
                     return;
                 }
                 int32_t val = binary::big_to_native<int32_t>(buf, sizeof(buf));
-                more_ = visitor.int64_value(val, semantic_tag::none, *this, ec);
+                visitor.int64_value(val, semantic_tag::none, *this, ec);
+                more_ = !cursor_mode_;
                 break;
             }
             case jsoncons::ubjson::ubjson_type::int64_type: 
@@ -424,7 +451,8 @@ private:
                     return;
                 }
                 int64_t val = binary::big_to_native<int64_t>(buf, sizeof(buf));
-                more_ = visitor.int64_value(val, semantic_tag::none, *this, ec);
+                visitor.int64_value(val, semantic_tag::none, *this, ec);
+                more_ = !cursor_mode_;
                 break;
             }
             case jsoncons::ubjson::ubjson_type::float32_type: 
@@ -437,7 +465,8 @@ private:
                     return;
                 }
                 float val = binary::big_to_native<float>(buf, sizeof(buf));
-                more_ = visitor.double_value(val, semantic_tag::none, *this, ec);
+                visitor.double_value(val, semantic_tag::none, *this, ec);
+                more_ = !cursor_mode_;
                 break;
             }
             case jsoncons::ubjson::ubjson_type::float64_type: 
@@ -450,7 +479,8 @@ private:
                     return;
                 }
                 double val = binary::big_to_native<double>(buf, sizeof(buf));
-                more_ = visitor.double_value(val, semantic_tag::none, *this, ec);
+                visitor.double_value(val, semantic_tag::none, *this, ec);
+                more_ = !cursor_mode_;
                 break;
             }
             case jsoncons::ubjson::ubjson_type::char_type: 
@@ -469,7 +499,8 @@ private:
                     more_ = false;
                     return;
                 }
-                more_ = visitor.string_value(text_buffer_, semantic_tag::none, *this, ec);
+                visitor.string_value(text_buffer_, semantic_tag::none, *this, ec);
+                more_ = !cursor_mode_;
                 break;
             }
             case jsoncons::ubjson::ubjson_type::string_type: 
@@ -493,7 +524,8 @@ private:
                     more_ = false;
                     return;
                 }
-                more_ = visitor.string_value(jsoncons::basic_string_view<char>(text_buffer_.data(),text_buffer_.length()), semantic_tag::none, *this, ec);
+                visitor.string_value(jsoncons::basic_string_view<char>(text_buffer_.data(),text_buffer_.length()), semantic_tag::none, *this, ec);
+                more_ = !cursor_mode_;
                 break;
             }
             case jsoncons::ubjson::ubjson_type::high_precision_number_type: 
@@ -512,11 +544,13 @@ private:
                 }
                 if (jsoncons::detail::is_base10(text_buffer_.data(),text_buffer_.length()))
                 {
-                    more_ = visitor.string_value(jsoncons::basic_string_view<char>(text_buffer_.data(),text_buffer_.length()), semantic_tag::bigint, *this, ec);
+                    visitor.string_value(jsoncons::basic_string_view<char>(text_buffer_.data(),text_buffer_.length()), semantic_tag::bigint, *this, ec);
+                    more_ = !cursor_mode_;
                 }
                 else
                 {
-                    more_ = visitor.string_value(jsoncons::basic_string_view<char>(text_buffer_.data(),text_buffer_.length()), semantic_tag::bigdec, *this, ec);
+                    visitor.string_value(jsoncons::basic_string_view<char>(text_buffer_.data(),text_buffer_.length()), semantic_tag::bigdec, *this, ec);
+                    more_ = !cursor_mode_;
                 }
                 break;
             }
@@ -590,7 +624,8 @@ private:
                     return;
                 }
                 state_stack_.emplace_back(parse_mode::strongly_typed_array,length,b);
-                more_ = visitor.begin_array(length, semantic_tag::none, *this, ec);
+                visitor.begin_array(length, semantic_tag::none, *this, ec);
+                more_ = !cursor_mode_;
             }
             else
             {
@@ -614,12 +649,14 @@ private:
                 return;
             }
             state_stack_.emplace_back(parse_mode::array,length);
-            more_ = visitor.begin_array(length, semantic_tag::none, *this, ec);
+            visitor.begin_array(length, semantic_tag::none, *this, ec);
+            more_ = !cursor_mode_;
         }
         else
         {
             state_stack_.emplace_back(parse_mode::indefinite_array,0);
-            more_ = visitor.begin_array(semantic_tag::none, *this, ec);
+            visitor.begin_array(semantic_tag::none, *this, ec);
+            more_ = !cursor_mode_;
         }
     }
 
@@ -627,7 +664,12 @@ private:
     {
         --nesting_depth_;
 
-        more_ = visitor.end_array(*this, ec);
+        visitor.end_array(*this, ec);
+        more_ = !cursor_mode_;
+        if (level() == mark_level_)
+        {
+            more_ = false;
+        }
         state_stack_.pop_back();
     }
 
@@ -679,7 +721,8 @@ private:
                     return;
                 }
                 state_stack_.emplace_back(parse_mode::strongly_typed_map_key,length,b);
-                more_ = visitor.begin_object(length, semantic_tag::none, *this, ec);
+                visitor.begin_object(length, semantic_tag::none, *this, ec);
+                more_ = !cursor_mode_;
             }
             else
             {
@@ -712,12 +755,14 @@ private:
                     return;
                 }
                 state_stack_.emplace_back(parse_mode::map_key,length);
-                more_ = visitor.begin_object(length, semantic_tag::none, *this, ec);
+                visitor.begin_object(length, semantic_tag::none, *this, ec);
+                more_ = !cursor_mode_;
             }
             else
             {
                 state_stack_.emplace_back(parse_mode::indefinite_map_key,0);
-                more_ = visitor.begin_object(semantic_tag::none, *this, ec);
+                visitor.begin_object(semantic_tag::none, *this, ec);
+                more_ = !cursor_mode_;
             }
         }
     }
@@ -725,7 +770,12 @@ private:
     void end_object(json_visitor& visitor, std::error_code& ec)
     {
         --nesting_depth_;
-        more_ = visitor.end_object(*this, ec);
+        visitor.end_object(*this, ec);
+        more_ = !cursor_mode_;
+        if (level() == mark_level_)
+        {
+            more_ = false;
+        }
         state_stack_.pop_back();
     }
 
@@ -881,7 +931,8 @@ private:
             more_ = false;
             return;
         }
-        more_ = visitor.key(jsoncons::basic_string_view<char>(text_buffer_.data(),text_buffer_.length()), *this, ec);
+        visitor.key(jsoncons::basic_string_view<char>(text_buffer_.data(),text_buffer_.length()), *this, ec);
+        more_ = !cursor_mode_;
     }
 };
 

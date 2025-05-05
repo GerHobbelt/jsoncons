@@ -27,7 +27,7 @@ TEST_CASE("csv_cursor eof test")
     {
         auto options = csv::csv_options{}
             .assume_header(true)
-               .mapping_kind(csv::csv_mapping_kind::n_rows);
+            .mapping_kind(csv::csv_mapping_kind::n_rows);
         std::error_code ec;
         csv::csv_string_cursor cursor(data, options, ec);
         CHECK(ec == csv::csv_errc::source_error);
@@ -172,11 +172,15 @@ EUR_LIBOR_06M,2015-10-27,0.0000001
         cursor.next();
         CHECK(cursor.done());
     }
+    
     SECTION("m_columns test")
     {
         auto options = csv::csv_options{}
             .assume_header(true)
-               .mapping_kind(csv::csv_mapping_kind::m_columns);
+            .mapping_kind(csv::csv_mapping_kind::m_columns);
+            
+        json_decoder<json> decoder;
+
         csv::csv_string_cursor cursor(data, options);
 
         REQUIRE(cursor.current().event_type() == staj_event_type::begin_object);
@@ -241,7 +245,7 @@ EUR_LIBOR_06M,2015-10-27,0.0000001
     {
         auto options = csv::csv_options{}
             .assume_header(true)
-               .mapping_kind(csv::csv_mapping_kind::n_rows);
+            .mapping_kind(csv::csv_mapping_kind::n_rows);
         csv::csv_string_cursor cursor(data, options);
         /* for (; !cursor.done(); cursor.next())
         {
@@ -357,7 +361,7 @@ EUR_LIBOR_06M,2015-10-27,0.0000001
     {
         auto options = csv::csv_options{}
             .assume_header(true)
-               .mapping_kind(csv::csv_mapping_kind::n_objects);
+            .mapping_kind(csv::csv_mapping_kind::n_objects);
         csv::csv_string_cursor cursor(data, options);
 /*
         for (; !cursor.done(); cursor.next())
@@ -488,7 +492,7 @@ NY,LON,TOR;LON
     {
         auto options = csv::csv_options{}
             .assume_header(true)
-               .subfield_delimiter(';');
+            .subfield_delimiter(';');
 
         csv::csv_string_cursor cursor(data, options);
 
@@ -738,8 +742,8 @@ TEST_CASE("csv_cursor header, subfield no terminating new line test")
     {
         auto options = csv::csv_options{}
             .assume_header(true)
-               .subfield_delimiter(';')
-               .mapping_kind(csv::csv_mapping_kind::n_rows);
+            .subfield_delimiter(';')
+            .mapping_kind(csv::csv_mapping_kind::n_rows);
         csv::csv_string_cursor cursor(data, options);
 
         REQUIRE(cursor.current().event_type() == staj_event_type::begin_array);
@@ -774,7 +778,7 @@ TEST_CASE("csv_cursor header, subfield no terminating new line test")
     {
         auto options = csv::csv_options{}
             .assume_header(true)
-               .subfield_delimiter(';');
+            .subfield_delimiter(';');
         csv::csv_string_cursor cursor(data, options);
 
         REQUIRE(cursor.current().event_type() == staj_event_type::begin_array);
@@ -1045,3 +1049,4 @@ TEMPLATE_TEST_CASE("csv_cursor reset test", "",
         check_csv_cursor_table("with input3", cursor, "h3", 3);
     }
 }
+
