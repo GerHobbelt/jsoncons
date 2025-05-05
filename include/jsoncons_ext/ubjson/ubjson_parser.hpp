@@ -17,10 +17,11 @@
 
 #include <jsoncons/config/jsoncons_config.hpp>
 #include <jsoncons/detail/parse_number.hpp>
+#include <jsoncons/json_type.hpp>
 #include <jsoncons/json_visitor.hpp>
+#include <jsoncons/semantic_tag.hpp>
 #include <jsoncons/ser_context.hpp>
 #include <jsoncons/source.hpp>
-#include <jsoncons/tag_type.hpp>
 #include <jsoncons/utility/binary.hpp>
 #include <jsoncons/utility/unicode_traits.hpp>
 
@@ -28,7 +29,8 @@
 #include <jsoncons_ext/ubjson/ubjson_options.hpp>
 #include <jsoncons_ext/ubjson/ubjson_type.hpp>
 
-namespace jsoncons { namespace ubjson {
+namespace jsoncons { 
+namespace ubjson {
 
 enum class parse_mode {root,accept,array,indefinite_array,strongly_typed_array,map_key,map_value,strongly_typed_map_key,strongly_typed_map_value,indefinite_map_key,indefinite_map_value};
 

@@ -4,8 +4,8 @@
 
 // See https://github.com/danielaparker/jsoncons for latest version
 
-#ifndef JSONCONS_UTILITY_EXTENSION_TRAITS_HPP
-#define JSONCONS_UTILITY_EXTENSION_TRAITS_HPP
+#ifndef JSONCONS_UTILITY_MORE_TYPE_TRAITS_HPP
+#define JSONCONS_UTILITY_MORE_TYPE_TRAITS_HPP
 
 #include <array> // std::array
 #include <climits> // CHAR_BIT
@@ -26,7 +26,7 @@
 #endif
 
 namespace jsoncons {
-namespace extension_traits {
+namespace ext_traits {
 
     // is_char8
     template <typename CharT,typename Enable=void>
@@ -492,6 +492,9 @@ namespace extension_traits {
                                              is_detected<container_npos_t,T>::value
     >::type> : std::true_type {};
 
+    template <typename T>
+    constexpr bool is_string_or_string_view_v = is_string_or_string_view<T>::value;    
+
     // is_string
 
     template <typename T,typename Enable=void>
@@ -503,6 +506,9 @@ namespace extension_traits {
                                              has_allocator_type<T>::value
     >::type> : std::true_type {};
 
+    template <typename T>
+    constexpr bool is_string_v = is_string<T>::value;
+
     // is_string_view
 
     template <typename T,typename Enable=void>
@@ -513,6 +519,9 @@ namespace extension_traits {
                           typename std::enable_if<is_string_or_string_view<T>::value &&
                                                   !is_detected<container_allocator_type_t,T>::value
     >::type> : std::true_type {};
+
+    template <typename T>
+    constexpr bool is_string_view_v = is_string_view<T>::value;
 
     // is_map_like
 
@@ -917,7 +926,7 @@ namespace impl {
     > : std::true_type{};
 
     
-} // extension_traits
+} // ext_traits
 } // namespace jsoncons
 
-#endif // JSONCONS_UTILITY_EXTENSION_TRAITS_HPP
+#endif // JSONCONS_UTILITY_MORE_TYPE_TRAITS_HPP

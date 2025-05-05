@@ -22,14 +22,15 @@
 #include <jsoncons/item_event_visitor.hpp>
 #include <jsoncons/json_exception.hpp>
 #include <jsoncons/json_parser.hpp>
+#include <jsoncons/json_type.hpp>
 #include <jsoncons/json_type_traits.hpp>
 #include <jsoncons/json_visitor.hpp>
+#include <jsoncons/semantic_tag.hpp>
 #include <jsoncons/ser_context.hpp>
 #include <jsoncons/sink.hpp>
-#include <jsoncons/tag_type.hpp>
 #include <jsoncons/typed_array_view.hpp>
 #include <jsoncons/utility/bigint.hpp>
-#include <jsoncons/utility/extension_traits.hpp>
+#include <jsoncons/utility/more_type_traits.hpp>
 
 #include <jsoncons/value_converter.hpp>
 
@@ -267,7 +268,7 @@ public:
     }
 
     template <typename T,typename Allocator,typename CharT_ = CharT>
-    typename std::enable_if<extension_traits::is_string<T>::value && std::is_same<typename T::value_type, CharT_>::value, T>::type
+    typename std::enable_if<ext_traits::is_string<T>::value && std::is_same<typename T::value_type, CharT_>::value, T>::type
     get_(Allocator,std::error_code& ec) const
     {
         switch (event_type_)
@@ -322,7 +323,7 @@ public:
     }
 
     template <typename T,typename Allocator,typename CharT_ = CharT>
-    typename std::enable_if<extension_traits::is_string_view<T>::value && std::is_same<typename T::value_type, CharT_>::value, T>::type
+    typename std::enable_if<ext_traits::is_string_view<T>::value && std::is_same<typename T::value_type, CharT_>::value, T>::type
         get_(Allocator, std::error_code& ec) const
     {
         T s;
@@ -357,7 +358,7 @@ public:
     }
 
     template <typename T,typename Allocator>
-    typename std::enable_if<extension_traits::is_array_like<T>::value &&
+    typename std::enable_if<ext_traits::is_array_like<T>::value &&
                             std::is_same<typename T::value_type,uint8_t>::value,T>::type
     get_(Allocator, std::error_code& ec) const
     {
@@ -380,7 +381,7 @@ public:
     }
 
     template <typename IntegerType,typename Allocator>
-    typename std::enable_if<extension_traits::is_integer<IntegerType>::value, IntegerType>::type
+    typename std::enable_if<ext_traits::is_integer<IntegerType>::value, IntegerType>::type
     get_(Allocator, std::error_code& ec) const
     {
         switch (event_type_)
@@ -420,7 +421,7 @@ public:
     }
 
     template <typename T,typename Allocator>
-    typename std::enable_if<extension_traits::is_bool<T>::value, T>::type
+    typename std::enable_if<ext_traits::is_bool<T>::value, T>::type
         get_(Allocator, std::error_code& ec) const
     {
         return as_bool(ec);

@@ -16,7 +16,8 @@
 #include <vector>
 
 #include <jsoncons/config/jsoncons_config.hpp>
-#include <jsoncons/tag_type.hpp>
+#include <jsoncons/json_type.hpp>
+#include <jsoncons/semantic_tag.hpp>
 
 #include <jsoncons_ext/jsonpath/token_evaluator.hpp>
 #include <jsoncons_ext/jsonpath/path_node.hpp>
@@ -268,7 +269,7 @@ namespace detail {
             else if (current.is_array())
             {
                 int64_t n{0};
-                auto r = jsoncons::detail::decimal_to_integer(identifier_.data(), identifier_.size(), n);
+                auto r = jsoncons::detail::dec_to_integer(identifier_.data(), identifier_.size(), n);
                 if (r)
                 {
                     auto index = (n >= 0) ? static_cast<std::size_t>(n) : static_cast<std::size_t>(static_cast<int64_t>(current.size()) + n);
@@ -321,7 +322,7 @@ namespace detail {
             if (current.is_array())
             {
                 int64_t n{0};
-                auto r = jsoncons::detail::decimal_to_integer(identifier_.data(), identifier_.size(), n);
+                auto r = jsoncons::detail::dec_to_integer(identifier_.data(), identifier_.size(), n);
                 if (r)
                 {
                     auto index = (n >= 0) ? static_cast<std::size_t>(n) : static_cast<std::size_t>(static_cast<int64_t>(current.size()) + n);

@@ -26,9 +26,10 @@
 
 #include <jsoncons/config/compiler_support.hpp>
 #include <jsoncons/config/jsoncons_config.hpp>
-#include <jsoncons/utility/extension_traits.hpp>
+#include <jsoncons/utility/more_type_traits.hpp>
 
-namespace jsoncons { namespace unicode_traits {
+namespace jsoncons { 
+namespace unicode_traits {
 
     enum class encoding_kind {undetected,utf8,utf16le,utf16be,utf32le,utf32be};
 
@@ -60,7 +61,7 @@ namespace jsoncons { namespace unicode_traits {
     };
 
     template <typename CharT>
-    typename std::enable_if<extension_traits::is_char8<CharT>::value,detect_encoding_result<CharT>>::type
+    typename std::enable_if<ext_traits::is_char8<CharT>::value,detect_encoding_result<CharT>>::type
     detect_encoding_from_bom(const CharT* data, std::size_t length)
     {
         const uint8_t bom_utf8[] = {0xef,0xbb,0xbf}; 
@@ -96,14 +97,14 @@ namespace jsoncons { namespace unicode_traits {
     }
 
     template <typename CharT>
-    typename std::enable_if<extension_traits::is_char16<CharT>::value || extension_traits::is_char32<CharT>::value,detect_encoding_result<CharT>>::type
+    typename std::enable_if<ext_traits::is_char16<CharT>::value || ext_traits::is_char32<CharT>::value,detect_encoding_result<CharT>>::type
     detect_encoding_from_bom(const CharT* data, std::size_t)
     {
         return detect_encoding_result<CharT>{data,encoding_kind::undetected};
     }
 
     template <typename CharT>
-    typename std::enable_if<extension_traits::is_char8<CharT>::value,detect_encoding_result<CharT>>::type
+    typename std::enable_if<ext_traits::is_char8<CharT>::value,detect_encoding_result<CharT>>::type
     detect_json_encoding(const CharT* data, std::size_t length)
     {
         detect_encoding_result<CharT> r = detect_encoding_from_bom(data,length);
@@ -138,7 +139,7 @@ namespace jsoncons { namespace unicode_traits {
     }
 
     template <typename CharT>
-    typename std::enable_if<extension_traits::is_char16<CharT>::value || extension_traits::is_char32<CharT>::value,detect_encoding_result<CharT>>::type
+    typename std::enable_if<ext_traits::is_char16<CharT>::value || ext_traits::is_char32<CharT>::value,detect_encoding_result<CharT>>::type
     detect_json_encoding(const CharT* data, std::size_t)
     {
         return detect_encoding_result<CharT>{data,encoding_kind::undetected};
@@ -270,14 +271,14 @@ namespace jsoncons { namespace unicode_traits {
     };
 
     inline
-    const std::error_category& unicode_traits_error_category()
+    const std::error_category& unicode_traits_error_category() noexcept
     {
       static Unicode_traits_error_category_impl_ instance;
       return instance;
     }
 
     inline 
-    std::error_code make_error_code(conv_errc result)
+    std::error_code make_error_code(conv_errc result) noexcept
     {
         return std::error_code(static_cast<int>(result),unicode_traits_error_category());
     }
@@ -292,12 +293,13 @@ namespace std {
     };
 } // namespace std
 
-namespace jsoncons { namespace unicode_traits {
+namespace jsoncons { 
+namespace unicode_traits {
 
     // utf8
 
     template <typename CharT>
-    typename std::enable_if<extension_traits::is_char8<CharT>::value, conv_errc>::type
+    typename std::enable_if<ext_traits::is_char8<CharT>::value, conv_errc>::type
     is_legal_utf8(const CharT* first, std::size_t length) 
     {
         uint8_t a;
@@ -376,7 +378,7 @@ namespace jsoncons { namespace unicode_traits {
     // to_codepoint
 
     template <typename CharT,typename CodepointT>
-    typename std::enable_if<extension_traits::is_char8<CharT>::value && extension_traits::is_char32<CodepointT>::value,
+    typename std::enable_if<ext_traits::is_char8<CharT>::value && ext_traits::is_char32<CodepointT>::value,
                             convert_result<CharT>>::type 
     to_codepoint(const CharT* first, const CharT* last, 
                  CodepointT& ch, 
@@ -458,7 +460,7 @@ namespace jsoncons { namespace unicode_traits {
     }
 
     template <typename CharT,typename CodepointT>
-    typename std::enable_if<extension_traits::is_char16<CharT>::value && extension_traits::is_char32<CodepointT>::value,
+    typename std::enable_if<ext_traits::is_char16<CharT>::value && ext_traits::is_char32<CodepointT>::value,
                             convert_result<CharT>>::type 
     to_codepoint(const CharT* first, const CharT* last, 
                  CodepointT& ch, 
@@ -513,7 +515,7 @@ namespace jsoncons { namespace unicode_traits {
     }
 
     template <typename CharT,typename CodepointT>
-    typename std::enable_if<extension_traits::is_char32<CharT>::value && extension_traits::is_char32<CodepointT>::value,
+    typename std::enable_if<ext_traits::is_char32<CharT>::value && ext_traits::is_char32<CodepointT>::value,
                             convert_result<CharT>>::type 
     to_codepoint(const CharT* first, const CharT* last, 
                  CodepointT& ch, 
@@ -549,9 +551,9 @@ namespace jsoncons { namespace unicode_traits {
     // convert
 
     template <typename CharT,typename Container>
-    typename std::enable_if<extension_traits::is_char8<CharT>::value
-                            && extension_traits::is_back_insertable<Container>::value
-                            && extension_traits::is_char8<typename Container::value_type>::value,
+    typename std::enable_if<ext_traits::is_char8<CharT>::value
+                            && ext_traits::is_back_insertable<Container>::value
+                            && ext_traits::is_char8<typename Container::value_type>::value,
                             convert_result<CharT>>::type 
     convert(const CharT* data, std::size_t length, Container& target, conv_flags flags=conv_flags::strict) 
     {
@@ -585,9 +587,9 @@ namespace jsoncons { namespace unicode_traits {
     }
 
     template <typename CharT,typename Container>
-    typename std::enable_if<extension_traits::is_char8<CharT>::value
-                            && extension_traits::is_back_insertable<Container>::value
-                            && extension_traits::is_char16<typename Container::value_type>::value,
+    typename std::enable_if<ext_traits::is_char8<CharT>::value
+                            && ext_traits::is_back_insertable<Container>::value
+                            && ext_traits::is_char16<typename Container::value_type>::value,
                             convert_result<CharT>>::type 
     convert(const CharT* data, std::size_t length, 
             Container& target, 
@@ -662,9 +664,9 @@ namespace jsoncons { namespace unicode_traits {
     }
 
     template <typename CharT,typename Container>
-    typename std::enable_if<extension_traits::is_char8<CharT>::value                            
-                            && extension_traits::is_back_insertable<Container>::value
-                            && extension_traits::is_char32<typename Container::value_type>::value,
+    typename std::enable_if<ext_traits::is_char8<CharT>::value                            
+                            && ext_traits::is_back_insertable<Container>::value
+                            && ext_traits::is_char32<typename Container::value_type>::value,
                             convert_result<CharT>>::type 
     convert(const CharT* data, std::size_t length, 
             Container& target, 
@@ -746,9 +748,9 @@ namespace jsoncons { namespace unicode_traits {
     // utf16
 
     template <typename CharT,typename Container>
-    typename std::enable_if<extension_traits::is_char16<CharT>::value                            
-                            && extension_traits::is_back_insertable<Container>::value
-                            && extension_traits::is_char8<typename Container::value_type>::value,
+    typename std::enable_if<ext_traits::is_char16<CharT>::value                            
+                            && ext_traits::is_back_insertable<Container>::value
+                            && ext_traits::is_char8<typename Container::value_type>::value,
                             convert_result<CharT>>::type 
     convert(const CharT* data, std::size_t length, 
                      Container& target, 
@@ -846,9 +848,9 @@ namespace jsoncons { namespace unicode_traits {
     }
 
     template <typename CharT,typename Container>
-    typename std::enable_if<extension_traits::is_char16<CharT>::value                            
-                            && extension_traits::is_back_insertable<Container>::value
-                            && extension_traits::is_char16<typename Container::value_type>::value,
+    typename std::enable_if<ext_traits::is_char16<CharT>::value                            
+                            && ext_traits::is_back_insertable<Container>::value
+                            && ext_traits::is_char16<typename Container::value_type>::value,
                             convert_result<CharT>>::type 
     convert(const CharT* data, std::size_t length, 
             Container& target, 
@@ -903,9 +905,9 @@ namespace jsoncons { namespace unicode_traits {
     }
 
     template <typename CharT,typename Container>
-    typename std::enable_if<extension_traits::is_char16<CharT>::value                            
-                            && extension_traits::is_back_insertable<Container>::value
-                            && extension_traits::is_char32<typename Container::value_type>::value,
+    typename std::enable_if<ext_traits::is_char16<CharT>::value                            
+                            && ext_traits::is_back_insertable<Container>::value
+                            && ext_traits::is_char32<typename Container::value_type>::value,
                             convert_result<CharT>>::type 
     convert(const CharT* data, std::size_t length, 
             Container& target, 
@@ -956,9 +958,9 @@ namespace jsoncons { namespace unicode_traits {
     // utf32
 
     template <typename CharT,typename Container>
-    typename std::enable_if<extension_traits::is_char32<CharT>::value                            
-                            && extension_traits::is_back_insertable<Container>::value
-                            && extension_traits::is_char8<typename Container::value_type>::value,
+    typename std::enable_if<ext_traits::is_char32<CharT>::value                            
+                            && ext_traits::is_back_insertable<Container>::value
+                            && ext_traits::is_char8<typename Container::value_type>::value,
                             convert_result<CharT>>::type 
     convert(const CharT* data, std::size_t length, 
             Container& target, 
@@ -1042,9 +1044,9 @@ namespace jsoncons { namespace unicode_traits {
     }
 
     template <typename CharT,typename Container>
-    typename std::enable_if<extension_traits::is_char32<CharT>::value                            
-                            && extension_traits::is_back_insertable<Container>::value
-                            && extension_traits::is_char16<typename Container::value_type>::value,
+    typename std::enable_if<ext_traits::is_char32<CharT>::value                            
+                            && ext_traits::is_back_insertable<Container>::value
+                            && ext_traits::is_char16<typename Container::value_type>::value,
                             convert_result<CharT>>::type 
     convert(const CharT* data, std::size_t length, 
             Container& target, 
@@ -1087,9 +1089,9 @@ namespace jsoncons { namespace unicode_traits {
     }
 
     template <typename CharT,typename Container>
-    typename std::enable_if<extension_traits::is_char32<CharT>::value                            
-                            && extension_traits::is_back_insertable<Container>::value
-                            && extension_traits::is_char32<typename Container::value_type>::value,
+    typename std::enable_if<ext_traits::is_char32<CharT>::value                            
+                            && ext_traits::is_back_insertable<Container>::value
+                            && ext_traits::is_char32<typename Container::value_type>::value,
                             convert_result<CharT>>::type 
     convert(const CharT* data, std::size_t length, 
             Container& target, 
@@ -1127,7 +1129,7 @@ namespace jsoncons { namespace unicode_traits {
     // validate
 
     template <typename CharT>
-    typename std::enable_if<extension_traits::is_char8<CharT>::value,
+    typename std::enable_if<ext_traits::is_char8<CharT>::value,
                             convert_result<CharT>>::type 
     validate(const CharT* data, std::size_t length) noexcept
     {
@@ -1152,7 +1154,7 @@ namespace jsoncons { namespace unicode_traits {
     // utf16
 
     template <typename CharT>
-    typename std::enable_if<extension_traits::is_char16<CharT>::value,
+    typename std::enable_if<ext_traits::is_char16<CharT>::value,
                             convert_result<CharT>>::type 
     validate(const CharT* data, std::size_t length)  noexcept
     {
@@ -1198,7 +1200,7 @@ namespace jsoncons { namespace unicode_traits {
     // utf32
 
     template <typename CharT>
-    typename std::enable_if<extension_traits::is_char32<CharT>::value,
+    typename std::enable_if<ext_traits::is_char32<CharT>::value,
                             convert_result<CharT>>::type 
     validate(const CharT* data, std::size_t length) noexcept
     {
@@ -1302,7 +1304,7 @@ namespace jsoncons { namespace unicode_traits {
     // count_codepoints
 
     template <typename CharT>
-    typename std::enable_if<extension_traits::is_char8<CharT>::value || extension_traits::is_char16<CharT>::value || extension_traits::is_char32<CharT>::value, std::size_t>::type 
+    typename std::enable_if<ext_traits::is_char8<CharT>::value || ext_traits::is_char16<CharT>::value || ext_traits::is_char32<CharT>::value, std::size_t>::type 
     count_codepoints(const CharT* data, std::size_t length, 
                      conv_flags flags = conv_flags::strict) noexcept
     {

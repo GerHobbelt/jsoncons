@@ -15,12 +15,13 @@
 #include <jsoncons/detail/parse_number.hpp>
 #include <jsoncons/detail/write_number.hpp>
 #include <jsoncons/json_type.hpp>
-#include <jsoncons/tag_type.hpp>
+#include <jsoncons/semantic_tag.hpp>
 
 #include <jsoncons_ext/jsonpath/jsonpath_error.hpp>
 #include <jsoncons_ext/jsonpath/jsonpath_utilities.hpp>
 
-namespace jsoncons { namespace jsonpath {
+namespace jsoncons { 
+namespace jsonpath {
 
     template <typename Json>
     void flatten_(const typename Json::string_type& parent_key,

@@ -9,7 +9,7 @@
 
 #include <memory>
 
-#include <jsoncons/tag_type.hpp>
+#include <jsoncons/json_type.hpp>
 
 namespace jsoncons {
 

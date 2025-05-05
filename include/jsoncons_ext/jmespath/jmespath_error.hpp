@@ -15,7 +15,8 @@
 #include <jsoncons/config/compiler_support.hpp>
 #include <jsoncons/json_exception.hpp>
 
-namespace jsoncons { namespace jmespath {
+namespace jsoncons { 
+namespace jmespath {
 
     class jmespath_error : public std::system_error, public virtual json_exception
     {
@@ -201,14 +202,14 @@ public:
 };
 
 inline
-const std::error_category& jmespath_error_category()
+const std::error_category& jmespath_error_category() noexcept
 {
   static jmespath_error_category_impl instance;
   return instance;
 }
 
 inline 
-std::error_code make_error_code(jmespath_errc result)
+std::error_code make_error_code(jmespath_errc result) noexcept
 {
     return std::error_code(static_cast<int>(result),jmespath_error_category());
 }

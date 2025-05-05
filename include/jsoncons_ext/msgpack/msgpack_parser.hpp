@@ -18,19 +18,21 @@
 #include <jsoncons/config/compiler_support.hpp>
 #include <jsoncons/config/jsoncons_config.hpp>
 #include <jsoncons/item_event_visitor.hpp>
-#include <jsoncons/utility/byte_string.hpp>
+#include <jsoncons/json_type.hpp>
+#include <jsoncons/semantic_tag.hpp>
 #include <jsoncons/ser_context.hpp>
 #include <jsoncons/source.hpp>
-#include <jsoncons/tag_type.hpp>
 #include <jsoncons/utility/bigint.hpp>
 #include <jsoncons/utility/binary.hpp>
+#include <jsoncons/utility/byte_string.hpp>
 #include <jsoncons/utility/unicode_traits.hpp>
 
 #include <jsoncons_ext/msgpack/msgpack_error.hpp>
 #include <jsoncons_ext/msgpack/msgpack_options.hpp>
 #include <jsoncons_ext/msgpack/msgpack_type.hpp>
 
-namespace jsoncons { namespace msgpack {
+namespace jsoncons { 
+namespace msgpack {
 
 enum class parse_mode {root,accept,array,map_key,map_value};
 

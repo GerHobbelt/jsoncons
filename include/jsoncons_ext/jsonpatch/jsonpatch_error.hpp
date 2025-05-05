@@ -13,7 +13,8 @@
 
 #include <jsoncons/json_exception.hpp>
 
-namespace jsoncons { namespace jsonpatch {
+namespace jsoncons { 
+namespace jsonpatch {
 
     enum class jsonpatch_errc 
     {
@@ -61,14 +62,14 @@ namespace jsoncons { namespace jsonpatch {
     };
 
     inline
-    const std::error_category& jsonpatch_error_category()
+    const std::error_category& jsonpatch_error_category() noexcept
     {
       static jsonpatch_error_category_impl instance;
       return instance;
     }
 
     inline 
-    std::error_code make_error_code(jsonpatch_errc result)
+    std::error_code make_error_code(jsonpatch_errc result) noexcept
     {
         return std::error_code(static_cast<int>(result),jsonpatch_error_category());
     }
@@ -83,7 +84,8 @@ namespace std {
     };
 } // namespace std
 
-namespace jsoncons { namespace jsonpatch {
+namespace jsoncons { 
+namespace jsonpatch {
 
 // allow to disable exceptions
 #if !defined(JSONCONS_NO_EXCEPTIONS)

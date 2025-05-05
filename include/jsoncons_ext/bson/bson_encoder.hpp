@@ -19,12 +19,13 @@
 
 #include <jsoncons/config/compiler_support.hpp>
 #include <jsoncons/config/jsoncons_config.hpp>
-#include <jsoncons/utility/byte_string.hpp>
+#include <jsoncons/json_type.hpp>
 #include <jsoncons/json_visitor.hpp>
+#include <jsoncons/semantic_tag.hpp>
 #include <jsoncons/ser_context.hpp>
 #include <jsoncons/sink.hpp>
-#include <jsoncons/tag_type.hpp>
 #include <jsoncons/utility/binary.hpp>
+#include <jsoncons/utility/byte_string.hpp>
 #include <jsoncons/utility/unicode_traits.hpp>
 
 #include <jsoncons_ext/bson/bson_decimal128.hpp>
@@ -33,7 +34,8 @@
 #include <jsoncons_ext/bson/bson_options.hpp>
 #include <jsoncons_ext/bson/bson_type.hpp>
 
-namespace jsoncons { namespace bson {
+namespace jsoncons { 
+namespace bson {
 
 template <typename Sink=jsoncons::binary_stream_sink,typename Allocator=std::allocator<char>>
 class basic_bson_encoder final : public basic_json_visitor<char>

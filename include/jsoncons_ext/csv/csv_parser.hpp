@@ -23,15 +23,17 @@
 #include <jsoncons/json_exception.hpp>
 #include <jsoncons/json_filter.hpp>
 #include <jsoncons/json_reader.hpp>
+#include <jsoncons/json_type.hpp>
 #include <jsoncons/json_visitor.hpp>
+#include <jsoncons/semantic_tag.hpp>
 #include <jsoncons/ser_context.hpp>
 #include <jsoncons/staj_event.hpp>
-#include <jsoncons/tag_type.hpp>
 
 #include <jsoncons_ext/csv/csv_error.hpp>
 #include <jsoncons_ext/csv/csv_options.hpp>
 
-namespace jsoncons { namespace csv {
+namespace jsoncons { 
+namespace csv {
 
 enum class csv_mode 
 {
@@ -2258,7 +2260,7 @@ private:
                 if (is_negative)
                 {
                     int64_t val{ 0 };
-                    auto result = jsoncons::detail::decimal_to_integer(buffer_.data(), buffer_.length(), val);
+                    auto result = jsoncons::detail::dec_to_integer(buffer_.data(), buffer_.length(), val);
                     if (result)
                     {
                         visitor.int64_value(val, semantic_tag::none, *this, ec);
@@ -2273,7 +2275,7 @@ private:
                 else
                 {
                     uint64_t val{ 0 };
-                    auto result = jsoncons::detail::decimal_to_integer(buffer_.data(), buffer_.length(), val);
+                    auto result = jsoncons::detail::dec_to_integer(buffer_.data(), buffer_.length(), val);
                     if (result)
                     {
                         visitor.uint64_value(val, semantic_tag::none, *this, ec);

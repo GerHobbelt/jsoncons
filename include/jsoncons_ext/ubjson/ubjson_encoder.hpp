@@ -19,10 +19,11 @@
 #include <jsoncons/config/jsoncons_config.hpp>
 #include <jsoncons/detail/parse_number.hpp>
 #include <jsoncons/json_exception.hpp>
+#include <jsoncons/json_type.hpp>
 #include <jsoncons/json_visitor.hpp>
+#include <jsoncons/semantic_tag.hpp>
 #include <jsoncons/ser_context.hpp>
 #include <jsoncons/sink.hpp>
-#include <jsoncons/tag_type.hpp>
 #include <jsoncons/utility/binary.hpp>
 #include <jsoncons/utility/unicode_traits.hpp>
 
@@ -30,7 +31,8 @@
 #include <jsoncons_ext/ubjson/ubjson_options.hpp>
 #include <jsoncons_ext/ubjson/ubjson_type.hpp>
 
-namespace jsoncons { namespace ubjson {
+namespace jsoncons { 
+namespace ubjson {
 
 enum class ubjson_container_type {object, indefinite_length_object, array, indefinite_length_array};
 

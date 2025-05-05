@@ -19,15 +19,16 @@
 
 #include <jsoncons/config/compiler_support.hpp>
 #include <jsoncons/conv_error.hpp>
-#include <jsoncons/json_exception.hpp>
-#include <jsoncons/utility/extension_traits.hpp>
 #include <jsoncons/json_decoder.hpp>
+#include <jsoncons/json_exception.hpp>
+#include <jsoncons/json_type.hpp>
 #include <jsoncons/json_type_traits.hpp>
 #include <jsoncons/json_visitor.hpp>
+#include <jsoncons/semantic_tag.hpp>
 #include <jsoncons/ser_context.hpp>
-#include <jsoncons/staj_event.hpp>
 #include <jsoncons/staj_cursor.hpp>
-#include <jsoncons/tag_type.hpp>
+#include <jsoncons/staj_event.hpp>
+#include <jsoncons/utility/more_type_traits.hpp>
 
 namespace jsoncons {
 
@@ -61,7 +62,7 @@ namespace jsoncons {
 
     template <typename T,typename CharT>
     struct decode_traits<T,CharT,
-        typename std::enable_if<extension_traits::is_primitive<T>::value
+        typename std::enable_if<ext_traits::is_primitive<T>::value
     >::type>
     {
         template <typename Json,typename TempAllocator >
@@ -78,7 +79,7 @@ namespace jsoncons {
 
     template <typename T,typename CharT>
     struct decode_traits<T,CharT,
-        typename std::enable_if<extension_traits::is_string<T>::value &&
+        typename std::enable_if<ext_traits::is_string<T>::value &&
                                 std::is_same<typename T::value_type,CharT>::value
     >::type>
     {
@@ -94,7 +95,7 @@ namespace jsoncons {
 
     template <typename T,typename CharT>
     struct decode_traits<T,CharT,
-        typename std::enable_if<extension_traits::is_string<T>::value &&
+        typename std::enable_if<ext_traits::is_string<T>::value &&
                                 !std::is_same<typename T::value_type,CharT>::value
     >::type>
     {
@@ -161,9 +162,9 @@ namespace jsoncons {
     template <typename T,typename CharT>
     struct decode_traits<T,CharT,
         typename std::enable_if<!is_json_type_traits_declared<T>::value && 
-                 extension_traits::is_array_like<T>::value &&
-                 extension_traits::is_back_insertable<T>::value &&
-                 !extension_traits::is_typed_array<T>::value 
+                 ext_traits::is_array_like<T>::value &&
+                 ext_traits::is_back_insertable<T>::value &&
+                 !ext_traits::is_typed_array<T>::value 
     >::type>
     {
         using value_type = typename T::value_type;
@@ -234,7 +235,7 @@ namespace jsoncons {
             }
             if (size > 0)
             {
-                reserve_storage(typename std::integral_constant<bool, extension_traits::has_reserve<T>::value>::type(), v_, size);
+                reserve_storage(typename std::integral_constant<bool, ext_traits::has_reserve<T>::value>::type(), v_, size);
             }
             JSONCONS_VISITOR_RETURN;
         }
@@ -320,9 +321,9 @@ namespace jsoncons {
     template <typename T,typename CharT>
     struct decode_traits<T,CharT,
         typename std::enable_if<!is_json_type_traits_declared<T>::value && 
-                 extension_traits::is_array_like<T>::value &&
-                 extension_traits::is_back_insertable_byte_container<T>::value &&
-                 extension_traits::is_typed_array<T>::value
+                 ext_traits::is_array_like<T>::value &&
+                 ext_traits::is_back_insertable_byte_container<T>::value &&
+                 ext_traits::is_typed_array<T>::value
     >::type>
     {
         using value_type = typename T::value_type;
@@ -347,7 +348,7 @@ namespace jsoncons {
                         T v;
                         if (cursor.current().size() > 0)
                         {
-                            reserve_storage(typename std::integral_constant<bool, extension_traits::has_reserve<T>::value>::type(), v, cursor.current().size());
+                            reserve_storage(typename std::integral_constant<bool, ext_traits::has_reserve<T>::value>::type(), v, cursor.current().size());
                         }
                         for (auto ch : bytes)
                         {
@@ -366,7 +367,7 @@ namespace jsoncons {
                     T v;
                     if (cursor.current().size() > 0)
                     {
-                        reserve_storage(typename std::integral_constant<bool, extension_traits::has_reserve<T>::value>::type(), v, cursor.current().size());
+                        reserve_storage(typename std::integral_constant<bool, ext_traits::has_reserve<T>::value>::type(), v, cursor.current().size());
                     }
                     typed_array_visitor<T> visitor(v);
                     cursor.read_to(visitor, ec);
@@ -393,10 +394,10 @@ namespace jsoncons {
     template <typename T,typename CharT>
     struct decode_traits<T,CharT,
         typename std::enable_if<!is_json_type_traits_declared<T>::value && 
-                 extension_traits::is_array_like<T>::value &&
-                 extension_traits::is_back_insertable<T>::value &&
-                 !extension_traits::is_back_insertable_byte_container<T>::value &&
-                 extension_traits::is_typed_array<T>::value
+                 ext_traits::is_array_like<T>::value &&
+                 ext_traits::is_back_insertable<T>::value &&
+                 !ext_traits::is_back_insertable_byte_container<T>::value &&
+                 ext_traits::is_typed_array<T>::value
     >::type>
     {
         using value_type = typename T::value_type;
@@ -418,7 +419,7 @@ namespace jsoncons {
                     T v;
                     if (cursor.current().size() > 0)
                     {
-                        reserve_storage(typename std::integral_constant<bool, extension_traits::has_reserve<T>::value>::type(), v, cursor.current().size());
+                        reserve_storage(typename std::integral_constant<bool, ext_traits::has_reserve<T>::value>::type(), v, cursor.current().size());
                     }
                     typed_array_visitor<T> visitor(v);
                     cursor.read_to(visitor, ec);
@@ -446,9 +447,9 @@ namespace jsoncons {
     template <typename T,typename CharT>
     struct decode_traits<T,CharT,
         typename std::enable_if<!is_json_type_traits_declared<T>::value && 
-                 extension_traits::is_array_like<T>::value &&
-                 !extension_traits::is_back_insertable<T>::value &&
-                 extension_traits::is_insertable<T>::value 
+                 ext_traits::is_array_like<T>::value &&
+                 !ext_traits::is_back_insertable<T>::value &&
+                 ext_traits::is_insertable<T>::value 
     >::type>
     {
         using value_type = typename T::value_type;
@@ -472,7 +473,7 @@ namespace jsoncons {
             }
             if (cursor.current().size() > 0)
             {
-                reserve_storage(typename std::integral_constant<bool, extension_traits::has_reserve<T>::value>::type(), v, cursor.current().size());
+                reserve_storage(typename std::integral_constant<bool, ext_traits::has_reserve<T>::value>::type(), v, cursor.current().size());
             }
             cursor.next(ec);
             while (cursor.current().event_type() != staj_event_type::end_array && !ec)
@@ -539,8 +540,8 @@ namespace jsoncons {
     template <typename T,typename CharT>
     struct decode_traits<T,CharT,
         typename std::enable_if<!is_json_type_traits_declared<T>::value && 
-                                extension_traits::is_map_like<T>::value &&
-                                extension_traits::is_constructible_from_const_pointer_and_size<typename T::key_type>::value
+                                ext_traits::is_map_like<T>::value &&
+                                ext_traits::is_constructible_from_const_pointer_and_size<typename T::key_type>::value
     >::type>
     {
         using mapped_type = typename T::mapped_type;
@@ -560,7 +561,7 @@ namespace jsoncons {
             }
             if (cursor.current().size() > 0)
             {
-                reserve_storage(typename std::integral_constant<bool, extension_traits::has_reserve<T>::value>::type(), val, cursor.current().size());
+                reserve_storage(typename std::integral_constant<bool, ext_traits::has_reserve<T>::value>::type(), val, cursor.current().size());
             }
             cursor.next(ec);
 
@@ -598,7 +599,7 @@ namespace jsoncons {
     template <typename T,typename CharT>
     struct decode_traits<T,CharT,
         typename std::enable_if<!is_json_type_traits_declared<T>::value && 
-                                extension_traits::is_map_like<T>::value &&
+                                ext_traits::is_map_like<T>::value &&
                                 std::is_integral<typename T::key_type>::value
     >::type>
     {
@@ -619,7 +620,7 @@ namespace jsoncons {
             }
             if (cursor.current().size() > 0)
             {
-                reserve_storage(typename std::integral_constant<bool, extension_traits::has_reserve<T>::value>::type(), val, cursor.current().size());
+                reserve_storage(typename std::integral_constant<bool, ext_traits::has_reserve<T>::value>::type(), val, cursor.current().size());
             }
             cursor.next(ec);
 

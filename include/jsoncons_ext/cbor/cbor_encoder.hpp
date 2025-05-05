@@ -23,17 +23,19 @@
 #include <jsoncons/config/jsoncons_config.hpp>
 #include <jsoncons/detail/parse_number.hpp>
 #include <jsoncons/json_exception.hpp> // jsoncons::ser_error
+#include <jsoncons/json_type.hpp>
 #include <jsoncons/json_visitor.hpp>
+#include <jsoncons/semantic_tag.hpp>
 #include <jsoncons/ser_context.hpp>
 #include <jsoncons/sink.hpp>
-#include <jsoncons/tag_type.hpp>
 #include <jsoncons/utility/binary.hpp>
 #include <jsoncons/utility/unicode_traits.hpp>
 
 #include <jsoncons_ext/cbor/cbor_error.hpp>
 #include <jsoncons_ext/cbor/cbor_options.hpp>
 
-namespace jsoncons { namespace cbor {
+namespace jsoncons { 
+namespace cbor {
 
 enum class cbor_container_type {object, indefinite_length_object, array, indefinite_length_array};
 
@@ -220,7 +222,7 @@ public:
 
     template <typename ByteStringLike>
     void byte_string_value_with_tag(const ByteStringLike& value, uint64_t raw_tag,
-        typename std::enable_if<extension_traits::is_byte_sequence<ByteStringLike>::value,int>::type = 0) 
+        typename std::enable_if<ext_traits::is_byte_sequence<ByteStringLike>::value,int>::type = 0) 
     {
         write_tag(raw_tag);
         write_byte_string(byte_string_view(reinterpret_cast<const uint8_t*>(value.data()),value.size()));

@@ -4,8 +4,8 @@
 
 // See https://github.com/danielaparker/jsoncons for latest version
 
-#ifndef JSONCONS_TAG_TYPE_HPP
-#define JSONCONS_TAG_TYPE_HPP
+#ifndef JSONCONS_SEMANTIC_TYPE_HPP
+#define JSONCONS_SEMANTIC_TYPE_HPP
 
 #include <cstdint>
 #include <ostream>
@@ -14,98 +14,47 @@
 
 namespace jsoncons {
 
-struct null_type
-{
-    explicit null_type() = default; 
-};
-
-constexpr null_type null_arg{};
-
-struct temp_allocator_arg_t
-{
-    explicit temp_allocator_arg_t() = default; 
-};
-
-constexpr temp_allocator_arg_t temp_allocator_arg{};
-
-struct half_arg_t
-{
-    explicit half_arg_t() = default; 
-};
-
-constexpr half_arg_t half_arg{};
-
-struct json_array_arg_t
-{
-    explicit json_array_arg_t() = default; 
-};
-
-constexpr json_array_arg_t json_array_arg{};
-
-struct json_object_arg_t
-{
-    explicit json_object_arg_t() = default; 
-};
-
-constexpr json_object_arg_t json_object_arg{};
-
-struct byte_string_arg_t
-{
-    explicit byte_string_arg_t() = default; 
-};
-
-constexpr byte_string_arg_t byte_string_arg{};
-
-struct json_const_pointer_arg_t
-{
-    explicit json_const_pointer_arg_t() = default; 
-};
-
-constexpr json_const_pointer_arg_t json_const_pointer_arg{};
-
-struct json_pointer_arg_t
-{
-    explicit json_pointer_arg_t() = default; 
-};
-
-constexpr json_pointer_arg_t json_pointer_arg{};
- 
 enum class semantic_tag : uint8_t 
 {
-    none = 0,                  // 00000000     
-    undefined = 1,             // 00000001
-    datetime = 2,              // 00000010
-    epoch_second = 3,          // 00000011
-    epoch_milli = 4,           // 00000100
-    epoch_nano = 5,            // 00000101
-    base16 = 6,                // 00000110
-    base64 = 7,                // 00000111
-    base64url = 8,             // 00001000
-    uri = 9,
-    multi_dim_row_major = 10,
-    multi_dim_column_major = 11,
-    bigint = 12,                // 00001100
-    bigdec = 13,                // 00001101
-    bigfloat = 14,              // 00001110
-    float128 = 15,              // 00001111
-    clamped = 16,
-    ext = 17,
-    id = 18,
-    regex = 19,
-    code = 20
+    none = 0,               // 00000000 
+    noesc = 1,              // 00000001
+    bigint = 2,             // 00000010
+    bigdec = 3,             // 00000011
+    datetime = 4,           // 00000111
+    epoch_second = 5,       // 00001000
+    epoch_milli = 6,        // 00001001
+    epoch_nano = 7,         // 00001010 
+    base16 = 8,             // 00000100
+    base64 = 9,             // 00000101
+    bigfloat = 10,          // 00001010
+    float128 = 11,          // 00001011
+    base64url = 12,         // 00001100
+    undefined = 13,         
+    uri = 14,                
+    multi_dim_row_major = 15,
+    multi_dim_column_major = 16,
+    clamped = 17,
+    ext = 18,
+    id = 19,
+    regex = 20,
+    code = 21
 };
 
 inline bool is_number_tag(semantic_tag tag) noexcept
 {
-    static const uint8_t mask{ uint8_t(semantic_tag::bigint) & uint8_t(semantic_tag::bigdec) 
+    constexpr uint8_t mask1{ uint8_t(semantic_tag::bigint) & uint8_t(semantic_tag::bigdec) 
         & uint8_t(semantic_tag::bigfloat) & uint8_t(semantic_tag::float128) };
-    return (uint8_t(tag) & mask) == mask;
+    constexpr uint8_t mask2{ uint8_t(~uint8_t(semantic_tag::bigint) & ~uint8_t(semantic_tag::bigdec) 
+        & ~uint8_t(semantic_tag::bigfloat) & ~uint8_t(semantic_tag::float128)) };
+
+    return (uint8_t(tag) & mask1) == mask1 && (uint8_t(~(uint8_t)tag) & mask2) == mask2;
 }
 
 template <typename CharT>
 std::basic_ostream<CharT>& operator<<(std::basic_ostream<CharT>& os, semantic_tag tag)
 {
     static constexpr const CharT* na_name = JSONCONS_CSTRING_CONSTANT(CharT, "n/a");
+    static constexpr const CharT* noesc_name = JSONCONS_CSTRING_CONSTANT(CharT, "unescaped");
     static constexpr const CharT* undefined_name = JSONCONS_CSTRING_CONSTANT(CharT, "undefined");
     static constexpr const CharT* datetime_name = JSONCONS_CSTRING_CONSTANT(CharT, "datetime");
     static constexpr const CharT* epoch_second_name = JSONCONS_CSTRING_CONSTANT(CharT, "epoch-second");
@@ -132,6 +81,11 @@ std::basic_ostream<CharT>& operator<<(std::basic_ostream<CharT>& os, semantic_ta
         case semantic_tag::none:
         {
             os << na_name;
+            break;
+        }
+        case semantic_tag::noesc:
+        {
+            os << noesc_name;
             break;
         }
         case semantic_tag::undefined:
@@ -240,4 +194,4 @@ std::basic_ostream<CharT>& operator<<(std::basic_ostream<CharT>& os, semantic_ta
 
 } // namespace jsoncons
 
-#endif // JSONCONS_TAG_TYPE_HPP
+#endif // JSONCONS_SEMANTIC_TYPE_HPP

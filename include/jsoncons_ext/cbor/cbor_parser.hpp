@@ -18,10 +18,11 @@
 
 #include <jsoncons/config/jsoncons_config.hpp>
 #include <jsoncons/item_event_visitor.hpp>
+#include <jsoncons/json_type.hpp>
 #include <jsoncons/json_visitor.hpp>
+#include <jsoncons/semantic_tag.hpp>
 #include <jsoncons/ser_context.hpp>
 #include <jsoncons/source.hpp>
-#include <jsoncons/tag_type.hpp>
 #include <jsoncons/utility/binary.hpp>
 #include <jsoncons/utility/unicode_traits.hpp>
 
@@ -29,7 +30,8 @@
 #include <jsoncons_ext/cbor/cbor_error.hpp>
 #include <jsoncons_ext/cbor/cbor_options.hpp>
 
-namespace jsoncons { namespace cbor {
+namespace jsoncons { 
+namespace cbor {
 
 enum class parse_mode {root,accept,array,indefinite_array,map_key,map_value,indefinite_map_key,indefinite_map_value,multi_dim};
 

@@ -13,11 +13,12 @@
 #include <system_error>
 
 #include <jsoncons/config/compiler_support.hpp>
-#include <jsoncons/utility/byte_string.hpp>
 #include <jsoncons/json_exception.hpp>
+#include <jsoncons/json_type.hpp>
 #include <jsoncons/json_visitor.hpp>
+#include <jsoncons/semantic_tag.hpp>
 #include <jsoncons/ser_context.hpp>
-#include <jsoncons/tag_type.hpp>
+#include <jsoncons/utility/byte_string.hpp>
 #include <jsoncons/utility/unicode_traits.hpp>
 
 namespace jsoncons {
@@ -962,8 +963,8 @@ class json_visitor_adaptor
 };
 
 template <typename From,typename To>
-class json_visitor_adaptor<From,To,typename std::enable_if<extension_traits::is_narrow_character<typename From::char_type>::value &&
-                                                           extension_traits::is_narrow_character<typename To::char_type>::value>::type> : public json_visitor_adaptor_base<From,To>
+class json_visitor_adaptor<From,To,typename std::enable_if<ext_traits::is_narrow_character<typename From::char_type>::value &&
+                                                           ext_traits::is_narrow_character<typename To::char_type>::value>::type> : public json_visitor_adaptor_base<From,To>
 {
     using supertype = json_visitor_adaptor_base<From,To>;
     using to_char_type = typename To::char_type;
@@ -1005,8 +1006,8 @@ private:
 };
 
 template <typename From,typename To>
-class json_visitor_adaptor<From,To,typename std::enable_if<!(extension_traits::is_narrow_character<typename From::char_type>::value &&
-                                                             extension_traits::is_narrow_character<typename To::char_type>::value)>::type> : public json_visitor_adaptor_base<From,To>
+class json_visitor_adaptor<From,To,typename std::enable_if<!(ext_traits::is_narrow_character<typename From::char_type>::value &&
+                                                             ext_traits::is_narrow_character<typename To::char_type>::value)>::type> : public json_visitor_adaptor_base<From,To>
 {
     using supertype = json_visitor_adaptor_base<From,To>;
 public:

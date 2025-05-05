@@ -11,7 +11,8 @@
 #include <system_error>
 #include <type_traits>
 
-namespace jsoncons { namespace msgpack {
+namespace jsoncons { 
+namespace msgpack {
 
 enum class msgpack_errc
 {
@@ -70,14 +71,14 @@ public:
 };
 
 inline
-const std::error_category& msgpack_error_category()
+const std::error_category& msgpack_error_category() noexcept
 {
   static msgpack_error_category_impl instance;
   return instance;
 }
 
 inline 
-std::error_code make_error_code(msgpack_errc e)
+std::error_code make_error_code(msgpack_errc e) noexcept
 {
     return std::error_code(static_cast<int>(e),msgpack_error_category());
 }

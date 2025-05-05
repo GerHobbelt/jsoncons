@@ -20,10 +20,11 @@
 #include <jsoncons/json_decoder.hpp>
 #include <jsoncons/json_encoder.hpp>
 #include <jsoncons/json_options.hpp>
+#include <jsoncons/json_type.hpp>
 #include <jsoncons/json_type_traits.hpp>
 #include <jsoncons/json_visitor.hpp>
-#include <jsoncons/tag_type.hpp>
-#include <jsoncons/utility/extension_traits.hpp>
+#include <jsoncons/semantic_tag.hpp>
+#include <jsoncons/utility/more_type_traits.hpp>
 
 namespace jsoncons {
 
@@ -69,7 +70,7 @@ namespace jsoncons {
     // bool
     template <typename T,typename CharT>
     struct encode_traits<T,CharT,
-        typename std::enable_if<extension_traits::is_bool<T>::value 
+        typename std::enable_if<ext_traits::is_bool<T>::value 
     >::type>
     {
         template <typename Json>
@@ -85,7 +86,7 @@ namespace jsoncons {
     // uint
     template <typename T,typename CharT>
     struct encode_traits<T,CharT,
-        typename std::enable_if<extension_traits::is_u8_u16_u32_or_u64<T>::value 
+        typename std::enable_if<ext_traits::is_u8_u16_u32_or_u64<T>::value 
     >::type>
     {
         template <typename Json>
@@ -101,7 +102,7 @@ namespace jsoncons {
     // int
     template <typename T,typename CharT>
     struct encode_traits<T,CharT,
-        typename std::enable_if<extension_traits::is_i8_i16_i32_or_i64<T>::value 
+        typename std::enable_if<ext_traits::is_i8_i16_i32_or_i64<T>::value 
     >::type>
     {
         template <typename Json>
@@ -117,7 +118,7 @@ namespace jsoncons {
     // float or double
     template <typename T,typename CharT>
     struct encode_traits<T,CharT,
-        typename std::enable_if<extension_traits::is_float_or_double<T>::value 
+        typename std::enable_if<ext_traits::is_float_or_double<T>::value 
     >::type>
     {
         template <typename Json>
@@ -133,7 +134,7 @@ namespace jsoncons {
     // string
     template <typename T,typename CharT>
     struct encode_traits<T,CharT,
-        typename std::enable_if<extension_traits::is_string<T>::value &&
+        typename std::enable_if<ext_traits::is_string<T>::value &&
                                 std::is_same<typename T::value_type,CharT>::value 
     >::type>
     {
@@ -148,7 +149,7 @@ namespace jsoncons {
     };
     template <typename T,typename CharT>
     struct encode_traits<T,CharT,
-        typename std::enable_if<extension_traits::is_string<T>::value &&
+        typename std::enable_if<ext_traits::is_string<T>::value &&
                                 !std::is_same<typename T::value_type,CharT>::value 
     >::type>
     {
@@ -248,8 +249,8 @@ namespace jsoncons {
     template <typename T,typename CharT>
     struct encode_traits<T,CharT,
         typename std::enable_if<!is_json_type_traits_declared<T>::value && 
-                 extension_traits::is_array_like<T>::value &&
-                 !extension_traits::is_typed_array<T>::value 
+                 ext_traits::is_array_like<T>::value &&
+                 !ext_traits::is_typed_array<T>::value 
     >::type>
     {
         using value_type = typename T::value_type;
@@ -274,8 +275,8 @@ namespace jsoncons {
     template <typename T,typename CharT>
     struct encode_traits<T,CharT,
         typename std::enable_if<!is_json_type_traits_declared<T>::value && 
-                 extension_traits::is_array_like<T>::value &&
-                 extension_traits::is_typed_array<T>::value 
+                 ext_traits::is_array_like<T>::value &&
+                 ext_traits::is_typed_array<T>::value 
     >::type>
     {
         using value_type = typename T::value_type;
@@ -319,8 +320,8 @@ namespace jsoncons {
     template <typename T,typename CharT>
     struct encode_traits<T,CharT,
         typename std::enable_if<!is_json_type_traits_declared<T>::value && 
-                                extension_traits::is_map_like<T>::value &&
-                                extension_traits::is_constructible_from_const_pointer_and_size<typename T::key_type>::value
+                                ext_traits::is_map_like<T>::value &&
+                                ext_traits::is_constructible_from_const_pointer_and_size<typename T::key_type>::value
     >::type>
     {
         using mapped_type = typename T::mapped_type;
@@ -349,7 +350,7 @@ namespace jsoncons {
     template <typename T,typename CharT>
     struct encode_traits<T,CharT,
         typename std::enable_if<!is_json_type_traits_declared<T>::value && 
-                                extension_traits::is_map_like<T>::value &&
+                                ext_traits::is_map_like<T>::value &&
                                 std::is_integral<typename T::key_type>::value
     >::type>
     {
