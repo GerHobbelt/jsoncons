@@ -59,6 +59,7 @@ endif()
 target_include_directories (catch INTERFACE ${CATCH_INCLUDE_DIR})
 
 add_executable(unit_tests 
+               fuzz_regression/src/fuzz_regression_tests.cpp
                bson/src/bson_cursor_tests.cpp
                bson/src/bson_encoder_tests.cpp
                bson/src/bson_reader_tests.cpp

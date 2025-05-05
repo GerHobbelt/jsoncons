@@ -1,9 +1,11 @@
-1.3.1 (preview)
+1.3.1 
 -----
 
 - Fixed bugs:
 
     - Git Issue #601: Removed the space before the suffix in the user-defined literal operators `_json` and `_ojson`
+
+    - Git Issue #605: Fixed bug when parsing a JMESPath expression that has a function that is passed a binary expression argument, e.g. A || B. 
 
     - In cursors, after a call to `read_to` following a `begin_object` event, the cursor `event_type()` function returned 
     `staj_event_type::begin_object`, even though the effective state of the cursor had changed to `staj_event_type::end_object`.
@@ -12,10 +14,20 @@
     - Fixed an edge case in `basic_csv_parser`, detected by Google fuzz, where the first line in the input file contains an empty line
     and the `csv_mapping_kind` is `n_rows`.
 
-- API Change
+- API Changes:   
 
     - In JMESPath evaluation, 1.3.0 introduced late binding of variables to an initial (global) scope via parameters.
       The parameters type has been changed from `std::vector<std::pair<string_type,Json>>` to `std::map<string_type,Json>`.
+
+    - Added a member function `begin_position()` to `ser_context`. `begin_position()` should
+      be preferred to `position()` when [using filters to update JSON in place](https://github.com/danielaparker/jsoncons/blob/master/examples/src/update_json_in_place_examples.cpp).
+      Currently the two accessors return the same value, but that may change in a future release. 
+
+    - Added macros **JSONCONS_VISITOR_RETURN_TYPE** and **JSONCONS_VISITOR_RETURN** that are
+      #define'd to `bool` and `return true` respectively. For users that have implemented 
+      classes that derive from `basic_json_filter`, and that have overridden `visit_xxx` functions,
+      it is recommended to use these macros for the return type and return value rather than
+      `bool` and `return true`. This is for forward compatibility.      
 
 1.3.0
 -----
@@ -1802,7 +1814,7 @@ Deprecated `basic_csv_options` functions removed:
 
 Defect fixes:
 
-- Fixes GCC 9.2 warning: �class jsoncons::json_exception� 
+- Fixes GCC 9.2 warning: class jsoncons::json_exception 
   has virtual functions and accessible non-virtual destructor,
   contributed by KonstantinPlotnikov.
     
@@ -3619,7 +3631,7 @@ Changes to extensions:
 - Added a class-specific in-place new to the json class that is implemented in terms of the global version (required to create json objects with placement new operator.)
 - Reorganized header files, removing unnecessary includes. 
 - Incorporates validation contributed by Alex Merry for ensuring that there is an object or array on parse head.
-- Incorporates fix contributed by Milan Burda for “Switch case is in protected scope” clang build error
+- Incorporates fix contributed by Milan Burda for âSwitch case is in protected scopeâ clang build error
 
 0.97 Release
 ------------
@@ -3980,7 +3992,7 @@ For consistency the json::make_array notation is now favored in the documentatio
 0.70
 -------------
 
-- Since 0.50, jsoncons has used snprintf for default serialization of double values to string values. This can result in invalid json output when running on a locale like German or Spanish. The period character (â€˜.â€™) is now always used as the decimal point, non English locales are ignored.
+- Since 0.50, jsoncons has used snprintf for default serialization of double values to string values. This can result in invalid json output when running on a locale like German or Spanish. The period character (Ã¢â¬Ë.Ã¢â¬â¢) is now always used as the decimal point, non English locales are ignored.
 
 - The output_format methods that support alternative floating point formatting, e.g. fixed, have been deprecated.
 

@@ -241,12 +241,10 @@ namespace jmespath {
         using reference = const Json&;
         using pointer = const Json*;
     private:
-        const expr_base<Json>* expr_;
+        const expr_base<Json>* expr_{nullptr};
     public:
-        expr_wrapper()
-            : expr_(nullptr)
-        {
-        }
+        expr_wrapper() noexcept = default;
+
         expr_wrapper(const expr_base<Json>& expr)
             : expr_(std::addressof(expr))
         {
@@ -3772,9 +3770,11 @@ namespace detail {
                                 advance_past_space_character();
                                 break;
                             case '&':
+                                state_stack.back() = expr_state::argument;
+                                if (JSONCONS_UNLIKELY(ec)) {return jmespath_expression{};}
                                 push_token(token<Json>(begin_expression_type_arg), resources, output_stack, ec);
                                 if (JSONCONS_UNLIKELY(ec)) {return jmespath_expression{};}
-                                state_stack.back() = expr_state::expression_type;
+                                state_stack.push_back(expr_state::expression_type);
                                 state_stack.push_back(expr_state::rhs_expression);
                                 state_stack.push_back(expr_state::lhs_expression);
                                 context_stack.push_back(expression_context<Json>{});
@@ -3783,6 +3783,7 @@ namespace detail {
                                 break;
                             default:
                                 state_stack.back() = expr_state::argument;
+                                if (JSONCONS_UNLIKELY(ec)) {return jmespath_expression{};}
                                 state_stack.push_back(expr_state::rhs_expression);
                                 state_stack.push_back(expr_state::lhs_expression);
                                 context_stack.push_back(expression_context<Json>{});
@@ -3942,6 +3943,7 @@ namespace detail {
                                 }
                                 if (!is_no_args_func)
                                 {
+                                    push_token(lparen_arg, resources, output_stack, ec);
                                     state_stack.push_back(expr_state::expression_or_expression_type);
                                 }
                                 ++p_;
@@ -3981,6 +3983,7 @@ namespace detail {
                                 advance_past_space_character();
                                 break;
                             case ',':
+                                push_token(lparen_arg, resources, output_stack, ec);
                                 push_token(token<Json>(current_node_arg), resources, output_stack, ec);
                                 if (JSONCONS_UNLIKELY(ec)) {return jmespath_expression{};}
                                 state_stack.push_back(expr_state::expression_or_expression_type);
@@ -4009,8 +4012,7 @@ namespace detail {
 
                     case expr_state::expression_type:
                         push_token(end_expression_type_arg, resources, output_stack, ec);
-                        push_token(argument_arg, resources, output_stack, ec);
-                        if (JSONCONS_UNLIKELY(ec)) {return jmespath_expression{};}
+                        if (JSONCONS_UNLIKELY(ec)) { return jmespath_expression{}; }
                         state_stack.pop_back();
                         break;
 
@@ -5057,7 +5059,7 @@ namespace detail {
             }
             ++it;
             operator_stack_.erase(it.base(),operator_stack_.end());
-            if (output_stack.back().is_expression())
+            if (output_stack.back().is_projection())
             {
                 output_stack.push_back(token<Json>(pipe_arg));
             }
@@ -5371,8 +5373,11 @@ namespace detail {
                     break;
                 case token_kind::key:
                 case token_kind::pipe:
-                case token_kind::argument:
                 case token_kind::begin_expression_type:
+                    output_stack.push_back(std::move(tok));
+                    break;
+                case token_kind::argument:
+                    unwind_rparen(output_stack, ec);
                     output_stack.push_back(std::move(tok));
                     break;
                 case token_kind::lparen:

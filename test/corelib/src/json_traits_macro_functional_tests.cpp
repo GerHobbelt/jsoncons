@@ -1312,13 +1312,14 @@ TEST_CASE("JSONCONS_ALL_CTOR_GETTER_NAME_TRAITS polymorphic and variant tests")
     SECTION("polymorphic test")
     {
         auto shapes = decode_json<std::vector<std::unique_ptr<ns::Shape_ACGN>>>(input);
-        REQUIRE(shapes.size() == 3);
+        REQUIRE(3 == shapes.size());
         std::string output;
 
         encode_json(shapes, output, indenting::indent);
 
         auto j = decode_json<json>(input);
-        REQUIRE((j.is_array() && j.size() == 3));
+        REQUIRE(j.is_array());
+        REQUIRE(3 == j.size());
         CHECK(j[0].is<ns::Rectangle_ACGN>());
         CHECK_FALSE(j[0].is<ns::Triangle_ACGN>());
         CHECK_FALSE(j[0].is<ns::Circle_ACGN>());
@@ -1338,7 +1339,7 @@ TEST_CASE("JSONCONS_ALL_CTOR_GETTER_NAME_TRAITS polymorphic and variant tests")
     {
         using shapes_t = std::variant<ns::Rectangle_ACGN,ns::Triangle_ACGN,ns::Circle_ACGN>;
         auto shapes = decode_json<std::vector<shapes_t>>(input);
-        REQUIRE(shapes.size() == 3);
+        REQUIRE(3 == shapes.size());
 
         /*auto visitor = [](auto&& shape) {
             using T = std::decay_t<decltype(shape)>;
@@ -1375,13 +1376,14 @@ TEST_CASE("JSONCONS_ALL_GETTER_SETTER_NAME_TRAITS polymorphic and variant tests"
     SECTION("polymorphic test")
     {
         auto shapes = decode_json<std::vector<std::unique_ptr<ns::Shape_AGSN>>>(input);
-        REQUIRE(shapes.size() == 3);
+        REQUIRE(3 == shapes.size());
         std::string output;
 
         encode_json(shapes, output, indenting::indent);
 
         auto j = decode_json<json>(input);
-        REQUIRE((j.is_array() && j.size() == 3));
+        REQUIRE(j.is_array());
+        REQUIRE(3 == j.size());
         CHECK(j[0].is<ns::Rectangle_AGSN>());
         CHECK_FALSE(j[0].is<ns::Triangle_AGSN>());
         CHECK_FALSE(j[0].is<ns::Circle_AGSN>());
@@ -1401,7 +1403,7 @@ TEST_CASE("JSONCONS_ALL_GETTER_SETTER_NAME_TRAITS polymorphic and variant tests"
     {
         using shapes_t = std::variant<ns::Rectangle_AGSN,ns::Triangle_AGSN,ns::Circle_AGSN>;
         auto shapes = decode_json<std::vector<shapes_t>>(input);
-        REQUIRE(shapes.size() == 3);
+        REQUIRE(3 == shapes.size());
 
         /*auto visitor = [](auto&& shape) {
             using T = std::decay_t<decltype(shape)>;
@@ -1438,13 +1440,14 @@ TEST_CASE("JSONCONS_N_GETTER_SETTER_NAME_TRAITS polymorphic and variant tests")
     SECTION("polymorphic test")
     {
         auto shapes = decode_json<std::vector<std::unique_ptr<ns::Shape_NGSN>>>(input);
-        REQUIRE(shapes.size() == 3);
+        REQUIRE(3 == shapes.size());
         std::string output;
 
         encode_json(shapes, output, indenting::indent);
 
         auto j = decode_json<json>(input);
-        REQUIRE((j.is_array() && j.size() == 3));
+        REQUIRE(j.is_array());
+        REQUIRE(3 == j.size());
         CHECK(j[0].is<ns::Rectangle_NGSN>());
         CHECK_FALSE(j[0].is<ns::Triangle_NGSN>());
         CHECK_FALSE(j[0].is<ns::Circle_NGSN>());
@@ -1464,7 +1467,7 @@ TEST_CASE("JSONCONS_N_GETTER_SETTER_NAME_TRAITS polymorphic and variant tests")
     {
         using shapes_t = std::variant<ns::Rectangle_NGSN,ns::Triangle_NGSN,ns::Circle_NGSN>;
         auto shapes = decode_json<std::vector<shapes_t>>(input);
-        REQUIRE(shapes.size() == 3);
+        REQUIRE(3 == shapes.size());
 
         /*auto visitor = [](auto&& shape) {
             using T = std::decay_t<decltype(shape)>;
@@ -1501,13 +1504,14 @@ TEST_CASE("JSONCONS_ALL_MEMBER_NAME_TRAITS polymorphic and variant tests")
     SECTION("polymorphic test")
     {
         auto shapes = decode_json<std::vector<std::unique_ptr<ns::Shape_AMN>>>(input);
-        REQUIRE(shapes.size() == 3);
+        REQUIRE(3 == shapes.size());
         std::string output;
 
         encode_json(shapes, output, indenting::indent);
 
         auto j = decode_json<json>(input);
-        REQUIRE((j.is_array() && j.size() == 3));
+        REQUIRE(j.is_array());
+        REQUIRE(3 == j.size());
         CHECK(j[0].is<ns::Rectangle_AMN>());
         CHECK_FALSE(j[0].is<ns::Triangle_AMN>());
         CHECK_FALSE(j[0].is<ns::Circle_AMN>());
@@ -1527,7 +1531,7 @@ TEST_CASE("JSONCONS_ALL_MEMBER_NAME_TRAITS polymorphic and variant tests")
     {
         using shapes_t = std::variant<ns::Rectangle_AMN,ns::Triangle_AMN,ns::Circle_AMN>;
         auto shapes = decode_json<std::vector<shapes_t>>(input);
-        REQUIRE(shapes.size() == 3);
+        REQUIRE(3 == shapes.size());
 
         /*auto visitor = [](auto&& shape) {
             using T = std::decay_t<decltype(shape)>;
@@ -1564,13 +1568,14 @@ TEST_CASE("JSONCONS_N_MEMBER_NAME_TRAITS polymorphic and variant tests")
     SECTION("polymorphic test")
     {
         auto shapes = decode_json<std::vector<std::unique_ptr<ns::Shape_NMN>>>(input);
-        REQUIRE(shapes.size() == 3);
+        REQUIRE(3 == shapes.size());
         std::string output;
 
         encode_json(shapes, output, indenting::indent);
 
         auto j = decode_json<json>(input);
-        REQUIRE((j.is_array() && j.size() == 3));
+        REQUIRE(j.is_array());
+        REQUIRE(3 == j.size());
         CHECK(j[0].is<ns::Rectangle_NMN>());
         CHECK_FALSE(j[0].is<ns::Triangle_NMN>());
         CHECK_FALSE(j[0].is<ns::Circle_NMN>());
@@ -1590,7 +1595,7 @@ TEST_CASE("JSONCONS_N_MEMBER_NAME_TRAITS polymorphic and variant tests")
     {
         using shapes_t = std::variant<ns::Rectangle_NMN,ns::Triangle_NMN,ns::Circle_NMN>;
         auto shapes = decode_json<std::vector<shapes_t>>(input);
-        REQUIRE(shapes.size() == 3);
+        REQUIRE(3 == shapes.size());
 
         /*auto visitor = [](auto&& shape) {
             using T = std::decay_t<decltype(shape)>;
