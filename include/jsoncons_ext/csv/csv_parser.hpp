@@ -380,19 +380,19 @@ namespace detail {
         {
         }
 
-        JSONCONS_VISITOR_RET_TYPE visit_begin_object(semantic_tag, const ser_context&, std::error_code& ec) override
+        JSONCONS_VISITOR_RETURN_TYPE visit_begin_object(semantic_tag, const ser_context&, std::error_code& ec) override
         {
             ec = csv_errc::invalid_parse_state;
-            JSONCONS_VISITOR_RET_STAT;
+            JSONCONS_VISITOR_RETURN;
         }
 
-        JSONCONS_VISITOR_RET_TYPE visit_end_object(const ser_context&, std::error_code& ec) override
+        JSONCONS_VISITOR_RETURN_TYPE visit_end_object(const ser_context&, std::error_code& ec) override
         {
             ec = csv_errc::invalid_parse_state;
-            JSONCONS_VISITOR_RET_STAT;
+            JSONCONS_VISITOR_RETURN;
         }
 
-        JSONCONS_VISITOR_RET_TYPE visit_begin_array(semantic_tag tag, const ser_context&, std::error_code&) override
+        JSONCONS_VISITOR_RETURN_TYPE visit_begin_array(semantic_tag tag, const ser_context&, std::error_code&) override
         {
             if (name_index_ < column_names_.size())
             {
@@ -400,10 +400,10 @@ namespace detail {
                 
                 ++level2_;
             }
-            JSONCONS_VISITOR_RET_STAT;
+            JSONCONS_VISITOR_RETURN;
         }
 
-        JSONCONS_VISITOR_RET_TYPE visit_end_array(const ser_context&, std::error_code&) override
+        JSONCONS_VISITOR_RETURN_TYPE visit_end_array(const ser_context&, std::error_code&) override
         {
             if (level2_ > 0)
             {
@@ -415,16 +415,16 @@ namespace detail {
             {
                 name_index_ = 0;
             }
-            JSONCONS_VISITOR_RET_STAT;
+            JSONCONS_VISITOR_RETURN;
         }
 
-        JSONCONS_VISITOR_RET_TYPE visit_key(const string_view_type&, const ser_context&, std::error_code& ec) override
+        JSONCONS_VISITOR_RETURN_TYPE visit_key(const string_view_type&, const ser_context&, std::error_code& ec) override
         {
             ec = csv_errc::invalid_parse_state;
-            JSONCONS_VISITOR_RET_STAT;
+            JSONCONS_VISITOR_RETURN;
         }
 
-        JSONCONS_VISITOR_RET_TYPE visit_null(semantic_tag tag, const ser_context&, std::error_code&) override
+        JSONCONS_VISITOR_RETURN_TYPE visit_null(semantic_tag tag, const ser_context&, std::error_code&) override
         {
             if (name_index_ < column_names_.size())
             {
@@ -434,10 +434,10 @@ namespace detail {
                     ++name_index_;
                 }
             }
-            JSONCONS_VISITOR_RET_STAT;
+            JSONCONS_VISITOR_RETURN;
         }
 
-        JSONCONS_VISITOR_RET_TYPE visit_string(const string_view_type& value, semantic_tag tag, const ser_context&, std::error_code&) override
+        JSONCONS_VISITOR_RETURN_TYPE visit_string(const string_view_type& value, semantic_tag tag, const ser_context&, std::error_code&) override
         {
             if (name_index_ < column_names_.size())
             {
@@ -448,10 +448,10 @@ namespace detail {
                     ++name_index_;
                 }
             }
-            JSONCONS_VISITOR_RET_STAT;
+            JSONCONS_VISITOR_RETURN;
         }
 
-        JSONCONS_VISITOR_RET_TYPE visit_byte_string(const byte_string_view& value,
+        JSONCONS_VISITOR_RETURN_TYPE visit_byte_string(const byte_string_view& value,
                                   semantic_tag tag,
                                   const ser_context&,
                                   std::error_code&) override
@@ -464,10 +464,10 @@ namespace detail {
                     ++name_index_;
                 }
             }
-            JSONCONS_VISITOR_RET_STAT;
+            JSONCONS_VISITOR_RETURN;
         }
 
-        JSONCONS_VISITOR_RET_TYPE visit_double(double value,
+        JSONCONS_VISITOR_RETURN_TYPE visit_double(double value,
                              semantic_tag tag, 
                              const ser_context&,
                              std::error_code&) override
@@ -480,10 +480,10 @@ namespace detail {
                     ++name_index_;
                 }
             }
-            JSONCONS_VISITOR_RET_STAT;
+            JSONCONS_VISITOR_RETURN;
         }
 
-        JSONCONS_VISITOR_RET_TYPE visit_int64(int64_t value,
+        JSONCONS_VISITOR_RETURN_TYPE visit_int64(int64_t value,
                             semantic_tag tag,
                             const ser_context&,
                             std::error_code&) override
@@ -496,10 +496,10 @@ namespace detail {
                     ++name_index_;
                 }
             }
-            JSONCONS_VISITOR_RET_STAT;
+            JSONCONS_VISITOR_RETURN;
         }
 
-        JSONCONS_VISITOR_RET_TYPE visit_uint64(uint64_t value,
+        JSONCONS_VISITOR_RETURN_TYPE visit_uint64(uint64_t value,
                              semantic_tag tag,
                              const ser_context&,
                              std::error_code&) override
@@ -512,10 +512,10 @@ namespace detail {
                     ++name_index_;
                 }
             }
-            JSONCONS_VISITOR_RET_STAT;
+            JSONCONS_VISITOR_RETURN;
         }
 
-        JSONCONS_VISITOR_RET_TYPE visit_bool(bool value, semantic_tag tag, const ser_context&, std::error_code&) override
+        JSONCONS_VISITOR_RETURN_TYPE visit_bool(bool value, semantic_tag tag, const ser_context&, std::error_code&) override
         {
             if (name_index_ < column_names_.size())
             {
@@ -525,7 +525,7 @@ namespace detail {
                     ++name_index_;
                 }
             }
-            JSONCONS_VISITOR_RET_STAT;
+            JSONCONS_VISITOR_RETURN;
         }
     };
 
@@ -579,6 +579,7 @@ private:
     bool cursor_mode_{false};
     bool actual_cursor_mode_{false};
     int mark_level_{0};
+    std::size_t header_line_offset_{0};
 
     detail::m_columns_filter<CharT,TempAllocator> m_columns_filter_;
     std::vector<csv_mode,csv_mode_allocator_type> stack_;
@@ -921,11 +922,11 @@ public:
                     if (options_.assume_header() && options_.mapping_kind() == csv_mapping_kind::n_rows && options_.column_names().size() > 0)
                     {
                         column_index_ = 0;
-                        state_ = csv_parse_state::column_labels;
+                        //state_ = csv_parse_state::column_labels;
                         local_visitor.begin_array(semantic_tag::none, *this, ec);
+                        ++level_;
                         more_ = !cursor_mode_;
                         state_ = csv_parse_state::expect_comment_or_record;
-                        ++level_;
                     }
                     else
                     {
@@ -965,7 +966,7 @@ public:
                             ++line_;
                             if (stack_.back() == csv_mode::header)
                             {
-                                ++header_line_;
+                                ++header_line_offset_;
                             }
                             column_ = 1;
                             state_ = csv_parse_state::expect_comment_or_record;
@@ -975,7 +976,7 @@ public:
                             ++line_;
                             if (stack_.back() == csv_mode::header)
                             {
-                                ++header_line_;
+                                ++header_line_offset_;
                             }
                             column_ = 1;
                             state_ = csv_parse_state::expect_comment_or_record;
@@ -1317,9 +1318,6 @@ public:
                             }
                             else
                             {
-                                ++line_;
-                                column_ = 1;
-                                state_ = csv_parse_state::expect_comment_or_record;
                                 ++input_ptr_;
                                 push_state(state_);
                                 state_ = csv_parse_state::cr;
@@ -1471,7 +1469,7 @@ private:
                 {
                     trim_string_buffer(options_.trim_leading_inside_quotes(),options_.trim_trailing_inside_quotes());
                 }
-                if (line_ == header_line_)
+                if (line_ == (header_line_+header_line_offset_))
                 {
                     column_names_.push_back(buffer_);
                     if (options_.assume_header() && options_.mapping_kind() == csv_mapping_kind::n_rows)
@@ -1504,13 +1502,17 @@ private:
     {
         offset_ = 0;
 
+        if (stack_.back() == csv_mode::header && line_ > (options_.header_lines()+header_line_offset_))
+        {
+            stack_.back() = csv_mode::data;
+        }
         switch (stack_.back())
         {
             case csv_mode::header:
                 switch (options_.mapping_kind())
                 {
                     case csv_mapping_kind::n_rows:
-                        if (options_.assume_header() && line_ == header_line_)
+                        if (options_.assume_header() && line_ == (header_line_+header_line_offset_))
                         {
                             visitor.begin_array(semantic_tag::none, *this, ec);
                             more_ = !cursor_mode_;
