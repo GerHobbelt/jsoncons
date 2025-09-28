@@ -16,6 +16,7 @@
 #include <tuple>
 #include <type_traits> // std::enable_if, std::true_type, std::false_type
 
+#include <jsoncons/basic_json.hpp>
 #include <jsoncons/conv_error.hpp>
 #include <jsoncons/json_decoder.hpp>
 #include <jsoncons/json_encoder.hpp>

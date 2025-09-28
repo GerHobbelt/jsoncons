@@ -1,25 +1,33 @@
-// Copyright 2013-2025 Daniel Parkerreturn result_type
+// Copyright 2013-2025 Daniel Parker
 // Distributed under the Boost license, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
 // See https://github.com/danielaparker/jsoncons for latest version
 
-#ifndef JSONCONS_REFLECT_JSON_REFLECT_TRAITS_GEN_HPP
-#define JSONCONS_REFLECT_JSON_REFLECT_TRAITS_GEN_HPP
+#ifndef JSONCONS_REFLECT_REFLECT_TRAITS_GEN_HPP
+#define JSONCONS_REFLECT_REFLECT_TRAITS_GEN_HPP
 
 #include <utility>
 
 #include <jsoncons/config/compiler_support.hpp>
 #include <jsoncons/config/jsoncons_config.hpp> // JSONCONS_PP_EXPAND, JSONCONS_PP_QUOTE
+#include <jsoncons/conv_error.hpp>
+#include <jsoncons/conv_error.hpp>
+#include <jsoncons/conversion_result.hpp>
+#include <jsoncons/json_exception.hpp>
 #include <jsoncons/json_visitor.hpp>
+#include <jsoncons/reflect/encode_traits.hpp>
 #include <jsoncons/reflect/json_conv_traits.hpp>
-
-namespace jsoncons {
-namespace reflect {
+#include <jsoncons/semantic_tag.hpp>
+#include <jsoncons/ser_context.hpp>
+#include <jsoncons/utility/more_type_traits.hpp>
 
 #define JSONCONS_RDONLY(X)
 
 #define JSONCONS_RDWR(X) X
+
+namespace jsoncons {
+namespace reflect {
 
 struct always_true
 {
@@ -40,64 +48,51 @@ struct identity
 };
 
 template <typename T>
-struct json_object_member_names
+struct json_object_name_members
+{};
+
+template <typename T>
+struct reflect_type_properties
 {};
 
 template <typename Json>
 struct json_traits_helper
 {
-    using string_view_type = typename Json::string_view_type; 
+    using string_view_type = typename Json::string_view_type;
 
-    template <typename OutputType> 
-    static bool set_member(const Json&, const string_view_type&, const OutputType&) 
-    { 
-        return true;
-    } 
-    template <typename OutputType> 
-    static bool set_member(const Json& j, const string_view_type& key, OutputType& val) 
+    template <typename T> 
+    static conversion_result<T> try_get_member(const Json& j, string_view_type key) 
     { 
         auto it = j.find(key);
         if (it == j.object_range().end())
         {
-            return false;
+            return conversion_result<T>(unexpect, conv_errc::missing_required_member);
         }
-        val = it->value().template as<OutputType>(); 
-        return true;
+        auto result = it->value().template try_as<T>(); 
+        if (!result)
+        {
+            return conversion_result<T>(unexpect, conv_errc::conversion_failed);
+        }
+        return conversion_result<T>(std::move(result.value()));
     } 
 
-    template <typename T,typename From,typename OutputType> 
-    static bool set_member(const Json&, const string_view_type&, From, const OutputType&) 
-    { 
-        return true;
-    } 
-    template <typename T,typename From,typename OutputType> 
-    static bool set_member(const Json& j, const string_view_type& key, From from, OutputType& val) 
-    { 
-        auto it = j.find(key);
-        if (it == j.object_range().end())
-        {
-            return false;
-        }
-        val = from(it->value().template as<T>()); 
-        return true;
-    } 
     template <typename U> 
-    static void set_optional_member(const string_view_type& key, const std::shared_ptr<U>& val, Json& j) 
+    static void set_optional_json_member(const string_view_type& key, const std::shared_ptr<U>& val, Json& j) 
     { 
         if (val) j.try_emplace(key, val); 
     } 
     template <typename U> 
-    static void set_optional_member(const string_view_type& key, const std::unique_ptr<U>& val, Json& j) 
+    static void set_optional_json_member(const string_view_type& key, const std::unique_ptr<U>& val, Json& j) 
     { 
         if (val) j.try_emplace(key, val); 
     } 
     template <typename U> 
-    static void set_optional_member(const string_view_type& key, const jsoncons::optional<U>& val, Json& j) 
+    static void set_optional_json_member(const string_view_type& key, const jsoncons::optional<U>& val, Json& j) 
     { 
         if (val) j.try_emplace(key, val); 
     } 
     template <typename U> 
-    static void set_optional_member(const string_view_type& key, const U& val, Json& j) 
+    static void set_optional_json_member(const string_view_type& key, const U& val, Json& j) 
     { 
         j.try_emplace(key, val); 
     } 
@@ -181,8 +176,8 @@ using identity = reflect::identity;
 #pragma warning( disable : 4127)
 #endif
 
-#define JSONCONS_CONCAT_IMPL(a, b) a ## b
-#define JSONCONS_CONCAT(a, b) JSONCONS_CONCAT_IMPL(a, b)
+#define JSONCONS_PP_CONCAT_IMPL(a, b) a ## b
+#define JSONCONS_PP_CONCAT(a, b) JSONCONS_PP_CONCAT_IMPL(a, b)
 
 // Inspired by https://github.com/Loki-Astari/ThorsSerializer/blob/master/src/Serialize/Traits.h
 
@@ -192,7 +187,7 @@ using identity = reflect::identity;
 
 #define JSONCONS_EXPAND_CALL5(Call, P1, P2, P3, P4, Count) Call(P1, P2, P3, P4, Count) 
  
-#define JSONCONS_VARIADIC_FOR_EACH(Call, P1, P2, P3, ...)            JSONCONS_VARIADIC_REP_OF_N(Call, P1,P2, P3, JSONCONS_NARGS(__VA_ARGS__), __VA_ARGS__)
+#define JSONCONS_VARIADIC_FOR_EACH(Call, P1, P2, P3, ...)         JSONCONS_VARIADIC_REP_OF_N(Call, P1,P2, P3, JSONCONS_NARGS(__VA_ARGS__), __VA_ARGS__)
 #define JSONCONS_VARIADIC_REP_OF_N(Call, P1, P2, P3, Count, ...)  JSONCONS_VARIADIC_REP_OF_N_(Call, P1, P2, P3, Count, __VA_ARGS__)
 #define JSONCONS_VARIADIC_REP_OF_N_(Call, P1, P2, P3, Count, ...) JSONCONS_PP_EXPAND(JSONCONS_VARIADIC_REP_OF_ ## Count(Call, P1, P2, P3, __VA_ARGS__))
 
@@ -342,52 +337,58 @@ using identity = reflect::identity;
 
 #define JSONCONS_GENERATE_NAME_STR(Prefix, P2, P3, Member, Count) JSONCONS_GENERATE_NAME_STR_LAST(Prefix, P2, P3, Member, Count) 
 #define JSONCONS_GENERATE_NAME_STR_LAST(Prefix, P2, P3, Member, Count) \
-    static inline const char* Member ## _str(char) {return JSONCONS_PP_QUOTE(,Member);} \
-    static inline const wchar_t* Member ## _str(wchar_t) {return JSONCONS_PP_QUOTE(L,Member);} \
+    static inline const string_view& Member(char) {static const string_view sv = JSONCONS_PP_QUOTE(,Member); return sv;} \
+    static inline const wstring_view& Member(wchar_t) {static const wstring_view sv = JSONCONS_PP_QUOTE(L,Member); return sv;} \
+    static inline const string_view& Member(unexpect_t) {static const string_view sv = # Prefix ": " # Member; return sv;} \
     /**/
 
 #define JSONCONS_N_MEMBER_IS(Prefix, P2, P3, Member, Count) JSONCONS_N_MEMBER_IS_LAST(Prefix, P2, P3, Member, Count)
-#define JSONCONS_N_MEMBER_IS_LAST(Prefix, P2, P3, Member, Count) if ((num_params-Count) < num_mandatory_params1 && !ajson.contains(json_object_member_names<value_type>::Member##_str(char_type{}))) return false;
+#define JSONCONS_N_MEMBER_IS_LAST(Prefix, P2, P3, Member, Count) if ((num_params-Count) < num_mandatory_params1 && !ajson.contains(json_object_name_members<value_type>::Member(char_type{}))) return false;
 
 #define JSONCONS_N_MEMBER_AS(Prefix,P2,P3, Member, Count) JSONCONS_N_MEMBER_AS_LAST(Prefix,P2,P3, Member, Count)
 #define JSONCONS_N_MEMBER_AS_LAST(Prefix,P2,P3, Member, Count) \
-    if ((num_params-Count) < num_mandatory_params2 || ajson.contains(json_object_member_names<value_type>::Member##_str(char_type{}))) \
-        {json_traits_helper<Json>::set_member(ajson,json_object_member_names<value_type>::Member##_str(char_type{}),class_instance.Member);}
+  auto _r ## Member = json_traits_helper<Json>::template try_get_member<typename std::decay<decltype(class_instance.Member)>::type>(ajson, json_object_name_members<value_type>::Member(char_type{})); \
+  if (_r ## Member) { \
+    class_instance.Member = std::move(* _r ## Member); \
+  } \
+  else if ((num_params-Count) < num_mandatory_params2) {return result_type(unexpect, _r ## Member.error().code(), json_object_name_members<value_type>::Member(unexpect));} \
+  else if (_r ## Member.error().code() != conv_errc::missing_required_member){return result_type(unexpect, _r ## Member.error().code(), json_object_name_members<value_type>::Member(unexpect));}
 
 #define JSONCONS_ALL_MEMBER_AS(Prefix, P2,P3,Member, Count) JSONCONS_ALL_MEMBER_AS_LAST(Prefix,P2,P3, Member, Count)
 #define JSONCONS_ALL_MEMBER_AS_LAST(Prefix,P2,P3, Member, Count) \
-    if (!json_traits_helper<Json>::set_member(ajson,json_object_member_names<value_type>::Member##_str(char_type{}),class_instance.Member)) \
-    { \
-        return result_type(jsoncons::unexpect, conv_errc::missing_required_member, # Prefix "." # Member); \
-    }
+  auto _r ## Member = json_traits_helper<Json>::template try_get_member<typename std::decay<decltype(class_instance.Member)>::type>(ajson, json_object_name_members<value_type>::Member(char_type{})); \
+  if (_r ## Member) { \
+    class_instance.Member = std::move(* _r ## Member); \
+  } \
+  else {return result_type(unexpect, _r ## Member.error().code(), json_object_name_members<value_type>::Member(unexpect));} \
 
 #define JSONCONS_TO_JSON(Prefix, P2, P3, Member, Count) JSONCONS_TO_JSON_LAST(Prefix, P2, P3, Member, Count)
 #define JSONCONS_TO_JSON_LAST(Prefix, P2, P3, Member, Count) if ((num_params-Count) < num_mandatory_params2) \
-    {ajson.try_emplace(json_object_member_names<value_type>::Member##_str(char_type{}),class_instance.Member);} \
-    else {json_traits_helper<Json>::set_optional_member(json_object_member_names<value_type>::Member##_str(char_type{}),class_instance.Member, ajson);}
+    {ajson.try_emplace(json_object_name_members<value_type>::Member(char_type{}),class_instance.Member);} \
+    else {json_traits_helper<Json>::set_optional_json_member(json_object_name_members<value_type>::Member(char_type{}),class_instance.Member, ajson);}
 
 #define JSONCONS_ALL_TO_JSON(Prefix, P2, P3, Member, Count) JSONCONS_ALL_TO_JSON_LAST(Prefix, P2, P3, Member, Count)
 #define JSONCONS_ALL_TO_JSON_LAST(Prefix, P2, P3, Member, Count) \
-    ajson.try_emplace(json_object_member_names<value_type>::Member##_str(char_type{}),class_instance.Member);
+    ajson.try_emplace(json_object_name_members<value_type>::Member(char_type{}),class_instance.Member);
 
 #define JSONCONS_N_ENCODE_MEMBER(Prefix, P2, P3, Member, Count) JSONCONS_N_ENCODE_MEMBER_LAST(Prefix, P2, P3, Member, Count)
 #define JSONCONS_N_ENCODE_MEMBER_LAST(Prefix, P2, P3, Member, Count) \
 if ((num_params-Count) < num_mandatory_params2) \
     { \
-        try_encode_member<CharT>(json_object_member_names<value_type>::Member##_str(CharT{}), val.Member, encoder, ec); \
+        try_encode_member(json_object_name_members<value_type>::Member(char_type{}), val.Member, encoder, ec); \
     } \
     else \
     { \
-        try_encode_optional_member<CharT>(json_object_member_names<value_type>::Member##_str(CharT{}), \
+        try_encode_optional_member(json_object_name_members<value_type>::Member(char_type{}), \
             val.Member, encoder, ec); \
     }
 
 #define JSONCONS_ALL_ENCODE_MEMBER(Prefix, P2, P3, Member, Count) JSONCONS_ALL_ENCODE_MEMBER_LAST(Prefix, P2, P3, Member, Count)
 #define JSONCONS_ALL_ENCODE_MEMBER_LAST(Prefix, P2, P3, Member, Count) \
-    try_encode_member<CharT>(json_object_member_names<value_type>::Member##_str(CharT{}), val.Member, encoder, ec); 
+    try_encode_member(json_object_name_members<value_type>::Member(char_type{}), val.Member, encoder, ec); 
 
-#define JSONCONS_N_OBJECT_SIZE(Prefix, P2, P3, Member, Count) JSONCONS_N_OBJECT_SIZE_LAST(Prefix, P2, P3, Member, Count)
-#define JSONCONS_N_OBJECT_SIZE_LAST(Prefix, P2, P3, Member, Count) \
+#define JSONCONS_MEMBER_SIZE(Prefix, P2, P3, Member, Count) JSONCONS_MEMBER_SIZE_LAST(Prefix, P2, P3, Member, Count)
+#define JSONCONS_MEMBER_SIZE_LAST(Prefix, P2, P3, Member, Count) \
 if ((num_params-Count) < num_mandatory_params2) \
 { \
     ++object_size; \
@@ -398,19 +399,15 @@ else \
     { \
         ++object_size; \
     } \
-}
+} 
 
-#define JSONCONS_ALL_OBJECT_SIZE(Prefix, P2, P3, Member, Count) JSONCONS_ALL_OBJECT_SIZE_LAST(Prefix, P2, P3, Member, Count)
-#define JSONCONS_ALL_OBJECT_SIZE_LAST(Prefix, P2, P3, Member, Count) \
-    ++object_size; 
-
-#define JSONCONS_MEMBER_TRAITS_BASE(AsT,ToJ,ObjectSize,EnMem,NumTemplateParams,ClassType,NumMandatoryParams1,NumMandatoryParams2, ...)  \
+#define JSONCONS_MEMBER_TRAITS_BASE(ToJ,EnMem,NumTemplateParams,ClassType,NumMandatoryParams1,NumMandatoryParams2, ...)  \
 namespace jsoncons { \
 namespace reflect { \
-    template <typename ChT JSONCONS_GENERATE_TPL_PARAMS(JSONCONS_GENERATE_MORE_TPL_PARAM, NumTemplateParams)> \
-    struct json_object_member_names<ClassType JSONCONS_GENERATE_TPL_ARGS(JSONCONS_GENERATE_TPL_ARG, NumTemplateParams)> \
+    template <JSONCONS_GENERATE_TPL_PARAMS(JSONCONS_GENERATE_TPL_PARAM, NumTemplateParams)> \
+    struct json_object_name_members<ClassType JSONCONS_GENERATE_TPL_ARGS(JSONCONS_GENERATE_TPL_ARG, NumTemplateParams)> \
     { \
-        JSONCONS_VARIADIC_FOR_EACH(JSONCONS_GENERATE_NAME_STR, ,,, __VA_ARGS__)\
+        JSONCONS_VARIADIC_FOR_EACH(JSONCONS_GENERATE_NAME_STR,ClassType,,, __VA_ARGS__)\
     }; \
     template <typename Json JSONCONS_GENERATE_TPL_PARAMS(JSONCONS_GENERATE_MORE_TPL_PARAM, NumTemplateParams)> \
     struct json_conv_traits<Json, ClassType JSONCONS_GENERATE_TPL_ARGS(JSONCONS_GENERATE_TPL_ARG, NumTemplateParams)> \
@@ -433,7 +430,15 @@ namespace reflect { \
         { \
             if (!ajson.is_object()) return result_type(jsoncons::unexpect, conv_errc::expected_object, # ClassType); \
             value_type class_instance{}; \
-            JSONCONS_VARIADIC_FOR_EACH(AsT,ClassType,,, __VA_ARGS__) \
+            std::error_code ec; \
+            if (num_params == num_mandatory_params2) \
+            { \
+                JSONCONS_VARIADIC_FOR_EACH(JSONCONS_ALL_MEMBER_AS,,,, __VA_ARGS__) \
+            } \
+            else \
+            { \
+                JSONCONS_VARIADIC_FOR_EACH(JSONCONS_N_MEMBER_AS,,,, __VA_ARGS__) \
+            } \
             return result_type(std::move(class_instance)); \
         } \
         static Json to_json(const value_type& class_instance, allocator_type alloc=allocator_type()) \
@@ -455,9 +460,10 @@ namespace reflect { \
             basic_json_visitor<CharT>& encoder, \
             std::error_code& ec) \
         { \
+            using char_type = CharT; \
             (void)num_params; (void)num_mandatory_params1; (void)num_mandatory_params2; \
             std::size_t object_size{0}; \
-            JSONCONS_VARIADIC_FOR_EACH(ObjectSize, ,,, __VA_ARGS__) \
+            JSONCONS_VARIADIC_FOR_EACH(JSONCONS_MEMBER_SIZE, ,,, __VA_ARGS__) \
             encoder.begin_object(object_size, semantic_tag::none, ser_context(), ec); \
             if (JSONCONS_UNLIKELY(ec)) {return;} \
             JSONCONS_VARIADIC_FOR_EACH(EnMem, ,,, __VA_ARGS__) \
@@ -470,27 +476,27 @@ namespace reflect { \
   /**/
 
 #define JSONCONS_N_MEMBER_TRAITS(ClassType,NumMandatoryParams,...)  \
-    JSONCONS_MEMBER_TRAITS_BASE(JSONCONS_N_MEMBER_AS, JSONCONS_TO_JSON, JSONCONS_N_OBJECT_SIZE, JSONCONS_N_ENCODE_MEMBER, 0, ClassType,NumMandatoryParams,NumMandatoryParams, __VA_ARGS__) \
+    JSONCONS_MEMBER_TRAITS_BASE(JSONCONS_TO_JSON, JSONCONS_N_ENCODE_MEMBER, 0, ClassType,NumMandatoryParams,NumMandatoryParams, __VA_ARGS__) \
     namespace jsoncons { template <> struct is_json_type_traits_declared<ClassType> : public std::true_type {}; } \
   /**/
 
 #define JSONCONS_TPL_N_MEMBER_TRAITS(NumTemplateParams, ClassType,NumMandatoryParams, ...)  \
-    JSONCONS_MEMBER_TRAITS_BASE(JSONCONS_N_MEMBER_AS, JSONCONS_TO_JSON, JSONCONS_N_OBJECT_SIZE, JSONCONS_N_ENCODE_MEMBER,NumTemplateParams, ClassType,NumMandatoryParams,NumMandatoryParams, __VA_ARGS__) \
+    JSONCONS_MEMBER_TRAITS_BASE(JSONCONS_TO_JSON, JSONCONS_N_ENCODE_MEMBER,NumTemplateParams, ClassType,NumMandatoryParams,NumMandatoryParams, __VA_ARGS__) \
     namespace jsoncons { template <JSONCONS_GENERATE_TPL_PARAMS(JSONCONS_GENERATE_TPL_PARAM, NumTemplateParams)> struct is_json_type_traits_declared<ClassType JSONCONS_GENERATE_TPL_ARGS(JSONCONS_GENERATE_TPL_ARG, NumTemplateParams)> : public std::true_type {}; } \
   /**/
 
 #define JSONCONS_ALL_MEMBER_TRAITS(ClassType, ...)  \
-    JSONCONS_MEMBER_TRAITS_BASE(JSONCONS_ALL_MEMBER_AS,JSONCONS_ALL_TO_JSON, JSONCONS_ALL_OBJECT_SIZE, JSONCONS_ALL_ENCODE_MEMBER,0,ClassType, JSONCONS_NARGS(__VA_ARGS__), JSONCONS_NARGS(__VA_ARGS__),__VA_ARGS__) \
+    JSONCONS_MEMBER_TRAITS_BASE(JSONCONS_ALL_TO_JSON, JSONCONS_ALL_ENCODE_MEMBER,0,ClassType, JSONCONS_NARGS(__VA_ARGS__), JSONCONS_NARGS(__VA_ARGS__),__VA_ARGS__) \
     namespace jsoncons { template <> struct is_json_type_traits_declared<ClassType> : public std::true_type {}; } \
   /**/
 
 #define JSONCONS_TPL_ALL_MEMBER_TRAITS(NumTemplateParams, ClassType, ...)  \
-    JSONCONS_MEMBER_TRAITS_BASE(JSONCONS_ALL_MEMBER_AS,JSONCONS_ALL_TO_JSON, JSONCONS_ALL_OBJECT_SIZE, JSONCONS_ALL_ENCODE_MEMBER,NumTemplateParams,ClassType, JSONCONS_NARGS(__VA_ARGS__), JSONCONS_NARGS(__VA_ARGS__),__VA_ARGS__) \
+    JSONCONS_MEMBER_TRAITS_BASE(JSONCONS_ALL_TO_JSON, JSONCONS_ALL_ENCODE_MEMBER,NumTemplateParams,ClassType, JSONCONS_NARGS(__VA_ARGS__), JSONCONS_NARGS(__VA_ARGS__),__VA_ARGS__) \
     namespace jsoncons { template <JSONCONS_GENERATE_TPL_PARAMS(JSONCONS_GENERATE_TPL_PARAM, NumTemplateParams)> struct is_json_type_traits_declared<ClassType JSONCONS_GENERATE_TPL_ARGS(JSONCONS_GENERATE_TPL_ARG, NumTemplateParams)> : public std::true_type {}; } \
   /**/ 
 
 #define JSONCONS_MEMBER_NAME_IS(P1, P2, P3, Seq, Count) JSONCONS_MEMBER_NAME_IS_LAST(P1, P2, P3, Seq, Count)
-#define JSONCONS_MEMBER_NAME_IS_LAST(P1, P2, P3, Seq, Count) if ((num_params-Count) < num_mandatory_params1 && JSONCONS_PP_EXPAND(JSONCONS_CONCAT(JSONCONS_MEMBER_NAME_IS_,JSONCONS_NARGS Seq) Seq)
+#define JSONCONS_MEMBER_NAME_IS_LAST(P1, P2, P3, Seq, Count) if ((num_params-Count) < num_mandatory_params1 && JSONCONS_PP_EXPAND(JSONCONS_PP_CONCAT(JSONCONS_MEMBER_NAME_IS_,JSONCONS_NARGS Seq) Seq)
 #define JSONCONS_MEMBER_NAME_IS_2(Member, Name) !ajson.contains(Name)) return false;
 #define JSONCONS_MEMBER_NAME_IS_3(Member, Name, Mode) JSONCONS_MEMBER_NAME_IS_2(Member, Name)
 #define JSONCONS_MEMBER_NAME_IS_4(Member, Name, Mode, Match) JSONCONS_MEMBER_NAME_IS_6(Member, Name, Mode, Match, , )
@@ -500,45 +506,52 @@ namespace reflect { \
     JSONCONS_CATCH(...) {return false;}
 
 #define JSONCONS_N_MEMBER_NAME_AS(P1, P2, P3, Seq, Count) JSONCONS_N_MEMBER_NAME_AS_LAST(P1, P2, P3, Seq, Count)
-#define JSONCONS_N_MEMBER_NAME_AS_LAST(P1, P2, P3, Seq, Count) JSONCONS_PP_EXPAND(JSONCONS_CONCAT(JSONCONS_N_MEMBER_NAME_AS_,JSONCONS_NARGS Seq) Seq)
-#define JSONCONS_N_MEMBER_NAME_AS_2(Member, Name) \
-    if (ajson.contains(Name)) {json_traits_helper<Json>::set_member(ajson,Name,class_instance.Member);}
-#define JSONCONS_N_MEMBER_NAME_AS_3(Member, Name, Mode) Mode(JSONCONS_N_MEMBER_NAME_AS_2(Member, Name))
-#define JSONCONS_N_MEMBER_NAME_AS_4(Member, Name, Mode, Match) \
-    Mode(if (ajson.contains(Name)) {json_traits_helper<Json>::set_member(ajson,Name,class_instance.Member);})
-#define JSONCONS_N_MEMBER_NAME_AS_5(Member, Name, Mode, Match, Into) \
-    Mode(if (ajson.contains(Name)) {json_traits_helper<Json>::template set_member<typename std::decay<decltype(Into((std::declval<value_type*>())->Member))>::type>(ajson,Name,class_instance.Member);})
-#define JSONCONS_N_MEMBER_NAME_AS_6(Member, Name, Mode, Match, Into, From) \
-    Mode(if (ajson.contains(Name)) {json_traits_helper<Json>::template set_member<typename std::decay<decltype(Into((std::declval<value_type*>())->Member))>::type>(ajson,Name,From,class_instance.Member);})
+#define JSONCONS_N_MEMBER_NAME_AS_LAST(P1, P2, P3, Seq, Count) index = num_params-Count; JSONCONS_PP_EXPAND(JSONCONS_PP_CONCAT(JSONCONS_N_MEMBER_NAME_AS_,JSONCONS_NARGS Seq) Seq)
+#define JSONCONS_N_MEMBER_NAME_AS_2(Member, Name) JSONCONS_N_MEMBER_NAME_AS_7(Member, Name,,always_true(),,)  
+#define JSONCONS_N_MEMBER_NAME_AS_3(Member, Name, Mode) Mode(JSONCONS_N_MEMBER_NAME_AS_7(Member, Name, Mode,always_true(),,))
+#define JSONCONS_N_MEMBER_NAME_AS_4(Member, Name, Mode, Match) Mode(JSONCONS_N_MEMBER_NAME_AS_7(Member, Name, Mode, Match,,))
+#define JSONCONS_N_MEMBER_NAME_AS_5(Member, Name, Mode, Match, Into) Mode(JSONCONS_N_MEMBER_NAME_AS_7(Member, Name, Mode, Match, Into,))
+#define JSONCONS_N_MEMBER_NAME_AS_6(Member, Name, Mode, Match, Into, From) Mode(JSONCONS_N_MEMBER_NAME_AS_7(Member, Name, Mode, Match, Into, From))
+#define JSONCONS_N_MEMBER_NAME_AS_7(Member, Name, Mode, Match, Into, From) \
+  auto _r ## Member = json_traits_helper<Json>::template try_get_member<typename std::decay<decltype(Into(class_instance.Member))>::type>(ajson, Name); \
+  if (_r ## Member) { \
+    if (!Match(From(* _r ## Member))) {return result_type(unexpect, conv_errc::conversion_failed, class_name);} \
+    {class_instance.Member = From(std::move(* _r ## Member));} \
+  } \
+  else if (index < num_mandatory_params2) {return result_type(unexpect, _r ## Member.error().code(), class_name);} \
+  else if (_r ## Member.error().code() != conv_errc::missing_required_member){return result_type(unexpect, _r ## Member.error().code(), class_name);}
 
 #define JSONCONS_ALL_MEMBER_NAME_AS(P1, P2, P3, Seq, Count) JSONCONS_ALL_MEMBER_NAME_AS_LAST(P1, P2, P3, Seq, Count)
-#define JSONCONS_ALL_MEMBER_NAME_AS_LAST(P1, P2, P3, Seq, Count) JSONCONS_PP_EXPAND(JSONCONS_CONCAT(JSONCONS_ALL_MEMBER_NAME_AS_,JSONCONS_NARGS Seq) Seq)
-#define JSONCONS_ALL_MEMBER_NAME_AS_2(Member, Name) \
-    json_traits_helper<Json>::set_member(ajson,Name,class_instance.Member);
-#define JSONCONS_ALL_MEMBER_NAME_AS_3(Member, Name, Mode) Mode(JSONCONS_ALL_MEMBER_NAME_AS_2(Member, Name))
-#define JSONCONS_ALL_MEMBER_NAME_AS_4(Member, Name, Mode, Match) \
-    Mode(json_traits_helper<Json>::set_member(ajson,Name,class_instance.Member);)
-#define JSONCONS_ALL_MEMBER_NAME_AS_5(Member, Name, Mode, Match, Into) \
-    Mode(json_traits_helper<Json>::template set_member<typename std::decay<decltype(Into((std::declval<value_type*>())->Member))>::type>(ajson,Name,class_instance.Member);)
-#define JSONCONS_ALL_MEMBER_NAME_AS_6(Member, Name, Mode, Match, Into, From) \
-    Mode(json_traits_helper<Json>::template set_member<typename std::decay<decltype(Into((std::declval<value_type*>())->Member))>::type>(ajson,Name,From,class_instance.Member);)
+#define JSONCONS_ALL_MEMBER_NAME_AS_LAST(P1, P2, P3, Seq, Count) JSONCONS_PP_EXPAND(JSONCONS_PP_CONCAT(JSONCONS_ALL_MEMBER_NAME_AS_,JSONCONS_NARGS Seq) Seq)
+#define JSONCONS_ALL_MEMBER_NAME_AS_2(Member, Name) JSONCONS_ALL_MEMBER_NAME_AS_7(Member, Name,,always_true(),,)  
+#define JSONCONS_ALL_MEMBER_NAME_AS_3(Member, Name, Mode) Mode(JSONCONS_ALL_MEMBER_NAME_AS_7(Member, Name,Mode,always_true(),,))
+#define JSONCONS_ALL_MEMBER_NAME_AS_4(Member, Name, Mode, Match) Mode(JSONCONS_ALL_MEMBER_NAME_AS_7(Member, Name, Mode, Match,,))
+#define JSONCONS_ALL_MEMBER_NAME_AS_5(Member, Name, Mode, Match, Into) Mode(JSONCONS_ALL_MEMBER_NAME_AS_7(Member, Name, Mode, Match, Into,))
+#define JSONCONS_ALL_MEMBER_NAME_AS_6(Member, Name, Mode, Match, Into, From) Mode(JSONCONS_ALL_MEMBER_NAME_AS_7(Member, Name, Mode, Match, Into, From))
+#define JSONCONS_ALL_MEMBER_NAME_AS_7(Member, Name, Mode, Match, Into, From) \
+  auto _r ## Member = json_traits_helper<Json>::template try_get_member<typename std::decay<decltype(Into(class_instance.Member))>::type>(ajson, Name); \
+  if (_r ## Member) { \
+    if (!Match(From(* _r ## Member))) {return result_type(unexpect, conv_errc::conversion_failed, class_name);} \
+    {class_instance.Member = From(std::move(* _r ## Member));} \
+  } \
+  else {return result_type(unexpect, _r ## Member.error().code(), class_name);} 
 
 #define JSONCONS_N_MEMBER_NAME_TO_JSON(P1, P2, P3, Seq, Count) JSONCONS_N_MEMBER_NAME_TO_JSON_LAST(P1, P2, P3, Seq, Count)
-#define JSONCONS_N_MEMBER_NAME_TO_JSON_LAST(P1, P2, P3, Seq, Count) if ((num_params-Count) < num_mandatory_params2) JSONCONS_PP_EXPAND(JSONCONS_CONCAT(JSONCONS_N_MEMBER_NAME_TO_JSON_,JSONCONS_NARGS Seq) Seq)
+#define JSONCONS_N_MEMBER_NAME_TO_JSON_LAST(P1, P2, P3, Seq, Count) if ((num_params-Count) < num_mandatory_params2) JSONCONS_PP_EXPAND(JSONCONS_PP_CONCAT(JSONCONS_N_MEMBER_NAME_TO_JSON_,JSONCONS_NARGS Seq) Seq)
 #define JSONCONS_N_MEMBER_NAME_TO_JSON_2(Member, Name) \
   {ajson.try_emplace(Name,class_instance.Member);} \
 else \
-  {json_traits_helper<Json>::set_optional_member(Name,class_instance.Member, ajson);}
+  {json_traits_helper<Json>::set_optional_json_member(Name,class_instance.Member, ajson);}
 #define JSONCONS_N_MEMBER_NAME_TO_JSON_3(Member, Name, Mode) JSONCONS_N_MEMBER_NAME_TO_JSON_2(Member, Name)
 #define JSONCONS_N_MEMBER_NAME_TO_JSON_4(Member, Name, Mode, Match) JSONCONS_N_MEMBER_NAME_TO_JSON_6(Member, Name, Mode, Match,,)
 #define JSONCONS_N_MEMBER_NAME_TO_JSON_5(Member, Name, Mode, Match, Into) JSONCONS_N_MEMBER_NAME_TO_JSON_6(Member, Name, Mode, Match, Into, )
 #define JSONCONS_N_MEMBER_NAME_TO_JSON_6(Member, Name, Mode, Match, Into, From) \
   {ajson.try_emplace(Name, Into(class_instance.Member));} \
 else \
-  {json_traits_helper<Json>::set_optional_member(Name, Into(class_instance.Member), ajson);}
+  {json_traits_helper<Json>::set_optional_json_member(Name, Into(class_instance.Member), ajson);}
 
 #define JSONCONS_ALL_MEMBER_NAME_TO_JSON(P1, P2, P3, Seq, Count) JSONCONS_ALL_MEMBER_NAME_TO_JSON_LAST(P1, P2, P3, Seq, Count)
-#define JSONCONS_ALL_MEMBER_NAME_TO_JSON_LAST(P1, P2, P3, Seq, Count) JSONCONS_PP_EXPAND(JSONCONS_CONCAT(JSONCONS_ALL_MEMBER_NAME_TO_JSON_,JSONCONS_NARGS Seq) Seq)
+#define JSONCONS_ALL_MEMBER_NAME_TO_JSON_LAST(P1, P2, P3, Seq, Count) JSONCONS_PP_EXPAND(JSONCONS_PP_CONCAT(JSONCONS_ALL_MEMBER_NAME_TO_JSON_,JSONCONS_NARGS Seq) Seq)
 #define JSONCONS_ALL_MEMBER_NAME_TO_JSON_2(Member, Name) ajson.try_emplace(Name,class_instance.Member);
 #define JSONCONS_ALL_MEMBER_NAME_TO_JSON_3(Member, Name, Mode) JSONCONS_ALL_MEMBER_NAME_TO_JSON_2(Member, Name)
 #define JSONCONS_ALL_MEMBER_NAME_TO_JSON_4(Member, Name, Mode, Match) JSONCONS_ALL_MEMBER_NAME_TO_JSON_6(Member, Name, Mode, Match,,)
@@ -546,40 +559,40 @@ else \
 #define JSONCONS_ALL_MEMBER_NAME_TO_JSON_6(Member, Name, Mode, Match, Into, From) ajson.try_emplace(Name, Into(class_instance.Member));
 
 #define JSONCONS_N_ENCODE_MEMBER_NAME(P1, P2, P3, Seq, Count) JSONCONS_N_ENCODE_MEMBER_NAME_LAST(P1, P2, P3, Seq, Count)
-#define JSONCONS_N_ENCODE_MEMBER_NAME_LAST(P1, P2, P3, Seq, Count) if ((num_params-Count) < num_mandatory_params2) JSONCONS_PP_EXPAND(JSONCONS_CONCAT(JSONCONS_N_ENCODE_MEMBER_NAME_,JSONCONS_NARGS Seq) Seq)
+#define JSONCONS_N_ENCODE_MEMBER_NAME_LAST(P1, P2, P3, Seq, Count) if ((num_params-Count) < num_mandatory_params2) JSONCONS_PP_EXPAND(JSONCONS_PP_CONCAT(JSONCONS_N_ENCODE_MEMBER_NAME_,JSONCONS_NARGS Seq) Seq)
 #define JSONCONS_N_ENCODE_MEMBER_NAME_2(Member, Name) \
     { \
-        try_encode_member<CharT>(Name, val.Member, encoder, ec); \
+        try_encode_member(basic_string_view<char_type>(Name), val.Member, encoder, ec); \
     } \
     else \
     { \
-        try_encode_optional_member<CharT>(Name, val.Member, encoder, ec); \
+        try_encode_optional_member(basic_string_view<char_type>(Name), val.Member, encoder, ec); \
     }    
 #define JSONCONS_N_ENCODE_MEMBER_NAME_3(Member, Name, Mode) JSONCONS_N_ENCODE_MEMBER_NAME_2(Member, Name)
 #define JSONCONS_N_ENCODE_MEMBER_NAME_4(Member, Name, Mode, Match) JSONCONS_N_ENCODE_MEMBER_NAME_6(Member, Name, Mode, Match,,)
 #define JSONCONS_N_ENCODE_MEMBER_NAME_5(Member, Name, Mode, Match, Into) JSONCONS_N_ENCODE_MEMBER_NAME_6(Member, Name, Mode, Match, Into, )
 #define JSONCONS_N_ENCODE_MEMBER_NAME_6(Member, Name, Mode, Match, Into, From) \
 { \
-    try_encode_member<CharT>(Name, Into(val.Member), encoder, ec); \
+    try_encode_member(basic_string_view<char_type>(Name), Into(val.Member), encoder, ec); \
 } \
 else \
 { \
-    try_encode_optional_member<CharT>(Name, Into(val.Member), encoder, ec); \
+    try_encode_optional_member(basic_string_view<char_type>(Name), Into(val.Member), encoder, ec); \
 }    
 
 #define JSONCONS_ALL_ENCODE_MEMBER_NAME(P1, P2, P3, Seq, Count) JSONCONS_ALL_ENCODE_MEMBER_NAME_LAST(P1, P2, P3, Seq, Count)
-#define JSONCONS_ALL_ENCODE_MEMBER_NAME_LAST(P1, P2, P3, Seq, Count) JSONCONS_PP_EXPAND(JSONCONS_CONCAT(JSONCONS_ALL_ENCODE_MEMBER_NAME_,JSONCONS_NARGS Seq) Seq)
+#define JSONCONS_ALL_ENCODE_MEMBER_NAME_LAST(P1, P2, P3, Seq, Count) JSONCONS_PP_EXPAND(JSONCONS_PP_CONCAT(JSONCONS_ALL_ENCODE_MEMBER_NAME_,JSONCONS_NARGS Seq) Seq)
 #define JSONCONS_ALL_ENCODE_MEMBER_NAME_2(Member, Name) \
-     try_encode_member<CharT>(Name, val.Member, encoder, ec); 
+     try_encode_member(basic_string_view<char_type>(Name), val.Member, encoder, ec); 
 #define JSONCONS_ALL_ENCODE_MEMBER_NAME_3(Member, Name, Mode) JSONCONS_ALL_ENCODE_MEMBER_NAME_2(Member, Name)
 #define JSONCONS_ALL_ENCODE_MEMBER_NAME_4(Member, Name, Mode, Match) JSONCONS_ALL_ENCODE_MEMBER_NAME_6(Member, Name, Mode, Match,,)
 #define JSONCONS_ALL_ENCODE_MEMBER_NAME_5(Member, Name, Mode, Match, Into) JSONCONS_ALL_ENCODE_MEMBER_NAME_6(Member, Name, Mode, Match, Into, )
 #define JSONCONS_ALL_ENCODE_MEMBER_NAME_6(Member, Name, Mode, Match, Into, From) \
-    try_encode_member<CharT>(Name, Into(val.Member), encoder, ec); 
+    try_encode_member(basic_string_view<char_type>(Name), Into(val.Member), encoder, ec); 
 
-#define JSONCONS_N_OBJECT_SIZE_NAME(P1, P2, P3, Seq, Count) JSONCONS_N_OBJECT_SIZE_NAME_LAST(P1, P2, P3, Seq, Count)
-#define JSONCONS_N_OBJECT_SIZE_NAME_LAST(P1, P2, P3, Seq, Count) if ((num_params-Count) < num_mandatory_params2) JSONCONS_PP_EXPAND(JSONCONS_CONCAT(JSONCONS_N_OBJECT_SIZE_NAME_,JSONCONS_NARGS Seq) Seq)
-#define JSONCONS_N_OBJECT_SIZE_NAME_2(Member, Name) \
+#define JSONCONS_MEMBER_NAME_SIZE(P1, P2, P3, Seq, Count) JSONCONS_MEMBER_NAME_SIZE_LAST(P1, P2, P3, Seq, Count)
+#define JSONCONS_MEMBER_NAME_SIZE_LAST(P1, P2, P3, Seq, Count) if ((num_params-Count) < num_mandatory_params2) JSONCONS_PP_EXPAND(JSONCONS_PP_CONCAT(JSONCONS_MEMBER_NAME_SIZE_,JSONCONS_NARGS Seq) Seq)
+#define JSONCONS_MEMBER_NAME_SIZE_2(Member, Name) \
 { \
     ++object_size; \
 } \
@@ -590,10 +603,10 @@ else \
         ++object_size; \
     } \
 }    
-#define JSONCONS_N_OBJECT_SIZE_NAME_3(Member, Name, Mode) JSONCONS_N_OBJECT_SIZE_NAME_2(Member, Name)
-#define JSONCONS_N_OBJECT_SIZE_NAME_4(Member, Name, Mode, Match) JSONCONS_N_OBJECT_SIZE_NAME_6(Member, Name, Mode, Match,,)
-#define JSONCONS_N_OBJECT_SIZE_NAME_5(Member, Name, Mode, Match, Into) JSONCONS_N_OBJECT_SIZE_NAME_6(Member, Name, Mode, Match, Into, )
-#define JSONCONS_N_OBJECT_SIZE_NAME_6(Member, Name, Mode, Match, Into, From) \
+#define JSONCONS_MEMBER_NAME_SIZE_3(Member, Name, Mode) JSONCONS_MEMBER_NAME_SIZE_2(Member, Name)
+#define JSONCONS_MEMBER_NAME_SIZE_4(Member, Name, Mode, Match) JSONCONS_MEMBER_NAME_SIZE_6(Member, Name, Mode, Match,,)
+#define JSONCONS_MEMBER_NAME_SIZE_5(Member, Name, Mode, Match, Into) JSONCONS_MEMBER_NAME_SIZE_6(Member, Name, Mode, Match, Into, )
+#define JSONCONS_MEMBER_NAME_SIZE_6(Member, Name, Mode, Match, Into, From) \
 { \
     ++object_size; \
 } \
@@ -605,17 +618,7 @@ else \
     } \
 }    
 
-#define JSONCONS_ALL_OBJECT_SIZE_NAME(P1, P2, P3, Seq, Count) JSONCONS_ALL_OBJECT_SIZE_NAME_LAST(P1, P2, P3, Seq, Count)
-#define JSONCONS_ALL_OBJECT_SIZE_NAME_LAST(P1, P2, P3, Seq, Count) JSONCONS_PP_EXPAND(JSONCONS_CONCAT(JSONCONS_ALL_OBJECT_SIZE_NAME_,JSONCONS_NARGS Seq) Seq)
-#define JSONCONS_ALL_OBJECT_SIZE_NAME_2(Member, Name) \
-    ++object_size; 
-#define JSONCONS_ALL_OBJECT_SIZE_NAME_3(Member, Name, Mode) JSONCONS_ALL_OBJECT_SIZE_NAME_2(Member, Name)
-#define JSONCONS_ALL_OBJECT_SIZE_NAME_4(Member, Name, Mode, Match) JSONCONS_ALL_OBJECT_SIZE_NAME_6(Member, Name, Mode, Match,,)
-#define JSONCONS_ALL_OBJECT_SIZE_NAME_5(Member, Name, Mode, Match, Into) JSONCONS_ALL_OBJECT_SIZE_NAME_6(Member, Name, Mode, Match, Into, )
-#define JSONCONS_ALL_OBJECT_SIZE_NAME_6(Member, Name, Mode, Match, Into, From) \
-     ++object_size; 
-                                                                 
-#define JSONCONS_MEMBER_NAME_TRAITS_BASE(AsT,ToJ,ObjectSize,EnMem, NumTemplateParams, ClassType,NumMandatoryParams1,NumMandatoryParams2, ...)  \
+#define JSONCONS_MEMBER_NAME_TRAITS_BASE(ToJ,EnMem, NumTemplateParams, ClassType,NumMandatoryParams1,NumMandatoryParams2, ...)  \
 namespace jsoncons { \
 namespace reflect { \
     template <typename Json JSONCONS_GENERATE_TPL_PARAMS(JSONCONS_GENERATE_MORE_TPL_PARAM, NumTemplateParams)> \
@@ -637,9 +640,19 @@ namespace reflect { \
         } \
         static result_type try_as(const Json& ajson) \
         { \
-            if (!is(ajson)) return result_type(jsoncons::unexpect, conv_errc::conversion_failed, # ClassType); \
+            const char* class_name = # ClassType; \
+            std::error_code ec; \
+            if (!ajson.is_object()) return result_type(jsoncons::unexpect, conv_errc::expected_object, # ClassType); \
             value_type class_instance{}; \
-            JSONCONS_VARIADIC_FOR_EACH(AsT,,,, __VA_ARGS__) \
+            if (num_params == num_mandatory_params2) \
+            { \
+                JSONCONS_VARIADIC_FOR_EACH(JSONCONS_ALL_MEMBER_NAME_AS,,,, __VA_ARGS__) \
+            } \
+            else \
+            { \
+                std::size_t index = 0; \
+                JSONCONS_VARIADIC_FOR_EACH(JSONCONS_N_MEMBER_NAME_AS,,,, __VA_ARGS__) \
+            } \
             return result_type(std::move(class_instance)); \
         } \
         static Json to_json(const value_type& class_instance, allocator_type alloc=allocator_type()) \
@@ -661,9 +674,10 @@ namespace reflect { \
             basic_json_visitor<CharT>& encoder, \
             std::error_code& ec) \
         { \
+            using char_type = CharT; \
             (void)num_params; (void)num_mandatory_params1; (void)num_mandatory_params2; \
             std::size_t object_size{0}; \
-            JSONCONS_VARIADIC_FOR_EACH(ObjectSize, ,,, __VA_ARGS__) \
+            JSONCONS_VARIADIC_FOR_EACH(JSONCONS_MEMBER_NAME_SIZE, ,,, __VA_ARGS__) \
             encoder.begin_object(object_size, semantic_tag::none, ser_context(), ec); \
             if (JSONCONS_UNLIKELY(ec)) {return;} \
             JSONCONS_VARIADIC_FOR_EACH(EnMem, ,,, __VA_ARGS__) \
@@ -677,48 +691,54 @@ namespace reflect { \
 
 
 #define JSONCONS_N_MEMBER_NAME_TRAITS(ClassType,NumMandatoryParams, ...)  \
-    JSONCONS_MEMBER_NAME_TRAITS_BASE(JSONCONS_N_MEMBER_NAME_AS, JSONCONS_N_MEMBER_NAME_TO_JSON, JSONCONS_N_OBJECT_SIZE_NAME, JSONCONS_N_ENCODE_MEMBER_NAME, 0, ClassType,NumMandatoryParams,NumMandatoryParams, __VA_ARGS__) \
+    JSONCONS_MEMBER_NAME_TRAITS_BASE(JSONCONS_N_MEMBER_NAME_TO_JSON, JSONCONS_N_ENCODE_MEMBER_NAME, 0, ClassType,NumMandatoryParams,NumMandatoryParams, __VA_ARGS__) \
     namespace jsoncons { template <> struct is_json_type_traits_declared<ClassType> : public std::true_type {}; } \
   /**/
 
 #define JSONCONS_TPL_N_MEMBER_NAME_TRAITS(NumTemplateParams, ClassType,NumMandatoryParams, ...)  \
-    JSONCONS_MEMBER_NAME_TRAITS_BASE(JSONCONS_N_MEMBER_NAME_AS, JSONCONS_N_MEMBER_NAME_TO_JSON, JSONCONS_N_OBJECT_SIZE_NAME, JSONCONS_N_ENCODE_MEMBER_NAME, NumTemplateParams, ClassType,NumMandatoryParams,NumMandatoryParams, __VA_ARGS__) \
+    JSONCONS_MEMBER_NAME_TRAITS_BASE(JSONCONS_N_MEMBER_NAME_TO_JSON, JSONCONS_N_ENCODE_MEMBER_NAME, NumTemplateParams, ClassType,NumMandatoryParams,NumMandatoryParams, __VA_ARGS__) \
     namespace jsoncons { template <JSONCONS_GENERATE_TPL_PARAMS(JSONCONS_GENERATE_TPL_PARAM, NumTemplateParams)> struct is_json_type_traits_declared<ClassType JSONCONS_GENERATE_TPL_ARGS(JSONCONS_GENERATE_TPL_ARG, NumTemplateParams)> : public std::true_type {}; } \
   /**/
 
 #define JSONCONS_ALL_MEMBER_NAME_TRAITS(ClassType, ...)  \
-    JSONCONS_MEMBER_NAME_TRAITS_BASE(JSONCONS_ALL_MEMBER_NAME_AS, JSONCONS_ALL_MEMBER_NAME_TO_JSON, JSONCONS_ALL_OBJECT_SIZE_NAME, JSONCONS_ALL_ENCODE_MEMBER_NAME, 0, ClassType, JSONCONS_NARGS(__VA_ARGS__), JSONCONS_NARGS(__VA_ARGS__), __VA_ARGS__) \
+    JSONCONS_MEMBER_NAME_TRAITS_BASE(JSONCONS_ALL_MEMBER_NAME_TO_JSON, JSONCONS_ALL_ENCODE_MEMBER_NAME, 0, ClassType, JSONCONS_NARGS(__VA_ARGS__), JSONCONS_NARGS(__VA_ARGS__), __VA_ARGS__) \
     namespace jsoncons { template <> struct is_json_type_traits_declared<ClassType> : public std::true_type {}; } \
   /**/
 
 #define JSONCONS_TPL_ALL_MEMBER_NAME_TRAITS(NumTemplateParams, ClassType, ...)  \
-    JSONCONS_MEMBER_NAME_TRAITS_BASE(JSONCONS_ALL_MEMBER_NAME_AS, JSONCONS_ALL_MEMBER_NAME_TO_JSON, JSONCONS_ALL_OBJECT_SIZE_NAME, JSONCONS_ALL_ENCODE_MEMBER_NAME, NumTemplateParams, ClassType, JSONCONS_NARGS(__VA_ARGS__), JSONCONS_NARGS(__VA_ARGS__), __VA_ARGS__) \
+    JSONCONS_MEMBER_NAME_TRAITS_BASE(JSONCONS_ALL_MEMBER_NAME_TO_JSON, JSONCONS_ALL_ENCODE_MEMBER_NAME, NumTemplateParams, ClassType, JSONCONS_NARGS(__VA_ARGS__), JSONCONS_NARGS(__VA_ARGS__), __VA_ARGS__) \
     namespace jsoncons { template <JSONCONS_GENERATE_TPL_PARAMS(JSONCONS_GENERATE_TPL_PARAM, NumTemplateParams)> struct is_json_type_traits_declared<ClassType JSONCONS_GENERATE_TPL_ARGS(JSONCONS_GENERATE_TPL_ARG, NumTemplateParams)> : public std::true_type {}; } \
   /**/
 
 #define JSONCONS_CTOR_GETTER_IS(Prefix, P2, P3, Getter, Count) JSONCONS_CTOR_GETTER_IS_LAST(Prefix, P2, P3, Getter, Count)
-#define JSONCONS_CTOR_GETTER_IS_LAST(Prefix, P2, P3, Getter, Count) if ((num_params-Count) < num_mandatory_params1 && !ajson.contains(json_object_member_names<value_type>::Getter##_str(char_type{}))) return false;
+#define JSONCONS_CTOR_GETTER_IS_LAST(Prefix, P2, P3, Getter, Count) if ((num_params-Count) < num_mandatory_params1 && !ajson.contains(json_object_name_members<value_type>::Getter(char_type{}))) return false;
+
+#define JSONCONS_CTOR_GETTER_GET(Prefix, P2, P3, Getter, Count) JSONCONS_CTOR_GETTER_GET_LAST(Prefix, P2, P3, Getter, Count)
+#define JSONCONS_CTOR_GETTER_GET_LAST(Prefix, P2, P3, Getter, Count) \
+  auto _r ## Getter = json_traits_helper<Json>::template try_get_member<typename std::decay<decltype((std::declval<value_type*>())->Getter())>::type>(ajson, json_object_name_members<value_type>::Getter(char_type{})); \
+  if (!_r ## Getter && (num_params-Count) < num_mandatory_params2) {return result_type(unexpect, _r ## Getter.error().code(), json_object_name_members<value_type>::Getter(unexpect));}
 
 #define JSONCONS_CTOR_GETTER_AS(Prefix, P2, P3, Getter, Count) JSONCONS_CTOR_GETTER_AS_LAST(Prefix, P2, P3, Getter, Count),
-#define JSONCONS_CTOR_GETTER_AS_LAST(Prefix, P2, P3, Getter, Count) ((num_params-Count) < num_mandatory_params2) ? (ajson.at(json_object_member_names<value_type>::Getter##_str(char_type{}))).template as<typename std::decay<decltype((std::declval<value_type*>())->Getter())>::type>() : (ajson.contains(json_object_member_names<value_type>::Getter##_str(char_type{})) ? (ajson.at(json_object_member_names<value_type>::Getter##_str(char_type{}))).template as<typename std::decay<decltype((std::declval<value_type*>())->Getter())>::type>() : typename std::decay<decltype((std::declval<value_type*>())->Getter())>::type())
+#define JSONCONS_CTOR_GETTER_AS_LAST(Prefix, P2, P3, Getter, Count) \
+  _r ## Getter ? std::move(*_r ## Getter) : typename std::decay<decltype((std::declval<value_type*>())->Getter())>::type()
 
 #define JSONCONS_CTOR_GETTER_TO_JSON(Prefix, P2, P3, Getter, Count) JSONCONS_CTOR_GETTER_TO_JSON_LAST(Prefix, P2, P3, Getter, Count)
 
 #define JSONCONS_CTOR_GETTER_TO_JSON_LAST(Prefix, P2, P3, Getter, Count) \
 if ((num_params-Count) < num_mandatory_params2) { \
-       ajson.try_emplace(json_object_member_names<value_type>::Getter##_str(char_type{}),class_instance.Getter() ); \
+       ajson.try_emplace(json_object_name_members<value_type>::Getter(char_type{}),class_instance.Getter() ); \
   } \
 else { \
-  json_traits_helper<Json>::set_optional_member(json_object_member_names<value_type>::Getter##_str(char_type{}),class_instance.Getter(), ajson); \
+  json_traits_helper<Json>::set_optional_json_member(json_object_name_members<value_type>::Getter(char_type{}),class_instance.Getter(), ajson); \
 }
 
 #define JSONCONS_CTOR_GETTER_TRAITS_BASE(NumTemplateParams, ClassType,NumMandatoryParams1,NumMandatoryParams2, ...)  \
 namespace jsoncons { \
 namespace reflect { \
-    template <typename ChT JSONCONS_GENERATE_TPL_PARAMS(JSONCONS_GENERATE_MORE_TPL_PARAM, NumTemplateParams)> \
-    struct json_object_member_names<ClassType JSONCONS_GENERATE_TPL_ARGS(JSONCONS_GENERATE_TPL_ARG, NumTemplateParams)> \
+    template <JSONCONS_GENERATE_TPL_PARAMS(JSONCONS_GENERATE_TPL_PARAM, NumTemplateParams)> \
+    struct json_object_name_members<ClassType JSONCONS_GENERATE_TPL_ARGS(JSONCONS_GENERATE_TPL_ARG, NumTemplateParams)> \
     { \
-        JSONCONS_VARIADIC_FOR_EACH(JSONCONS_GENERATE_NAME_STR, ,,, __VA_ARGS__)\
+        JSONCONS_VARIADIC_FOR_EACH(JSONCONS_GENERATE_NAME_STR,ClassType,,, __VA_ARGS__)\
     }; \
     template <typename Json JSONCONS_GENERATE_TPL_PARAMS(JSONCONS_GENERATE_MORE_TPL_PARAM, NumTemplateParams)> \
     struct json_conv_traits<Json, ClassType JSONCONS_GENERATE_TPL_ARGS(JSONCONS_GENERATE_TPL_ARG, NumTemplateParams)> \
@@ -739,7 +759,8 @@ namespace reflect { \
         } \
         static result_type try_as(const Json& ajson) \
         { \
-            if (!is(ajson)) return result_type(jsoncons::unexpect, conv_errc::conversion_failed, # ClassType); \
+            if (!ajson.is_object()) return result_type(jsoncons::unexpect, conv_errc::expected_object, # ClassType); \
+            JSONCONS_VARIADIC_FOR_EACH(JSONCONS_CTOR_GETTER_GET,ClassType,,, __VA_ARGS__) \
             return value_type ( JSONCONS_VARIADIC_FOR_EACH(JSONCONS_CTOR_GETTER_AS, ,,, __VA_ARGS__) ); \
         } \
         static Json to_json(const value_type& class_instance, allocator_type alloc=allocator_type()) \
@@ -774,7 +795,7 @@ namespace reflect { \
   /**/
  
 #define JSONCONS_CTOR_GETTER_NAME_IS(P1, P2, P3, Seq, Count) JSONCONS_CTOR_GETTER_NAME_IS_LAST(P1, P2, P3, Seq, Count)
-#define JSONCONS_CTOR_GETTER_NAME_IS_LAST(P1, P2, P3, Seq, Count) if ((num_params-Count) < num_mandatory_params1 && JSONCONS_PP_EXPAND(JSONCONS_CONCAT(JSONCONS_CTOR_GETTER_NAME_IS_,JSONCONS_NARGS Seq) Seq)
+#define JSONCONS_CTOR_GETTER_NAME_IS_LAST(P1, P2, P3, Seq, Count) if ((num_params-Count) < num_mandatory_params1 && JSONCONS_PP_EXPAND(JSONCONS_PP_CONCAT(JSONCONS_CTOR_GETTER_NAME_IS_,JSONCONS_NARGS Seq) Seq)
 #define JSONCONS_CTOR_GETTER_NAME_IS_2(Getter, Name) !ajson.contains(Name)) return false;
 #define JSONCONS_CTOR_GETTER_NAME_IS_3(Getter, Name, Mode) JSONCONS_CTOR_GETTER_NAME_IS_2(Getter, Name)
 #define JSONCONS_CTOR_GETTER_NAME_IS_4(Getter, Name, Mode, Match) JSONCONS_CTOR_GETTER_NAME_IS_6(Getter, Name, Mode, Match, , )
@@ -783,29 +804,44 @@ namespace reflect { \
     JSONCONS_TRY{if (!Match(ajson.at(Name).template as<typename std::decay<decltype(Into((std::declval<value_type*>())->Getter()))>::type>())) return false;} \
     JSONCONS_CATCH(...) {return false;}
 
-#define JSONCONS_CTOR_GETTER_NAME_AS(P1, P2, P3, Seq, Count) JSONCONS_PP_EXPAND(JSONCONS_CONCAT(JSONCONS_CTOR_GETTER_NAME_AS_,JSONCONS_NARGS Seq) Seq)
-#define JSONCONS_CTOR_GETTER_NAME_AS_2(Getter, Name) JSONCONS_CTOR_GETTER_NAME_AS_LAST_2(Getter, Name) JSONCONS_COMMA
-#define JSONCONS_CTOR_GETTER_NAME_AS_3(Getter, Name, Mode) Mode(JSONCONS_CTOR_GETTER_NAME_AS_LAST_2(Getter, Name)) Mode(JSONCONS_COMMA)
-#define JSONCONS_CTOR_GETTER_NAME_AS_4(Getter, Name, Mode, Match) JSONCONS_CTOR_GETTER_NAME_AS_6(Getter, Name, Mode, Match,,) 
-#define JSONCONS_CTOR_GETTER_NAME_AS_5(Getter, Name, Mode, Match, Into) JSONCONS_CTOR_GETTER_NAME_AS_6(Getter, Name, Mode, Match, Into, ) 
-#define JSONCONS_CTOR_GETTER_NAME_AS_6(Getter, Name, Mode, Match, Into, From) JSONCONS_CTOR_GETTER_NAME_AS_LAST_6(Getter,Name,Mode,Match,Into,From) Mode(JSONCONS_COMMA)
 #define JSONCONS_COMMA ,
 
-#define JSONCONS_CTOR_GETTER_NAME_AS_LAST(P1, P2, P3, Seq, Count) JSONCONS_PP_EXPAND(JSONCONS_CONCAT(JSONCONS_CTOR_GETTER_NAME_AS_LAST_,JSONCONS_NARGS Seq) Seq)
-#define JSONCONS_CTOR_GETTER_NAME_AS_LAST_2(Getter, Name) (ajson.contains(Name)) ? (ajson.at(Name)).template as<typename std::decay<decltype((std::declval<value_type*>())->Getter())>::type>() : typename std::decay<decltype((std::declval<value_type*>())->Getter())>::type()
-#define JSONCONS_CTOR_GETTER_NAME_AS_LAST_3(Getter, Name, Mode) Mode(JSONCONS_CTOR_GETTER_NAME_AS_LAST_2(Getter, Name))
-#define JSONCONS_CTOR_GETTER_NAME_AS_LAST_4(Getter, Name, Mode, Match) JSONCONS_CTOR_GETTER_NAME_AS_LAST_6(Getter, Name, Mode, Match,,)
-#define JSONCONS_CTOR_GETTER_NAME_AS_LAST_5(Getter, Name, Mode, Match, Into) JSONCONS_CTOR_GETTER_NAME_AS_LAST_6(Getter, Name, Mode, Match, Into, )
-#define JSONCONS_CTOR_GETTER_NAME_AS_LAST_6(Getter, Name, Mode, Match, Into, From) Mode(ajson.contains(Name) ? From(ajson.at(Name).template as<typename std::decay<decltype(Into((std::declval<value_type*>())->Getter()))>::type>()) : From(typename std::decay<decltype(Into((std::declval<value_type*>())->Getter()))>::type()))
+#define JSONCONS_CTOR_GETTER_NAME_GET(P1, P2, P3, Seq, Count) JSONCONS_CTOR_GETTER_NAME_GET_LAST(P1, P2, P3, Seq, Count)
+#define JSONCONS_CTOR_GETTER_NAME_GET_LAST(P1, P2, P3, Seq, Count) index = num_params-Count; JSONCONS_PP_EXPAND(JSONCONS_PP_CONCAT(JSONCONS_CTOR_GETTER_NAME_GET_,JSONCONS_NARGS Seq) Seq)
+#define JSONCONS_CTOR_GETTER_NAME_GET_2(Getter, Name) JSONCONS_CTOR_GETTER_NAME_GET_7(Getter, Name,,always_true(),,)
+#define JSONCONS_CTOR_GETTER_NAME_GET_3(Getter, Name, Mode) Mode(JSONCONS_CTOR_GETTER_NAME_GET_7(Getter, Name, Mode, always_true(),,))
+#define JSONCONS_CTOR_GETTER_NAME_GET_4(Getter, Name, Mode, Match) Mode(JSONCONS_CTOR_GETTER_NAME_GET_7(Getter, Name, Mode, Match,,))
+#define JSONCONS_CTOR_GETTER_NAME_GET_5(Getter, Name, Mode, Match, Into) Mode(JSONCONS_CTOR_GETTER_NAME_GET_7(Getter, Name, Mode, Match, Into,))
+#define JSONCONS_CTOR_GETTER_NAME_GET_6(Getter, Name, Mode, Match, Into, From) Mode(JSONCONS_CTOR_GETTER_NAME_GET_7(Getter, Name, Mode, Match, Into, From))
+#define JSONCONS_CTOR_GETTER_NAME_GET_7(Getter, Name, Mode, Match, Into, From) \
+  auto _r ## Getter = json_traits_helper<Json>::template try_get_member<typename std::decay<decltype(Into((std::declval<value_type*>())->Getter()))>::type>(ajson, Name); \
+  if (!_r ## Getter && index < num_mandatory_params2) {return result_type(unexpect, _r ## Getter.error().code(), class_name);} \
+  if (_r ## Getter && !Match(* _r ## Getter)) {return result_type(unexpect, conv_errc::expected_object, class_name);} 
+
+#define JSONCONS_CTOR_GETTER_NAME_AS(P1, P2, P3, Seq, Count) JSONCONS_PP_EXPAND(JSONCONS_PP_CONCAT(JSONCONS_CTOR_GETTER_NAME_AS_,JSONCONS_NARGS Seq) Seq)
+#define JSONCONS_CTOR_GETTER_NAME_AS_2(Getter, Name) JSONCONS_CTOR_GETTER_NAME_AS_LAST_7(Getter, Name,,,, ) JSONCONS_COMMA
+#define JSONCONS_CTOR_GETTER_NAME_AS_3(Getter, Name, Mode) Mode(JSONCONS_CTOR_GETTER_NAME_AS_LAST_7(Getter, Name, Mode,,, ) JSONCONS_COMMA) 
+#define JSONCONS_CTOR_GETTER_NAME_AS_4(Getter, Name, Mode, Match) Mode(JSONCONS_CTOR_GETTER_NAME_AS_LAST_7(Getter, Name, Mode, Match,, ) JSONCONS_COMMA) 
+#define JSONCONS_CTOR_GETTER_NAME_AS_5(Getter, Name, Mode, Match, Into) Mode(JSONCONS_CTOR_GETTER_NAME_AS_LAST_7(Getter, Name, Mode, Match, Into, ) JSONCONS_COMMA) 
+#define JSONCONS_CTOR_GETTER_NAME_AS_6(Getter, Name, Mode, Match, Into, From) Mode(JSONCONS_CTOR_GETTER_NAME_AS_LAST_7(Getter,Name,Mode,Match,Into,From) JSONCONS_COMMA)
+
+#define JSONCONS_CTOR_GETTER_NAME_AS_LAST(P1, P2, P3, Seq, Count) JSONCONS_PP_EXPAND(JSONCONS_PP_CONCAT(JSONCONS_CTOR_GETTER_NAME_AS_LAST_,JSONCONS_NARGS Seq) Seq)
+#define JSONCONS_CTOR_GETTER_NAME_AS_LAST_2(Getter, Name) JSONCONS_CTOR_GETTER_NAME_AS_LAST_7(Getter, Name,,,,)
+#define JSONCONS_CTOR_GETTER_NAME_AS_LAST_3(Getter, Name, Mode) Mode(JSONCONS_CTOR_GETTER_NAME_AS_LAST_7(Getter, Name,Mode,,,))
+#define JSONCONS_CTOR_GETTER_NAME_AS_LAST_4(Getter, Name, Mode, Match) Mode(JSONCONS_CTOR_GETTER_NAME_AS_LAST_6(Getter, Name, Mode, Match,,))
+#define JSONCONS_CTOR_GETTER_NAME_AS_LAST_5(Getter, Name, Mode, Match, Into) Mode(JSONCONS_CTOR_GETTER_NAME_AS_LAST_6(Getter, Name, Mode, Match, Into, ))
+#define JSONCONS_CTOR_GETTER_NAME_AS_LAST_6(Getter, Name, Mode, Match, Into, From) Mode(JSONCONS_CTOR_GETTER_NAME_AS_LAST_7(Getter, Name, Mode, Match, Into, From))
+#define JSONCONS_CTOR_GETTER_NAME_AS_LAST_7(Getter, Name, Mode, Match, Into, From) \
+  _r ## Getter ? From(std::move(*_r ## Getter)) : From(typename std::decay<decltype(Into((std::declval<value_type*>())->Getter()))>::type())
 
 #define JSONCONS_CTOR_GETTER_NAME_TO_JSON(P1, P2, P3, Seq, Count) JSONCONS_CTOR_GETTER_NAME_TO_JSON_LAST(P1, P2, P3, Seq, Count)
-#define JSONCONS_CTOR_GETTER_NAME_TO_JSON_LAST(P1, P2, P3, Seq, Count) if ((num_params-Count) < num_mandatory_params2) JSONCONS_PP_EXPAND(JSONCONS_CONCAT(JSONCONS_CTOR_GETTER_NAME_TO_JSON_,JSONCONS_NARGS Seq) Seq)
+#define JSONCONS_CTOR_GETTER_NAME_TO_JSON_LAST(P1, P2, P3, Seq, Count) if ((num_params-Count) < num_mandatory_params2) JSONCONS_PP_EXPAND(JSONCONS_PP_CONCAT(JSONCONS_CTOR_GETTER_NAME_TO_JSON_,JSONCONS_NARGS Seq) Seq)
 #define JSONCONS_CTOR_GETTER_NAME_TO_JSON_2(Getter, Name) \
 { \
   ajson.try_emplace(Name,class_instance.Getter() ); \
 } \
 else { \
-  json_traits_helper<Json>::set_optional_member(Name,class_instance.Getter(), ajson); \
+  json_traits_helper<Json>::set_optional_json_member(Name,class_instance.Getter(), ajson); \
 }
 #define JSONCONS_CTOR_GETTER_NAME_TO_JSON_3(Getter, Name, Mode) JSONCONS_CTOR_GETTER_NAME_TO_JSON_2(Getter, Name)
 #define JSONCONS_CTOR_GETTER_NAME_TO_JSON_4(Getter, Name, Mode, Match) JSONCONS_CTOR_GETTER_NAME_TO_JSON_2(Getter, Name)
@@ -815,7 +851,7 @@ else { \
   ajson.try_emplace(Name, Into(class_instance.Getter()) ); \
 } \
 else { \
-  json_traits_helper<Json>::set_optional_member(Name, Into(class_instance.Getter()), ajson); \
+  json_traits_helper<Json>::set_optional_json_member(Name, Into(class_instance.Getter()), ajson); \
 }
 
 #define JSONCONS_CTOR_GETTER_NAME_TRAITS_BASE(NumTemplateParams, ClassType,NumMandatoryParams1,NumMandatoryParams2, ...)  \
@@ -835,12 +871,15 @@ namespace reflect { \
         static bool is(const Json& ajson) noexcept \
         { \
             if (!ajson.is_object()) return false; \
-                JSONCONS_VARIADIC_FOR_EACH(JSONCONS_CTOR_GETTER_NAME_IS,,,, __VA_ARGS__)\
+            JSONCONS_VARIADIC_FOR_EACH(JSONCONS_CTOR_GETTER_NAME_IS,,,, __VA_ARGS__)\
             return true; \
         } \
         static result_type try_as(const Json& ajson) \
         { \
-            if (!is(ajson)) return result_type(jsoncons::unexpect, conv_errc::conversion_failed, # ClassType); \
+            const char* class_name = # ClassType; \
+            if (!ajson.is_object()) return result_type(jsoncons::unexpect, conv_errc::expected_object, # ClassType); \
+            std::size_t index = 0; \
+            JSONCONS_VARIADIC_FOR_EACH(JSONCONS_CTOR_GETTER_NAME_GET,ClassType,,, __VA_ARGS__) \
             return value_type ( JSONCONS_VARIADIC_FOR_EACH(JSONCONS_CTOR_GETTER_NAME_AS,,,, __VA_ARGS__) ); \
         } \
         static Json to_json(const value_type& class_instance, allocator_type alloc=allocator_type()) \
@@ -875,15 +914,30 @@ JSONCONS_CTOR_GETTER_NAME_TRAITS_BASE(NumTemplateParams, ClassType,NumMandatoryP
   /**/
 
 #define JSONCONS_ENUM_PAIR(Prefix, P2, P3, Member, Count) JSONCONS_ENUM_PAIR_LAST(Prefix, P2, P3, Member, Count),
-#define JSONCONS_ENUM_PAIR_LAST(Prefix, P2, P3, Member, Count) {enum_type::Member, json_object_member_names<enum_type>::Member##_str(char_type{})}
+#define JSONCONS_ENUM_PAIR_LAST(Prefix, P2, P3, Member, Count) {enum_type::Member, json_object_name_members<enum_type>::Member(char_type{})}
 
 #define JSONCONS_ENUM_TRAITS_BASE(EnumType, ...)  \
 namespace jsoncons { \
 namespace reflect { \
-    template <typename ChT> \
-    struct json_object_member_names<EnumType> \
+    template<> \
+    struct json_object_name_members<EnumType> \
     { \
         JSONCONS_VARIADIC_FOR_EACH(JSONCONS_GENERATE_NAME_STR, ,,, __VA_ARGS__)\
+    }; \
+    template<> \
+    struct reflect_type_properties<EnumType> \
+    { \
+        using enum_type = EnumType; \
+        static constexpr std::size_t count = JSONCONS_NARGS(__VA_ARGS__); \
+        template <typename CharT> \
+        static const std::pair<EnumType,basic_string_view<CharT>>* values() \
+        { \
+            using char_type = CharT; \
+            static const std::pair<EnumType,basic_string_view<CharT>> values[] = { \
+                JSONCONS_VARIADIC_FOR_EACH(JSONCONS_ENUM_PAIR, ,,, __VA_ARGS__)\
+            };\
+            return values; \
+        } \
     }; \
     template <typename Json> \
     struct json_conv_traits<Json, EnumType> \
@@ -895,21 +949,13 @@ namespace reflect { \
         using string_type = std::basic_string<char_type>; \
         using string_view_type = jsoncons::basic_string_view<char_type>; \
         using allocator_type = typename Json::allocator_type; \
-        using mapped_type = std::pair<EnumType,string_type>; \
-        \
-        static std::pair<const mapped_type*,const mapped_type*> get_values() \
-        { \
-            static const mapped_type v[] = { \
-                JSONCONS_VARIADIC_FOR_EACH(JSONCONS_ENUM_PAIR, ,,, __VA_ARGS__)\
-            };\
-            return std::make_pair(v,v+JSONCONS_NARGS(__VA_ARGS__)); \
-        } \
+        using mapped_type = std::pair<EnumType,string_view_type>; \
         \
         static bool is(const Json& ajson) noexcept \
         { \
             if (!ajson.is_string()) return false; \
-            auto first = get_values().first; \
-            auto last = get_values().second; \
+            auto first = reflect_type_properties<EnumType>::values<char_type>(); \
+            auto last = first + reflect_type_properties<EnumType>::count; \
             const string_view_type s = ajson.template as<string_view_type>(); \
             if (s.empty() && std::find_if(first, last, \
                                           [](const mapped_type& item) -> bool \
@@ -926,8 +972,8 @@ namespace reflect { \
         { \
             if (!is(ajson)) return result_type(jsoncons::unexpect, conv_errc::conversion_failed, # EnumType); \
             const string_view_type s = ajson.template as<string_view_type>(); \
-            auto first = get_values().first; \
-            auto last = get_values().second; \
+            auto first = reflect_type_properties<EnumType>::values<char_type>(); \
+            auto last = first + reflect_type_properties<EnumType>::count; \
             if (s.empty() && std::find_if(first, last, \
                                           [](const mapped_type& item) -> bool \
                                           { return item.first == enum_type(); }) == last) \
@@ -953,8 +999,8 @@ namespace reflect { \
         static Json to_json(enum_type class_instance, allocator_type alloc=allocator_type()) \
         { \
             static constexpr char_type empty_string[] = {0}; \
-            auto first = get_values().first; \
-            auto last = get_values().second; \
+            auto first = reflect_type_properties<EnumType>::values<char_type>(); \
+            auto last = first + reflect_type_properties<EnumType>::count; \
             auto it = std::find_if(first, last, \
                                    [class_instance](const mapped_type& item) -> bool \
                                    { return item.first == class_instance; }); \
@@ -970,6 +1016,39 @@ namespace reflect { \
                 } \
             } \
             return Json((*it).second,alloc); \
+        } \
+    }; \
+    template <> struct encode_traits<EnumType> \
+    { \
+        using enum_type = EnumType; \
+        using result_type = conversion_result<enum_type>; \
+        template <typename CharT> \
+        static void try_encode(const enum_type& val, \
+            basic_json_visitor<CharT>& encoder, \
+            std::error_code& ec) \
+        { \
+            using char_type = CharT; \
+            using string_view_type = jsoncons::basic_string_view<char_type>; \
+            using mapped_type = std::pair<EnumType,string_view_type>; \
+            static const char_type empty_string[] = {0}; \
+            auto first = reflect_type_properties<EnumType>::values<char_type>(); \
+            auto last = first + reflect_type_properties<EnumType>::count; \
+            auto it = std::find_if(first, last, \
+                                   [val](const mapped_type& item) -> bool \
+                                   { return item.first == val; }); \
+            if (it == last) \
+            { \
+                if (val == enum_type()) \
+                { \
+                    encoder.string_value(empty_string, semantic_tag::none, ser_context(), ec); \
+                } \
+                else \
+                { \
+                    ec = conv_errc::conversion_failed; \
+                } \
+                return; \
+            } \
+            encoder.string_value((*it).second, semantic_tag::none, ser_context(), ec); \
         } \
     }; \
 } \
@@ -988,6 +1067,20 @@ namespace reflect { \
 #define JSONCONS_ENUM_NAME_TRAITS(EnumType, ...)  \
 namespace jsoncons { \
 namespace reflect { \
+    template<> \
+    struct reflect_type_properties<EnumType> \
+    { \
+        using enum_type = EnumType; \
+        static constexpr std::size_t count = JSONCONS_NARGS(__VA_ARGS__); \
+        template <typename CharT> \
+        static const std::pair<EnumType,basic_string_view<CharT>>* values() \
+        { \
+            static const std::pair<EnumType,basic_string_view<CharT>> values[] = { \
+                JSONCONS_VARIADIC_FOR_EACH(JSONCONS_NAME_ENUM_PAIR, ,,, __VA_ARGS__)\
+            };\
+            return values; \
+        } \
+    }; \
     template <typename Json> \
     struct json_conv_traits<Json, EnumType> \
     { \
@@ -998,21 +1091,13 @@ namespace reflect { \
         using string_type = std::basic_string<char_type>; \
         using string_view_type = jsoncons::basic_string_view<char_type>; \
         using allocator_type = typename Json::allocator_type; \
-        using mapped_type = std::pair<EnumType,string_type>; \
-        \
-        static std::pair<const mapped_type*,const mapped_type*> get_values() \
-        { \
-            static const mapped_type v[] = { \
-                JSONCONS_VARIADIC_FOR_EACH(JSONCONS_NAME_ENUM_PAIR,,,, __VA_ARGS__)\
-            };\
-            return std::make_pair(v,v+JSONCONS_NARGS(__VA_ARGS__)); \
-        } \
+        using mapped_type = std::pair<EnumType,string_view_type>; \
         \
         static bool is(const Json& ajson) noexcept \
         { \
             if (!ajson.is_string()) return false; \
-            auto first = get_values().first; \
-            auto last = get_values().second; \
+            auto first = reflect_type_properties<enum_type>::values<char_type>(); \
+            auto last = first + reflect_type_properties<enum_type>::count; \
             const string_view_type s = ajson.template as<string_view_type>(); \
             if (s.empty() && std::find_if(first, last, \
                                           [](const mapped_type& item) -> bool \
@@ -1029,8 +1114,8 @@ namespace reflect { \
         { \
             if (!is(ajson)) return result_type(jsoncons::unexpect, conv_errc::conversion_failed, # EnumType); \
             const string_view_type s = ajson.template as<string_view_type>(); \
-            auto first = get_values().first; \
-            auto last = get_values().second; \
+            auto first = reflect_type_properties<enum_type>::values<char_type>(); \
+            auto last = first + reflect_type_properties<enum_type>::count; \
             if (s.empty() && std::find_if(first, last, \
                                           [](const mapped_type& item) -> bool \
                                           { return item.first == enum_type(); }) == last) \
@@ -1056,8 +1141,8 @@ namespace reflect { \
         static Json to_json(enum_type class_instance, allocator_type alloc=allocator_type()) \
         { \
             static constexpr char_type empty_string[] = {0}; \
-            auto first = get_values().first; \
-            auto last = get_values().second; \
+            auto first = reflect_type_properties<enum_type>::values<char_type>(); \
+            auto last = first + reflect_type_properties<enum_type>::count; \
             auto it = std::find_if(first, last, \
                                    [class_instance](const mapped_type& item) -> bool \
                                    { return item.first == class_instance; }); \
@@ -1075,36 +1160,76 @@ namespace reflect { \
             return Json((*it).second,alloc); \
         } \
     }; \
+    template <> struct encode_traits<EnumType> \
+    { \
+        using enum_type = EnumType; \
+        using result_type = conversion_result<enum_type>; \
+        template <typename CharT> \
+        static void try_encode(const enum_type& val, \
+            basic_json_visitor<CharT>& encoder, \
+            std::error_code& ec) \
+        { \
+            using char_type = CharT; \
+            using string_view_type = jsoncons::basic_string_view<char_type>; \
+            using mapped_type = std::pair<EnumType,string_view_type>; \
+            static const char_type empty_string[] = {0}; \
+            auto first = reflect_type_properties<EnumType>::values<char_type>(); \
+            auto last = first + reflect_type_properties<EnumType>::count; \
+            auto it = std::find_if(first, last, \
+                                   [val](const mapped_type& item) -> bool \
+                                   { return item.first == val; }); \
+            if (it == last) \
+            { \
+                if (val == enum_type()) \
+                { \
+                    encoder.string_value(empty_string, semantic_tag::none, ser_context(), ec); \
+                } \
+                else \
+                { \
+                    ec = conv_errc::conversion_failed; \
+                } \
+                return; \
+            } \
+            encoder.string_value((*it).second, semantic_tag::none, ser_context(), ec); \
+        } \
+    }; \
 } \
     template <> struct is_json_type_traits_declared<EnumType> : public std::true_type {}; \
 } \
     /**/
 
-#define JSONCONS_GETTER_SETTER_AS(Prefix, GetPrefix, SetPrefix, Property, Count) JSONCONS_GETTER_SETTER_AS_(Prefix, GetPrefix ## Property, SetPrefix ## Property, Property, Count) 
-#define JSONCONS_GETTER_SETTER_AS_LAST(Prefix, GetPrefix, SetPrefix, Property, Count) JSONCONS_GETTER_SETTER_AS_(Prefix, GetPrefix ## Property, SetPrefix ## Property, Property, Count)  
-#define JSONCONS_GETTER_SETTER_AS_(Prefix, Getter, Setter, Property, Count) if ((num_params-Count) < num_mandatory_params2 || ajson.contains(json_object_member_names<value_type>::Property##_str(char_type{}))) {class_instance.Setter(ajson.at(json_object_member_names<value_type>::Property##_str(char_type{})).template as<typename std::decay<decltype(class_instance.Getter())>::type>());}
+#define JSONCONS_N_GETTER_SETTER_AS(Prefix, GetPrefix, SetPrefix, Property, Count) JSONCONS_N_GETTER_SETTER_AS_(Prefix, GetPrefix ## Property, SetPrefix ## Property, Property, Count) 
+#define JSONCONS_N_GETTER_SETTER_AS_LAST(Prefix, GetPrefix, SetPrefix, Property, Count) JSONCONS_N_GETTER_SETTER_AS_(Prefix, GetPrefix ## Property, SetPrefix ## Property, Property, Count)  
+#define JSONCONS_N_GETTER_SETTER_AS_(Prefix, Getter, Setter, Property, Count) \
+  auto _r ## Property = json_traits_helper<Json>::template try_get_member<typename std::decay<decltype(class_instance.Getter())>::type>(ajson, json_object_name_members<value_type>::Property(char_type{})); \
+  if (_r ## Property) {class_instance.Setter(std::move(* _r ## Property));} \
+  else if ((num_params-Count) < num_mandatory_params2) {return result_type(unexpect, _r ## Property.error().code(), # Prefix);} \
+  else if (_r ## Property.error().code() != conv_errc::missing_required_member){return result_type(unexpect, _r ## Property.error().code(), # Prefix);}
 
 #define JSONCONS_ALL_GETTER_SETTER_AS(Prefix, GetPrefix, SetPrefix, Property, Count) JSONCONS_ALL_GETTER_SETTER_AS_(Prefix, GetPrefix ## Property, SetPrefix ## Property, Property, Count) 
 #define JSONCONS_ALL_GETTER_SETTER_AS_LAST(Prefix, GetPrefix, SetPrefix, Property, Count) JSONCONS_ALL_GETTER_SETTER_AS_(Prefix, GetPrefix ## Property, SetPrefix ## Property, Property, Count) 
-#define JSONCONS_ALL_GETTER_SETTER_AS_(Prefix, Getter, Setter, Property, Count) class_instance.Setter(ajson.at(json_object_member_names<value_type>::Property##_str(char_type{})).template as<typename std::decay<decltype(class_instance.Getter())>::type>());
+#define JSONCONS_ALL_GETTER_SETTER_AS_(Prefix, Getter, Setter, Property, Count) \
+  auto _r ## Property = json_traits_helper<Json>::template try_get_member<typename std::decay<decltype(class_instance.Getter())>::type>(ajson, json_object_name_members<value_type>::Property(char_type{})); \
+  if (!_r ## Property) {return result_type(unexpect, _r ## Property.error().code(), # Prefix ": " # Property);} \
+  class_instance.Setter(std::move(* _r ## Property));
 
-#define JSONCONS_GETTER_SETTER_TO_JSON(Prefix, GetPrefix, SetPrefix, Property, Count) JSONCONS_GETTER_SETTER_TO_JSON_(Prefix, GetPrefix ## Property, SetPrefix ## Property, Property, Count) 
-#define JSONCONS_GETTER_SETTER_TO_JSON_LAST(Prefix, GetPrefix, SetPrefix, Property, Count) JSONCONS_GETTER_SETTER_TO_JSON_(Prefix, GetPrefix ## Property, SetPrefix ## Property, Property, Count) 
-#define JSONCONS_GETTER_SETTER_TO_JSON_(Prefix, Getter, Setter, Property, Count) \
+#define JSONCONS_N_GETTER_SETTER_TO_JSON(Prefix, GetPrefix, SetPrefix, Property, Count) JSONCONS_N_GETTER_SETTER_TO_JSON_(Prefix, GetPrefix ## Property, SetPrefix ## Property, Property, Count) 
+#define JSONCONS_N_GETTER_SETTER_TO_JSON_LAST(Prefix, GetPrefix, SetPrefix, Property, Count) JSONCONS_N_GETTER_SETTER_TO_JSON_(Prefix, GetPrefix ## Property, SetPrefix ## Property, Property, Count) 
+#define JSONCONS_N_GETTER_SETTER_TO_JSON_(Prefix, Getter, Setter, Property, Count) \
 if ((num_params-Count) < num_mandatory_params2) \
-  {ajson.try_emplace(json_object_member_names<value_type>::Property##_str(char_type{}),class_instance.Getter());} \
+  {ajson.try_emplace(json_object_name_members<value_type>::Property(char_type{}),class_instance.Getter());} \
 else \
-  {json_traits_helper<Json>::set_optional_member(json_object_member_names<value_type>::Property##_str(char_type{}),class_instance.Getter(), ajson);}
+  {json_traits_helper<Json>::set_optional_json_member(json_object_name_members<value_type>::Property(char_type{}),class_instance.Getter(), ajson);}
 
 #define JSONCONS_ALL_GETTER_SETTER_TO_JSON(Prefix, GetPrefix, SetPrefix, Property, Count) JSONCONS_ALL_GETTER_SETTER_TO_JSON_(Prefix, GetPrefix ## Property, SetPrefix ## Property, Property, Count) 
 #define JSONCONS_ALL_GETTER_SETTER_TO_JSON_LAST(Prefix, GetPrefix, SetPrefix, Property, Count) JSONCONS_ALL_GETTER_SETTER_TO_JSON_(Prefix, GetPrefix ## Property, SetPrefix ## Property, Property, Count) 
-#define JSONCONS_ALL_GETTER_SETTER_TO_JSON_(Prefix, Getter, Setter, Property, Count) ajson.try_emplace(json_object_member_names<value_type>::Property##_str(char_type{}),class_instance.Getter() );
+#define JSONCONS_ALL_GETTER_SETTER_TO_JSON_(Prefix, Getter, Setter, Property, Count) ajson.try_emplace(json_object_name_members<value_type>::Property(char_type{}),class_instance.Getter() );
 
-#define JSONCONS_GETTER_SETTER_TRAITS_BASE(AsT,ToJ,NumTemplateParams, ClassType,GetPrefix,SetPrefix,NumMandatoryParams1,NumMandatoryParams2, ...)  \
+#define JSONCONS_GETTER_SETTER_TRAITS_BASE(ToJ,NumTemplateParams, ClassType,GetPrefix,SetPrefix,NumMandatoryParams1,NumMandatoryParams2, ...)  \
 namespace jsoncons { \
 namespace reflect { \
-    template <typename ChT JSONCONS_GENERATE_TPL_PARAMS(JSONCONS_GENERATE_MORE_TPL_PARAM, NumTemplateParams)> \
-    struct json_object_member_names<ClassType JSONCONS_GENERATE_TPL_ARGS(JSONCONS_GENERATE_TPL_ARG, NumTemplateParams)> \
+    template <JSONCONS_GENERATE_TPL_PARAMS(JSONCONS_GENERATE_TPL_PARAM, NumTemplateParams)> \
+    struct json_object_name_members<ClassType JSONCONS_GENERATE_TPL_ARGS(JSONCONS_GENERATE_TPL_ARG, NumTemplateParams)> \
     { \
         JSONCONS_VARIADIC_FOR_EACH(JSONCONS_GENERATE_NAME_STR, ,,, __VA_ARGS__)\
     }; \
@@ -1127,9 +1252,16 @@ namespace reflect { \
         } \
         static result_type try_as(const Json& ajson) \
         { \
-            if (!is(ajson)) return result_type(jsoncons::unexpect, conv_errc::conversion_failed, # ClassType); \
+            if (!ajson.is_object()) return result_type(jsoncons::unexpect, conv_errc::expected_object, # ClassType); \
             value_type class_instance{}; \
-            JSONCONS_VARIADIC_FOR_EACH(AsT, ,GetPrefix,SetPrefix, __VA_ARGS__) \
+            if (num_params == num_mandatory_params2) \
+            { \
+                JSONCONS_VARIADIC_FOR_EACH(JSONCONS_ALL_GETTER_SETTER_AS,ClassType,GetPrefix,SetPrefix, __VA_ARGS__) \
+            } \
+            else \
+            { \
+                JSONCONS_VARIADIC_FOR_EACH(JSONCONS_N_GETTER_SETTER_AS,ClassType,GetPrefix,SetPrefix, __VA_ARGS__) \
+            } \
             return result_type(std::move(class_instance)); \
         } \
         static Json to_json(const value_type& class_instance, allocator_type alloc=allocator_type()) \
@@ -1144,27 +1276,27 @@ namespace reflect { \
   /**/
 
 #define JSONCONS_N_GETTER_SETTER_TRAITS(ClassType,GetPrefix,SetPrefix,NumMandatoryParams, ...)  \
-    JSONCONS_GETTER_SETTER_TRAITS_BASE(JSONCONS_GETTER_SETTER_AS, JSONCONS_GETTER_SETTER_TO_JSON,0, ClassType,GetPrefix,SetPrefix,NumMandatoryParams,NumMandatoryParams, __VA_ARGS__) \
+    JSONCONS_GETTER_SETTER_TRAITS_BASE(JSONCONS_N_GETTER_SETTER_TO_JSON,0, ClassType,GetPrefix,SetPrefix,NumMandatoryParams,NumMandatoryParams, __VA_ARGS__) \
     namespace jsoncons { template <> struct is_json_type_traits_declared<ClassType> : public std::true_type {}; } \
   /**/
 
 #define JSONCONS_TPL_N_GETTER_SETTER_TRAITS(NumTemplateParams, ClassType,GetPrefix,SetPrefix,NumMandatoryParams, ...)  \
-    JSONCONS_GETTER_SETTER_TRAITS_BASE(JSONCONS_GETTER_SETTER_AS, JSONCONS_GETTER_SETTER_TO_JSON,NumTemplateParams, ClassType,GetPrefix,SetPrefix,NumMandatoryParams,NumMandatoryParams, __VA_ARGS__) \
+    JSONCONS_GETTER_SETTER_TRAITS_BASE(JSONCONS_N_GETTER_SETTER_TO_JSON,NumTemplateParams, ClassType,GetPrefix,SetPrefix,NumMandatoryParams,NumMandatoryParams, __VA_ARGS__) \
     namespace jsoncons { template <JSONCONS_GENERATE_TPL_PARAMS(JSONCONS_GENERATE_TPL_PARAM, NumTemplateParams)> struct is_json_type_traits_declared<ClassType JSONCONS_GENERATE_TPL_ARGS(JSONCONS_GENERATE_TPL_ARG, NumTemplateParams)> : public std::true_type {}; } \
   /**/
 
 #define JSONCONS_ALL_GETTER_SETTER_TRAITS(ClassType,GetPrefix,SetPrefix, ...)  \
-    JSONCONS_GETTER_SETTER_TRAITS_BASE(JSONCONS_ALL_GETTER_SETTER_AS, JSONCONS_ALL_GETTER_SETTER_TO_JSON,0,ClassType,GetPrefix,SetPrefix, JSONCONS_NARGS(__VA_ARGS__), JSONCONS_NARGS(__VA_ARGS__),__VA_ARGS__) \
+    JSONCONS_GETTER_SETTER_TRAITS_BASE(JSONCONS_ALL_GETTER_SETTER_TO_JSON,0,ClassType,GetPrefix,SetPrefix, JSONCONS_NARGS(__VA_ARGS__), JSONCONS_NARGS(__VA_ARGS__),__VA_ARGS__) \
     namespace jsoncons { template <> struct is_json_type_traits_declared<ClassType> : public std::true_type {}; } \
   /**/
 
 #define JSONCONS_TPL_ALL_GETTER_SETTER_TRAITS(NumTemplateParams, ClassType,GetPrefix,SetPrefix, ...)  \
-    JSONCONS_GETTER_SETTER_TRAITS_BASE(JSONCONS_ALL_GETTER_SETTER_AS, JSONCONS_ALL_GETTER_SETTER_TO_JSON,NumTemplateParams,ClassType,GetPrefix,SetPrefix, JSONCONS_NARGS(__VA_ARGS__), JSONCONS_NARGS(__VA_ARGS__),__VA_ARGS__) \
+    JSONCONS_GETTER_SETTER_TRAITS_BASE(JSONCONS_ALL_GETTER_SETTER_TO_JSON,NumTemplateParams,ClassType,GetPrefix,SetPrefix, JSONCONS_NARGS(__VA_ARGS__), JSONCONS_NARGS(__VA_ARGS__),__VA_ARGS__) \
     namespace jsoncons { template <JSONCONS_GENERATE_TPL_PARAMS(JSONCONS_GENERATE_TPL_PARAM, NumTemplateParams)> struct is_json_type_traits_declared<ClassType JSONCONS_GENERATE_TPL_ARGS(JSONCONS_GENERATE_TPL_ARG, NumTemplateParams)> : public std::true_type {}; } \
   /**/
  
 #define JSONCONS_GETTER_SETTER_NAME_IS(P1, P2, P3, Seq, Count) JSONCONS_GETTER_SETTER_NAME_IS_LAST(P1, P2, P3, Seq, Count)
-#define JSONCONS_GETTER_SETTER_NAME_IS_LAST(P1, P2, P3, Seq, Count) if ((num_params-Count) < num_mandatory_params1 && JSONCONS_PP_EXPAND(JSONCONS_CONCAT(JSONCONS_GETTER_SETTER_NAME_IS_,JSONCONS_NARGS Seq) Seq)
+#define JSONCONS_GETTER_SETTER_NAME_IS_LAST(P1, P2, P3, Seq, Count) if ((num_params-Count) < num_mandatory_params1 && JSONCONS_PP_EXPAND(JSONCONS_PP_CONCAT(JSONCONS_GETTER_SETTER_NAME_IS_,JSONCONS_NARGS Seq) Seq)
 #define JSONCONS_GETTER_SETTER_NAME_IS_3(Getter, Setter, Name) !ajson.contains(Name)) return false;
 #define JSONCONS_GETTER_SETTER_NAME_IS_5(Getter, Setter, Name, Mode, Match) JSONCONS_GETTER_SETTER_NAME_IS_7(Getter, Setter, Name, Mode, Match,, )
 #define JSONCONS_GETTER_SETTER_NAME_IS_6(Getter, Setter, Name, Mode, Match, Into) JSONCONS_GETTER_SETTER_NAME_IS_7(Getter, Setter, Name, Mode, Match, Into, )
@@ -1173,42 +1305,57 @@ namespace reflect { \
     JSONCONS_CATCH(...) {return false;}
 
 #define JSONCONS_N_GETTER_SETTER_NAME_AS(P1, P2, P3, Seq, Count) JSONCONS_N_GETTER_SETTER_NAME_AS_LAST(P1, P2, P3, Seq, Count)
-#define JSONCONS_N_GETTER_SETTER_NAME_AS_LAST(P1, P2, P3, Seq, Count) JSONCONS_PP_EXPAND(JSONCONS_CONCAT(JSONCONS_N_GETTER_SETTER_NAME_AS_,JSONCONS_NARGS Seq) Seq)
-#define JSONCONS_N_GETTER_SETTER_NAME_AS_3(Getter, Setter, Name) if (ajson.contains(Name)) class_instance.Setter(ajson.at(Name).template as<typename std::decay<decltype(class_instance.Getter())>::type>());
-#define JSONCONS_N_GETTER_SETTER_NAME_AS_4(Getter, Setter, Name, Mode) Mode(JSONCONS_N_GETTER_SETTER_NAME_AS_3(Getter, Setter, Name))
-#define JSONCONS_N_GETTER_SETTER_NAME_AS_5(Getter, Setter, Name, Mode, Match) JSONCONS_N_GETTER_SETTER_NAME_AS_7(Getter, Setter, Name, Mode, Match, , )
-#define JSONCONS_N_GETTER_SETTER_NAME_AS_6(Getter, Setter, Name, Mode, Match, Into) JSONCONS_N_GETTER_SETTER_NAME_AS_7(Getter, Setter, Name, Mode, Match, Into, )
-#define JSONCONS_N_GETTER_SETTER_NAME_AS_7(Getter, Setter, Name, Mode, Match, Into, From) Mode(if (ajson.contains(Name)) class_instance.Setter(From(ajson.at(Name).template as<typename std::decay<decltype(Into(class_instance.Getter()))>::type>()));)
+#define JSONCONS_N_GETTER_SETTER_NAME_AS_LAST(P1, P2, P3, Seq, Count) index = num_params-Count; JSONCONS_PP_EXPAND(JSONCONS_PP_CONCAT(JSONCONS_N_GETTER_SETTER_NAME_AS_,JSONCONS_NARGS Seq) Seq)
+#define JSONCONS_N_GETTER_SETTER_NAME_AS_3(Getter, Setter, Name) JSONCONS_N_GETTER_SETTER_NAME_AS_8(Getter, Setter, Name,,always_true(),,)
+#define JSONCONS_N_GETTER_SETTER_NAME_AS_4(Getter, Setter, Name, Mode) Mode(JSONCONS_N_GETTER_SETTER_NAME_AS_8(Getter, Setter, Name, Mode, always_true(),,))
+#define JSONCONS_N_GETTER_SETTER_NAME_AS_5(Getter, Setter, Name, Mode, Match) Mode(JSONCONS_N_GETTER_SETTER_NAME_AS_8(Getter, Setter, Name, Mode, Match, , ))
+#define JSONCONS_N_GETTER_SETTER_NAME_AS_6(Getter, Setter, Name, Mode, Match, Into) Mode(JSONCONS_N_GETTER_SETTER_NAME_AS_8(Getter, Setter, Name, Mode, Match, Into, ))
+#define JSONCONS_N_GETTER_SETTER_NAME_AS_7(Getter, Setter, Name, Mode, Match, Into, From) Mode(JSONCONS_N_GETTER_SETTER_NAME_AS_8(Getter, Setter, Name, Mode, Match, Into, From)) 
+#define JSONCONS_N_GETTER_SETTER_NAME_AS_8(Getter, Setter, Name, Mode, Match, Into, From) \
+  auto _r ## Getter = json_traits_helper<Json>::template try_get_member<typename std::decay<decltype(Into(class_instance.Getter()))>::type>(ajson, Name); \
+  if (_r ## Getter) { \
+    if (!Match(From(* _r ## Getter))) {return result_type(unexpect, conv_errc::conversion_failed, class_name);} \
+    class_instance.Setter(From(std::move(* _r ## Getter))); \
+  } \
+  else if (index < num_mandatory_params2) {return result_type(unexpect, _r ## Getter.error().code(), class_name);} \
+  else if (_r ## Getter.error().code() != conv_errc::missing_required_member){return result_type(unexpect, _r ## Getter.error().code(), class_name);}
 
 #define JSONCONS_N_GETTER_SETTER_NAME_TO_JSON(P1, P2, P3, Seq, Count) JSONCONS_N_GETTER_SETTER_NAME_TO_JSON_LAST(P1, P2, P3, Seq, Count)
-#define JSONCONS_N_GETTER_SETTER_NAME_TO_JSON_LAST(P1, P2, P3, Seq, Count) JSONCONS_PP_EXPAND(JSONCONS_CONCAT(JSONCONS_N_GETTER_SETTER_NAME_TO_JSON_,JSONCONS_NARGS Seq) Seq)
+#define JSONCONS_N_GETTER_SETTER_NAME_TO_JSON_LAST(P1, P2, P3, Seq, Count) JSONCONS_PP_EXPAND(JSONCONS_PP_CONCAT(JSONCONS_N_GETTER_SETTER_NAME_TO_JSON_,JSONCONS_NARGS Seq) Seq)
 #define JSONCONS_N_GETTER_SETTER_NAME_TO_JSON_3(Getter, Setter, Name) ajson.try_emplace(Name,class_instance.Getter() );
 #define JSONCONS_N_GETTER_SETTER_NAME_TO_JSON_5(Getter, Setter, Name, Mode, Match) JSONCONS_N_GETTER_SETTER_NAME_TO_JSON_7(Getter, Setter, Name, Mode, Match, , )
 #define JSONCONS_N_GETTER_SETTER_NAME_TO_JSON_6(Getter, Setter, Name, Mode, Match, Into) JSONCONS_N_GETTER_SETTER_NAME_TO_JSON_7(Getter, Setter, Name, Mode, Match, Into, )
 #define JSONCONS_N_GETTER_SETTER_NAME_TO_JSON_7(Getter, Setter, Name, Mode, Match, Into, From) ajson.try_emplace(Name, Into(class_instance.Getter()) );
 
 #define JSONCONS_ALL_GETTER_SETTER_NAME_AS(P1, P2, P3, Seq, Count) JSONCONS_ALL_GETTER_SETTER_NAME_AS_LAST(P1, P2, P3, Seq, Count)
-#define JSONCONS_ALL_GETTER_SETTER_NAME_AS_LAST(P1, P2, P3, Seq, Count) JSONCONS_PP_EXPAND(JSONCONS_CONCAT(JSONCONS_ALL_GETTER_SETTER_NAME_AS_,JSONCONS_NARGS Seq) Seq)
-#define JSONCONS_ALL_GETTER_SETTER_NAME_AS_3(Getter, Setter, Name) class_instance.Setter(ajson.at(Name).template as<typename std::decay<decltype(class_instance.Getter())>::type>());
-#define JSONCONS_ALL_GETTER_SETTER_NAME_AS_4(Getter, Setter, Name, Mode) Mode(JSONCONS_ALL_GETTER_SETTER_NAME_AS_3(Getter, Setter, Name))
-#define JSONCONS_ALL_GETTER_SETTER_NAME_AS_5(Getter, Setter, Name, Mode, Match) JSONCONS_ALL_GETTER_SETTER_NAME_AS_7(Getter, Setter, Name, Mode, Match, , )
-#define JSONCONS_ALL_GETTER_SETTER_NAME_AS_6(Getter, Setter, Name, Mode, Match, Into) JSONCONS_ALL_GETTER_SETTER_NAME_AS_7(Getter, Setter, Name, Mode, Match, Into, )
-#define JSONCONS_ALL_GETTER_SETTER_NAME_AS_7(Getter, Setter, Name, Mode, Match, Into, From) Mode(class_instance.Setter(From(ajson.at(Name).template as<typename std::decay<decltype(Into(class_instance.Getter()))>::type>()));)
+#define JSONCONS_ALL_GETTER_SETTER_NAME_AS_LAST(P1, P2, P3, Seq, Count) JSONCONS_PP_EXPAND(JSONCONS_PP_CONCAT(JSONCONS_ALL_GETTER_SETTER_NAME_AS_,JSONCONS_NARGS Seq) Seq)
+#define JSONCONS_ALL_GETTER_SETTER_NAME_AS_3(Getter, Setter, Name) JSONCONS_ALL_GETTER_SETTER_NAME_AS_8(Getter, Setter, Name,, always_true(),,)
+#define JSONCONS_ALL_GETTER_SETTER_NAME_AS_4(Getter, Setter, Name, Mode) Mode(JSONCONS_ALL_GETTER_SETTER_NAME_AS_8(Getter, Setter, Name,Mode, always_true(),,))
+#define JSONCONS_ALL_GETTER_SETTER_NAME_AS_5(Getter, Setter, Name, Mode, Match) Mode(JSONCONS_ALL_GETTER_SETTER_NAME_AS_8(Getter, Setter, Name, Mode, Match,,))
+#define JSONCONS_ALL_GETTER_SETTER_NAME_AS_6(Getter, Setter, Name, Mode, Match, Into) Mode(JSONCONS_ALL_GETTER_SETTER_NAME_AS_8(Getter, Setter, Name, Mode, Match, Into,))
+#define JSONCONS_ALL_GETTER_SETTER_NAME_AS_7(Getter, Setter, Name, Mode, Match, Into, From) Mode(JSONCONS_ALL_GETTER_SETTER_NAME_AS_8(Getter, Setter, Name, Mode, Match, Into, From))
+#define JSONCONS_ALL_GETTER_SETTER_NAME_AS_8(Getter, Setter, Name, Mode, Match, Into, From) \
+  auto _r ## Getter = json_traits_helper<Json>::template try_get_member<typename std::decay<decltype(Into(class_instance.Getter()))>::type>(ajson, Name); \
+  if (_r ## Getter) { \
+    if (!Match(From(* _r ## Getter))) {return result_type(unexpect, conv_errc::conversion_failed, class_name);} \
+    class_instance.Setter(From(std::move(* _r ## Getter))); \
+  } \
+  else {return result_type(unexpect, _r ## Getter.error().code(), class_name);} 
 
 #define JSONCONS_ALL_GETTER_SETTER_NAME_TO_JSON(P1, P2, P3, Seq, Count) JSONCONS_ALL_GETTER_SETTER_NAME_TO_JSON_LAST(P1, P2, P3, Seq, Count)
-#define JSONCONS_ALL_GETTER_SETTER_NAME_TO_JSON_LAST(P1, P2, P3, Seq, Count) if ((num_params-Count) < num_mandatory_params2) JSONCONS_PP_EXPAND(JSONCONS_CONCAT(JSONCONS_ALL_GETTER_SETTER_NAME_TO_JSON_,JSONCONS_NARGS Seq) Seq)
+#define JSONCONS_ALL_GETTER_SETTER_NAME_TO_JSON_LAST(P1, P2, P3, Seq, Count) if ((num_params-Count) < num_mandatory_params2) JSONCONS_PP_EXPAND(JSONCONS_PP_CONCAT(JSONCONS_ALL_GETTER_SETTER_NAME_TO_JSON_,JSONCONS_NARGS Seq) Seq)
 #define JSONCONS_ALL_GETTER_SETTER_NAME_TO_JSON_3(Getter, Setter, Name) \
   ajson.try_emplace(Name,class_instance.Getter()); \
 else \
-  {json_traits_helper<Json>::set_optional_member(Name,class_instance.Getter(), ajson);}
+  {json_traits_helper<Json>::set_optional_json_member(Name,class_instance.Getter(), ajson);}
 #define JSONCONS_ALL_GETTER_SETTER_NAME_TO_JSON_5(Getter, Setter, Name, Mode, Match) JSONCONS_ALL_GETTER_SETTER_NAME_TO_JSON_7(Getter, Setter, Name, Mode, Match, , )
 #define JSONCONS_ALL_GETTER_SETTER_NAME_TO_JSON_6(Getter, Setter, Name, Mode, Match, Into) JSONCONS_ALL_GETTER_SETTER_NAME_TO_JSON_7(Getter, Setter, Name, Mode, Match, Into, )
 #define JSONCONS_ALL_GETTER_SETTER_NAME_TO_JSON_7(Getter, Setter, Name, Mode, Match, Into, From) \
   ajson.try_emplace(Name, Into(class_instance.Getter())); \
 else \
-  {json_traits_helper<Json>::set_optional_member(Name, Into(class_instance.Getter()), ajson);}
+  {json_traits_helper<Json>::set_optional_json_member(Name, Into(class_instance.Getter()), ajson);}
  
-#define JSONCONS_GETTER_SETTER_NAME_TRAITS_BASE(AsT,ToJ, NumTemplateParams, ClassType,NumMandatoryParams1,NumMandatoryParams2, ...)  \
+#define JSONCONS_GETTER_SETTER_NAME_TRAITS_BASE(ToJ, NumTemplateParams, ClassType,NumMandatoryParams1,NumMandatoryParams2, ...)  \
 namespace jsoncons { \
 namespace reflect { \
     template <typename Json JSONCONS_GENERATE_TPL_PARAMS(JSONCONS_GENERATE_MORE_TPL_PARAM, NumTemplateParams)> \
@@ -1230,9 +1377,19 @@ namespace reflect { \
         } \
         static result_type try_as(const Json& ajson) \
         { \
-            if (!is(ajson)) return result_type(jsoncons::unexpect, conv_errc::conversion_failed, # ClassType); \
+            const char* class_name = # ClassType; \
+            std::error_code ec; \
+            if (!ajson.is_object()) return result_type(jsoncons::unexpect, conv_errc::expected_object, class_name); \
             value_type class_instance{}; \
-            JSONCONS_VARIADIC_FOR_EACH(AsT,,,, __VA_ARGS__) \
+            if (num_params == num_mandatory_params2) \
+            { \
+                JSONCONS_VARIADIC_FOR_EACH(JSONCONS_ALL_GETTER_SETTER_NAME_AS,,,, __VA_ARGS__) \
+            } \
+            else \
+            { \
+                std::size_t index = 0; \
+                JSONCONS_VARIADIC_FOR_EACH(JSONCONS_N_GETTER_SETTER_NAME_AS,,,, __VA_ARGS__) \
+            } \
             return result_type(std::move(class_instance)); \
         } \
         static Json to_json(const value_type& class_instance, allocator_type alloc=allocator_type()) \
@@ -1247,30 +1404,27 @@ namespace reflect { \
   /**/
  
 #define JSONCONS_N_GETTER_SETTER_NAME_TRAITS(ClassType,NumMandatoryParams, ...)  \
-    JSONCONS_GETTER_SETTER_NAME_TRAITS_BASE(JSONCONS_N_GETTER_SETTER_NAME_AS,JSONCONS_N_GETTER_SETTER_NAME_TO_JSON, 0, ClassType,NumMandatoryParams,NumMandatoryParams, __VA_ARGS__) \
+    JSONCONS_GETTER_SETTER_NAME_TRAITS_BASE(JSONCONS_N_GETTER_SETTER_NAME_TO_JSON, 0, ClassType,NumMandatoryParams,NumMandatoryParams, __VA_ARGS__) \
     namespace jsoncons { template <> struct is_json_type_traits_declared<ClassType> : public std::true_type {}; } \
   /**/
  
 #define JSONCONS_TPL_N_GETTER_SETTER_NAME_TRAITS(NumTemplateParams, ClassType,NumMandatoryParams, ...)  \
-    JSONCONS_GETTER_SETTER_NAME_TRAITS_BASE(JSONCONS_N_GETTER_SETTER_NAME_AS,JSONCONS_N_GETTER_SETTER_NAME_TO_JSON, NumTemplateParams, ClassType,NumMandatoryParams,NumMandatoryParams, __VA_ARGS__) \
+    JSONCONS_GETTER_SETTER_NAME_TRAITS_BASE(JSONCONS_N_GETTER_SETTER_NAME_TO_JSON, NumTemplateParams, ClassType,NumMandatoryParams,NumMandatoryParams, __VA_ARGS__) \
     namespace jsoncons { template <JSONCONS_GENERATE_TPL_PARAMS(JSONCONS_GENERATE_TPL_PARAM, NumTemplateParams)> struct is_json_type_traits_declared<ClassType JSONCONS_GENERATE_TPL_ARGS(JSONCONS_GENERATE_TPL_ARG, NumTemplateParams)> : public std::true_type {}; } \
   /**/
  
 #define JSONCONS_ALL_GETTER_SETTER_NAME_TRAITS(ClassType, ...)  \
-    JSONCONS_GETTER_SETTER_NAME_TRAITS_BASE(JSONCONS_ALL_GETTER_SETTER_NAME_AS,JSONCONS_ALL_GETTER_SETTER_NAME_TO_JSON, 0, ClassType, JSONCONS_NARGS(__VA_ARGS__), JSONCONS_NARGS(__VA_ARGS__), __VA_ARGS__) \
+    JSONCONS_GETTER_SETTER_NAME_TRAITS_BASE(JSONCONS_ALL_GETTER_SETTER_NAME_TO_JSON, 0, ClassType, JSONCONS_NARGS(__VA_ARGS__), JSONCONS_NARGS(__VA_ARGS__), __VA_ARGS__) \
     namespace jsoncons { template <> struct is_json_type_traits_declared<ClassType> : public std::true_type {}; } \
   /**/
  
 #define JSONCONS_TPL_ALL_GETTER_SETTER_NAME_TRAITS(NumTemplateParams, ClassType, ...)  \
-    JSONCONS_GETTER_SETTER_NAME_TRAITS_BASE(JSONCONS_ALL_GETTER_SETTER_NAME_AS,JSONCONS_ALL_GETTER_SETTER_NAME_TO_JSON, NumTemplateParams, ClassType, JSONCONS_NARGS(__VA_ARGS__), JSONCONS_NARGS(__VA_ARGS__), __VA_ARGS__) \
+    JSONCONS_GETTER_SETTER_NAME_TRAITS_BASE(JSONCONS_ALL_GETTER_SETTER_NAME_TO_JSON, NumTemplateParams, ClassType, JSONCONS_NARGS(__VA_ARGS__), JSONCONS_NARGS(__VA_ARGS__), __VA_ARGS__) \
     namespace jsoncons { template <JSONCONS_GENERATE_TPL_PARAMS(JSONCONS_GENERATE_TPL_PARAM, NumTemplateParams)> struct is_json_type_traits_declared<ClassType JSONCONS_GENERATE_TPL_ARGS(JSONCONS_GENERATE_TPL_ARG, NumTemplateParams)> : public std::true_type {}; } \
   /**/
 
 #define JSONCONS_POLYMORPHIC_IS(BaseClass, P2, P3, DerivedClass, Count) if (ajson.template is<DerivedClass>()) return true;
 #define JSONCONS_POLYMORPHIC_IS_LAST(BaseClass, P2, P3, DerivedClass, Count)  if (ajson.template is<DerivedClass>()) return true;
-
-#define JSONCONS_POLYMORPHIC_AS(BaseClass, P2, P3, DerivedClass, Count) if (ajson.template is<DerivedClass>()) return result_type(std::make_shared<DerivedClass>(ajson.template as<DerivedClass>()));
-#define JSONCONS_POLYMORPHIC_AS_LAST(BaseClass, P2, P3, DerivedClass, Count)  if (ajson.template is<DerivedClass>()) return result_type(std::make_shared<DerivedClass>(ajson.template as<DerivedClass>()));
 
 #define JSONCONS_POLYMORPHIC_AS_UNIQUE_PTR(BaseClass, P2, P3, DerivedClass, Count) if (ajson.template is<DerivedClass>()) return result_type(jsoncons::make_unique<DerivedClass>(ajson.template as<DerivedClass>()));
 #define JSONCONS_POLYMORPHIC_AS_UNIQUE_PTR_LAST(BaseClass, P2, P3, DerivedClass, Count)  if (ajson.template is<DerivedClass>()) return result_type(jsoncons::make_unique<DerivedClass>(ajson.template as<DerivedClass>()));
@@ -1332,4 +1486,4 @@ namespace reflect { \
 } \
   /**/
 
-#endif // JSONCONS_REFLECT_JSON_REFLECT_TRAITS_GEN_HPP
+#endif // JSONCONS_REFLECT_REFLECT_TRAITS_GEN_HPP
