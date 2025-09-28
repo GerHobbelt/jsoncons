@@ -5,6 +5,7 @@
 #include "windows.h" // test no inadvertant macro expansions
 #endif
 #include <jsoncons/json.hpp>
+#include <jsoncons/json_type.hpp>
 #include <jsoncons/decode_json.hpp>
 #include <jsoncons/encode_json.hpp>
 #include <sstream>
@@ -27,103 +28,9 @@ namespace ns {
 } // namespace ns
 } // namespace
 
-namespace jsoncons {
-namespace reflect {
+JSONCONS_ALL_MEMBER_TRAITS(ns::book,author,title,price)
 
-template <typename Json>
-struct json_conv_traits<Json, ns::book>
-{
-    using result_type = conversion_result<ns::book>;
-    using allocator_type = typename Json::allocator_type;
-
-    static bool is(const Json& j) noexcept
-    {
-        return j.is_object() && j.contains("author") && 
-               j.contains("title") && j.contains("price");
-    }
-    static result_type try_as(const Json& j)
-    {
-        ns::book val;
-        val.author = j.at("author").template as<std::string>();
-        val.title = j.at("title").template as<std::string>();
-        val.price = j.at("price").template as<double>();
-        return result_type(std::move(val));
-    }
-    static Json to_json(const ns::book& val, 
-       allocator_type allocator=allocator_type())
-    {
-        Json j(allocator);
-        j.try_emplace("author", val.author);
-        j.try_emplace("title", val.title);
-        j.try_emplace("price", val.price);
-        return j;
-    }
-};
-
-} // namespace reflect
-} // namespace jsoncons
-
-TEST_CASE("json_conv_traits tests")
-{
-    const std::string s = R"(
-[
-    {
-       "author" : "Haruki Murakami",
-       "title" : "Kafka on the Shore",
-       "price" : 25.17
-    },
-    {
-       "author" : "Charles Bukowski",
-       "title" : "Pulp",
-       "price" : 22.48
-    }
-]
-    )";
-    
-    SECTION("test 1")
-    {
-        auto j = jsoncons::json::parse(s);
-        REQUIRE(j.is_array());
-        REQUIRE(2 == j.size());
-    
-        auto result = jsoncons::reflect::json_conv_traits<jsoncons::json,ns::book>::try_as(j[0]);
-        //ns::book& item{result.value()};
-
-        //std::cout << item.author << ", " 
-        //          << item.title << ", " 
-        //          << item.price << "\n";
-    }
-    
-    SECTION("test 2")
-    {
-        auto j = jsoncons::json::parse(s);
-        REQUIRE(j.is_array());
-    
-        std::cout << "is_json_conv_traits_declared: " << jsoncons::reflect::is_json_conv_traits_declared<std::vector<ns::book>>::value << "\n";
-
-        std::cout << "is_compatible_array_type: " << jsoncons::reflect::is_json_conv_traits_declared<std::vector<ns::book>>::value << "\n";
-        
-        std::vector<ns::book> book_list = jsoncons::decode_json<std::vector<ns::book>>(s);
-
-        ///auto result = jsoncons::reflect::json_conv_traits<jsoncons::json,std::vector<ns::book>>::try_as(j);
-
-        /*auto book_list = result.value();
-    
-        std::cout << "(1)\n";
-        for (const auto& item : book_list)
-        {
-            std::cout << item.author << ", " 
-                      << item.title << ", " 
-                      << item.price << "\n";
-        }
-    
-        std::cout << "\n(2)\n";
-        jsoncons::encode_json(book_list, std::cout, jsoncons::indenting::indent);
-        std::cout << "\n\n";*/
-    }
-}
-
-TEST_CASE("json_conv_traits error tests")
+TEST_CASE("json_conv_traits single error tests")
 {   
     SECTION("double")
     {
@@ -145,6 +52,282 @@ TEST_CASE("json_conv_traits error tests")
         REQUIRE(jsoncons::conv_errc::not_integer == result.error().code());
         //std::cout << result.error() << "\n\n";
     }
+    SECTION("string_view")
+    {
+        auto j = jsoncons::json::parse(R"(100)");
+        REQUIRE(j.is_number());
+
+        auto result = jsoncons::reflect::json_conv_traits<jsoncons::json,jsoncons::string_view>::try_as(j);
+        REQUIRE_FALSE(result);
+        REQUIRE(jsoncons::conv_errc::not_string == result.error().code());
+        //std::cout << result.error() << "\n\n";
+    }
 }
 
+TEST_CASE("json_conv_traits as std::vector<T> tests")
+{   
+    SECTION("JSON is not an array")
+    {
+       const std::string s = R"(
+{
+    "author" : "Haruki Murakami",
+    "title" : "Kafka on the Shore",
+    "price" : 25.17
+}
+        )";
 
+        auto j = jsoncons::json::parse(s);
+
+        auto result = jsoncons::reflect::json_conv_traits<jsoncons::json,std::vector<ns::book>>::try_as(j);
+        REQUIRE_FALSE(result);
+        CHECK(jsoncons::conv_errc::not_vector == result.error().code());
+    }
+    SECTION("Invalid price")
+    {
+       const std::string s = R"(
+[
+    {
+        "author" : "Haruki Murakami",
+        "title" : "Kafka on the Shore",
+        "price" : 25.17
+    },
+    {
+        "author" : "Charles Bukowski",
+        "title" : "Pulp",
+        "price" : "foo"
+    }
+]
+        )";
+
+        auto j = jsoncons::json::parse(s);
+        REQUIRE(j.is_array());
+        REQUIRE(2 == j.size());
+
+        auto result = jsoncons::reflect::json_conv_traits<jsoncons::json,std::vector<ns::book>>::try_as(j);
+        REQUIRE_FALSE(result);
+        CHECK(jsoncons::conv_errc::conversion_failed == result.error().code());
+        CHECK("ns::book: price" == result.error().message_arg());
+    }
+}
+
+TEST_CASE("json_conv_traits as std::map<string,T> tests")
+{   
+    SECTION("JSON is not an object")
+    {
+       const std::string s = R"(
+["Haruki Murakami","Kafka on the Shore",25.17]
+        )";
+
+        auto j = jsoncons::json::parse(s);
+
+        auto result = jsoncons::reflect::json_conv_traits<jsoncons::json,std::map<std::string,ns::book>>::try_as(j);
+        REQUIRE_FALSE(result);
+        CHECK(jsoncons::conv_errc::not_map == result.error().code());
+    }
+    SECTION("Invalid price")
+    {
+        const std::string s = R"(
+ {
+     "First prize" : {
+         "author" : "Haruki Murakami",
+         "title" : "Kafka on the Shore",
+         "price" : 25.17
+     },
+     "Second prize" : {
+         "author" : "Charles Bukowski",
+         "title" : "Pulp",
+         "price" : "foo"
+     }
+ }
+        )";
+
+        auto j = jsoncons::json::parse(s);
+        REQUIRE(j.is_object());
+        REQUIRE(2 == j.size());
+
+        auto result = jsoncons::reflect::json_conv_traits<jsoncons::json,std::map<std::string,ns::book>>::try_as(j);
+        REQUIRE_FALSE(result);
+        CHECK(jsoncons::conv_errc::conversion_failed == result.error().code());
+        CHECK("ns::book: price" == result.error().message_arg());
+    }
+}
+
+TEST_CASE("json_conv_traits as std::map<int,T> tests")
+{   
+    SECTION("success")
+    {
+        const std::string s = R"(
+ {
+     "1" : {
+         "author" : "Haruki Murakami",
+         "title" : "Kafka on the Shore",
+         "price" : 25.17
+     },
+     "2" : {
+         "author" : "Charles Bukowski",
+         "title" : "Pulp",
+         "price" : 27
+     }
+ }
+        )";
+
+        auto j = jsoncons::json::parse(s);
+        REQUIRE(j.is_object());
+        REQUIRE(2 == j.size());
+
+        auto result = jsoncons::reflect::json_conv_traits<jsoncons::json,std::map<int,ns::book>>::try_as(j);
+        REQUIRE(result);
+    }
+    SECTION("invalid key")
+    {
+        const std::string s = R"(
+ {
+     "1" : {
+         "author" : "Haruki Murakami",
+         "title" : "Kafka on the Shore",
+         "price" : 25.17
+     },
+     "foo" : {
+         "author" : "Charles Bukowski",
+         "title" : "Pulp",
+         "price" : 27
+     }
+ }
+        )";
+
+        auto j = jsoncons::json::parse(s);
+        REQUIRE(j.is_object());
+        REQUIRE(2 == j.size());
+
+        auto result = jsoncons::reflect::json_conv_traits<jsoncons::json,std::map<int,ns::book>>::try_as(j);
+        REQUIRE_FALSE(result);
+        CHECK(jsoncons::conv_errc::not_integer == result.error().code());
+    }
+}
+
+using qualifying_result = std::tuple<std::size_t,std::string,std::string,std::string,std::chrono::milliseconds>;
+
+TEST_CASE("json_conv_traits as std::tuple tests")
+{
+    SECTION("success")
+    {
+        std::string str = R"(
+[
+    [
+        1,
+        "Lewis Hamilton",
+        "Mercedes",
+        "1'24.303",
+        0
+    ],
+    [
+        2,
+        "Valtteri Bottas",
+        "Mercedes",
+        "1'24.616",
+        313
+    ],
+    [
+        3,
+        "Max Verstappen",
+        "Red Bull",
+        "1'25.325",
+        1022
+    ]
+]        
+        )";
+
+        auto j = jsoncons::json::parse(str);
+        REQUIRE(j.is_array());
+        auto result = jsoncons::reflect::json_conv_traits<jsoncons::json,std::vector<qualifying_result>>::try_as(j);
+        REQUIRE(result);
+    }
+
+    SECTION("invalid epoch")
+    {
+        std::string str = R"(
+[
+    [
+        1,
+        "Lewis Hamilton",
+        "Mercedes",
+        "1'24.303",
+        "foo"
+    ],
+    [
+        2,
+        "Valtteri Bottas",
+        "Mercedes",
+        "1'24.616",
+        313
+    ],
+    [
+        3,
+        "Max Verstappen",
+        "Red Bull",
+        "1'25.325",
+        "foo"
+    ]
+]        
+        )";
+
+        auto j = jsoncons::json::parse(str);
+        REQUIRE(j.is_array());
+        auto result = jsoncons::reflect::json_conv_traits<jsoncons::json,std::vector<qualifying_result>>::try_as(j);
+        REQUIRE_FALSE(result);
+    }
+}
+
+TEST_CASE("json_conv_traits as std::pair tests")
+{
+    SECTION("not array")
+    {
+        auto j = jsoncons::json::parse(R"("foo")");
+
+        auto result = jsoncons::reflect::json_conv_traits<jsoncons::json,std::pair<int,int>>::try_as(j);
+        REQUIRE_FALSE(result);
+        REQUIRE(jsoncons::conv_errc::not_pair == result.error().code());
+        //std::cout << result.error() << "\n\n";
+    }
+    SECTION("not array of size 2")
+    {
+        auto j = jsoncons::json::parse(R"(["foo"])");
+
+        auto result = jsoncons::reflect::json_conv_traits<jsoncons::json,std::pair<int,int>>::try_as(j);
+        REQUIRE_FALSE(result);
+        REQUIRE(jsoncons::conv_errc::not_pair == result.error().code());
+        //std::cout << result.error() << "\n\n";
+    }
+    SECTION("invalid number")
+    {
+        auto j = jsoncons::json::parse(R"([10,"foo"])");
+        REQUIRE(j.is_array());
+
+        auto result = jsoncons::reflect::json_conv_traits<jsoncons::json,std::pair<int,int>>::try_as(j);
+        REQUIRE_FALSE(result);
+        CHECK(jsoncons::conv_errc::not_integer == result.error().code());
+        //std::cout << result.error() << "\n\n";
+    }
+}
+
+TEST_CASE("json_conv_traits as jsoncons::byte_string")
+{
+    SECTION("success")
+    {
+        jsoncons::json j(jsoncons::byte_string_arg, std::string("Hello World"), jsoncons::semantic_tag::none);
+
+        auto result = jsoncons::reflect::json_conv_traits<jsoncons::json,jsoncons::byte_string>::try_as(j);
+        REQUIRE(result);
+        CHECK((jsoncons::byte_string{'H','e','l','l','o',' ','W','o','r','l','d'} == *result));
+        //std::cout << result.error() << "\n\n";
+    }
+    SECTION("error")
+    {
+        jsoncons::json j(100);
+
+        auto result = jsoncons::reflect::json_conv_traits<jsoncons::json, jsoncons::byte_string>::try_as(j);
+        REQUIRE(!result);
+        CHECK(jsoncons::conv_errc::not_byte_string == result.error().code());
+        //std::cout << result.error() << "\n\n";
+    }
+}

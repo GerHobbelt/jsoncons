@@ -522,7 +522,8 @@ has_can_convert = ext_traits::is_detected<traits_can_convert_t, Json, T>;
 
         static result_type try_as(const Json& j)
         {
-            return result_type(jsoncons::in_place, j.as_string_view().data(),j.as_string_view().size());
+            auto result = j.try_as_string_view();
+            return result ? result_type(in_place, result.value().data(), result.value().size()) : result_type(unexpect, conv_errc::not_string); 
         }
 
         static Json to_json(const T& val)
@@ -572,26 +573,23 @@ has_can_convert = ext_traits::is_detected<traits_can_convert_t, Json, T>;
         static typename std::enable_if<!ext_traits::is_byte<typename Container::value_type>::value,result_type>::type
         try_as(const Json& j)
         {
-            if (j.is_array())
-            {
-                T result;
-                visit_reserve_(typename std::integral_constant<bool, ext_traits::has_reserve<T>::value>::type(),result,j.size());
-                for (const auto& item : j.array_range())
-                {
-                    auto res = item.template try_as<value_type>();
-                    if (JSONCONS_UNLIKELY(!res))
-                    {
-                        return result_type(jsoncons::unexpect, conv_errc::not_vector);
-                    }
-                    result.push_back(std::move(*res));
-                }
-
-                return result_type(std::move(result));
-            }
-            else 
+            if (!j.is_array())
             {
                 return result_type(jsoncons::unexpect, conv_errc::not_vector);
             }
+            T result;
+            visit_reserve_(typename std::integral_constant<bool, ext_traits::has_reserve<T>::value>::type(),result,j.size());
+            for (const auto& item : j.array_range())
+            {
+                auto res = item.template try_as<value_type>();
+                if (JSONCONS_UNLIKELY(!res))
+                {
+                    return result_type(jsoncons::unexpect, res.error().code(), res.error().message_arg());
+                }
+                result.push_back(std::move(*res));
+            }
+
+            return result_type(std::move(result));
         }
 
         // array back insertable byte container
@@ -976,7 +974,12 @@ has_can_convert = ext_traits::is_detected<traits_can_convert_t, Json, T>;
             T result;
             for (const auto& item : j.object_range())
             {
-                result.emplace(key_type(item.key().data(),item.key().size()), item.value().template as<mapped_type>());
+                auto res = item.value().template try_as<mapped_type>();
+                if (!res)
+                {
+                    return result_type(jsoncons::unexpect, res.error().code(), res.error().message_arg());
+                }
+                result.emplace(key_type(item.key().data(),item.key().size()), std::move(*res));
             }
 
             return result_type(std::move(result));
@@ -1109,10 +1112,16 @@ has_can_convert = ext_traits::is_detected<traits_can_convert_t, Json, T>;
                 }
             }
 
-            static void as(Tuple& tuple, const Json& j)
+            static void try_as(Tuple& tuple, const Json& j, std::error_code& ec)
             {
-                std::get<Size-Pos>(tuple) = j[Size-Pos].template as<element_type>();
-                next::as(tuple, j);
+                auto res = j[Size-Pos].template try_as<element_type>();
+                if (!res)
+                {
+                    ec = res.error().code();
+                    return;
+                }
+                std::get<Size-Pos>(tuple) = *res;
+                next::try_as(tuple, j, ec);
             }
 
             static void to_json(const Tuple& tuple, Json& j)
@@ -1130,7 +1139,7 @@ has_can_convert = ext_traits::is_detected<traits_can_convert_t, Json, T>;
                 return true;
             }
 
-            static void as(Tuple&, const Json&)
+            static void try_as(Tuple&, const Json&, std::error_code&)
             {
             }
 
@@ -1157,9 +1166,14 @@ has_can_convert = ext_traits::is_detected<traits_can_convert_t, Json, T>;
         
         static result_type try_as(const Json& j)
         {
-            std::tuple<E...> buff;
-            helper::as(buff, j);
-            return result_type(std::move(buff));
+            std::error_code ec;
+            std::tuple<E...> val;
+            helper::try_as(val, j, ec);
+            if (ec)
+            {
+                return result_type(unexpect, ec);
+            }
+            return result_type(std::move(val));
         }
          
         static Json to_json(const std::tuple<E...>& val)
@@ -1194,7 +1208,21 @@ has_can_convert = ext_traits::is_detected<traits_can_convert_t, Json, T>;
         
         static result_type try_as(const Json& j)
         {
-            return result_type(std::make_pair<T1,T2>(j[0].template as<T1>(),j[1].template as<T2>()));
+            if (!j.is_array() || j.size() != 2)
+            {
+                return result_type(unexpect, conv_errc::not_pair);
+            }
+            auto res1 = j[0].template try_as<T1>();
+            if (!res1)
+            {
+                return result_type(unexpect, res1.error().code());
+            }
+            auto res2 = j[1].template try_as<T2>();
+            if (!res2)
+            {
+                return result_type(unexpect, res2.error().code());
+            }
+            return result_type(std::make_pair<T1,T2>(std::move(*res1), std::move(*res2)));
         }
         
         static Json to_json(const std::pair<T1,T2>& val)
@@ -1218,7 +1246,7 @@ has_can_convert = ext_traits::is_detected<traits_can_convert_t, Json, T>;
 
     template <typename Json,typename T>
     struct json_conv_traits<Json, T,
-                            typename std::enable_if<ext_traits::is_basic_byte_string<T>::value>::type>
+        typename std::enable_if<ext_traits::is_basic_byte_string<T>::value>::type>
     {
     public:
         using allocator_type = typename Json::allocator_type;
@@ -1231,7 +1259,7 @@ has_can_convert = ext_traits::is_detected<traits_can_convert_t, Json, T>;
         
         static result_type try_as(const Json& j)
         { 
-            return result_type(j.template as_byte_string<typename T::allocator_type>());
+            return j.template try_as_byte_string<typename T::allocator_type>();
         }
         
         static Json to_json(const T& val, 
@@ -1243,8 +1271,8 @@ has_can_convert = ext_traits::is_detected<traits_can_convert_t, Json, T>;
 
     template <typename Json,typename ValueType>
     struct json_conv_traits<Json, std::shared_ptr<ValueType>,
-                            typename std::enable_if<!is_json_conv_traits_declared<std::shared_ptr<ValueType>>::value &&
-                                                    !std::is_polymorphic<ValueType>::value
+        typename std::enable_if<!is_json_conv_traits_declared<std::shared_ptr<ValueType>>::value &&
+                                !std::is_polymorphic<ValueType>::value
     >::type>
     {
         using allocator_type = typename Json::allocator_type;
@@ -1376,7 +1404,7 @@ has_can_convert = ext_traits::is_detected<traits_can_convert_t, Json, T>;
         
         static result_type try_as(const Json& j)
         {
-            return result_type(j.as_byte_string_view());
+            return result_type(j.try_as_byte_string_view());
         }
         
         static Json to_json(const byte_string_view& val, const allocator_type& alloc = allocator_type())
@@ -1414,11 +1442,17 @@ has_can_convert = ext_traits::is_detected<traits_can_convert_t, Json, T>;
             switch (j.type())
             {
                 case json_type::string_value:
-                    if (!jsoncons::utility::is_base10(j.as_string_view().data(), j.as_string_view().length()))
+                {
+                    auto sv = j.as_string_view();
+                    std::error_code ec;
+                    basic_bigint<Allocator> val;
+                    auto r = to_bigint(sv.data(), sv.length(), val);
+                    if (JSONCONS_UNLIKELY(!r))
                     {
                         return result_type(jsoncons::unexpect, conv_errc::not_bigint);
                     }
-                    return result_type(basic_bigint<Allocator>::from_string(j.as_string_view().data(), j.as_string_view().length()));
+                    return result_type(std::move(val));
+                }
                 case json_type::half_value:
                 case json_type::double_value:
                 {
@@ -1655,7 +1689,7 @@ namespace variant_detail
 
         static result_type try_as(const Json& j)
         {
-            return result_type(from_json_(j));
+            return from_json_(j);
         }
 
         static Json to_json(const duration_type& val, const allocator_type& = allocator_type())
@@ -1665,7 +1699,7 @@ namespace variant_detail
 
         template <typename PeriodT=Period>
         static 
-        typename std::enable_if<std::is_same<PeriodT,std::ratio<1>>::value, duration_type>::type
+        typename std::enable_if<std::is_same<PeriodT,std::ratio<1>>::value, result_type>::type
         from_json_(const Json& j)
         {
             if (j.is_int64() || j.is_uint64() || j.is_double())
@@ -1674,13 +1708,13 @@ namespace variant_detail
                 switch (j.tag())
                 {
                     case semantic_tag::epoch_second:
-                        return duration_type(count);
+                        return result_type(in_place, count);
                     case semantic_tag::epoch_milli:
-                        return duration_type(count == 0 ? 0 : count/millis_in_second);
+                        return result_type(in_place, count == 0 ? 0 : count/millis_in_second);
                     case semantic_tag::epoch_nano:
-                        return duration_type(count == 0 ? 0 : count/nanos_in_second);
+                        return result_type(in_place, count == 0 ? 0 : count/nanos_in_second);
                     default:
-                        return duration_type(count);
+                        return result_type(in_place, count);
                 }
             }
             else if (j.is_string())
@@ -1689,75 +1723,95 @@ namespace variant_detail
                 {
                     case semantic_tag::epoch_second:
                     {
-                        auto count = j.template as<Rep>();
-                        return duration_type(count);
+                        auto res = j.template try_as<Rep>();
+                        if (!res)
+                        {
+                            return result_type(unexpect, conv_errc::not_epoch);
+                        }
+                        return result_type(in_place, *res);
                     }
                     case semantic_tag::epoch_milli:
                     {
                         auto sv = j.as_string_view();
-                        bigint n = bigint::from_string(sv.data(), sv.length());
+                        bigint n;
+                        auto r = to_bigint(sv.data(), sv.length(), n);
+                        if (!r) {return result_type(jsoncons::unexpect, conv_errc::not_epoch);}
                         if (n != 0)
                         {
                             n = n / millis_in_second;
                         }
-                        return duration_type(static_cast<Rep>(n));
+                        return result_type(in_place, static_cast<Rep>(n));
                     }
                     case semantic_tag::epoch_nano:
                     {
                         auto sv = j.as_string_view();
-                        bigint n = bigint::from_string(sv.data(), sv.length());
+                        bigint n;
+                        auto r = to_bigint(sv.data(), sv.length(), n);
+                        if (!r) {return result_type(jsoncons::unexpect, conv_errc::not_epoch);}
                         if (n != 0)
                         {
                             n = n / nanos_in_second;
                         }
-                        return duration_type(static_cast<Rep>(n));
+                        return result_type(in_place, static_cast<Rep>(n));
                     }
                     default:
                     {
-                        auto count = j.template as<Rep>();
-                        return duration_type(count);
+                        auto res = j.template try_as<Rep>();
+                        if (!res)
+                        {
+                            return result_type(unexpect, conv_errc::not_epoch);
+                        }
+                        return result_type(in_place, *res);
                     }
                 }
             }
             else
             {
-                return duration_type();
+                return result_type(unexpect, conv_errc::not_epoch);
             }
         }
 
         template <typename PeriodT=Period>
         static 
-        typename std::enable_if<std::is_same<PeriodT,std::milli>::value, duration_type>::type
+        typename std::enable_if<std::is_same<PeriodT,std::milli>::value, result_type>::type
         from_json_(const Json& j)
         {
             if (j.is_int64() || j.is_uint64())
             {
-                auto count = j.template as<Rep>();
+                auto res = j.template try_as<Rep>();
+                if (!res)
+                {
+                    return result_type(unexpect, conv_errc::not_epoch);
+                }
                 switch (j.tag())
                 {
                     case semantic_tag::epoch_second:
-                        return duration_type(count*millis_in_second);
+                        return result_type(in_place, *res*millis_in_second);
                     case semantic_tag::epoch_milli:
-                        return duration_type(count);
+                        return result_type(in_place, *res);
                     case semantic_tag::epoch_nano:
-                        return duration_type(count == 0 ? 0 : count/nanos_in_milli);
+                        return result_type(in_place, *res == 0 ? 0 : *res/nanos_in_milli);
                     default:
-                        return duration_type(count);
+                        return result_type(in_place, *res);
                 }
             }
             else if (j.is_double())
             {
-                auto count = j.template as<double>();
+                auto res = j.template try_as<double>();
+                if (!res)
+                {
+                    return result_type(unexpect, conv_errc::not_epoch);
+                }
                 switch (j.tag())
                 {
                     case semantic_tag::epoch_second:
-                        return duration_type(static_cast<Rep>(count * millis_in_second));
+                        return result_type(in_place, static_cast<Rep>(*res * millis_in_second));
                     case semantic_tag::epoch_milli:
-                        return duration_type(static_cast<Rep>(count));
+                        return result_type(in_place, static_cast<Rep>(*res));
                     case semantic_tag::epoch_nano:
-                        return duration_type(count == 0 ? 0 : static_cast<Rep>(count / nanos_in_milli));
+                        return result_type(in_place, *res == 0 ? 0 : static_cast<Rep>(*res / nanos_in_milli));
                     default:
-                        return duration_type(static_cast<Rep>(count));
+                        return result_type(in_place, static_cast<Rep>(*res));
                 }
             }
             else if (j.is_string())
@@ -1766,46 +1820,60 @@ namespace variant_detail
                 {
                     case semantic_tag::epoch_second:
                     {
-                        auto count = j.template as<Rep>();
-                        return duration_type(count*millis_in_second);
+                        auto res = j.template try_as<Rep>();
+                        if (!res)
+                        {
+                            return result_type(unexpect, conv_errc::not_epoch);
+                        }
+                        return result_type(in_place, *res*millis_in_second);
                     }
                     case semantic_tag::epoch_milli:
                     {
-                        auto sv = j.as_string_view();
+                        auto res = j.try_as_string_view();
+                        if (!res)
+                        {
+                            return result_type(unexpect, conv_errc::not_epoch);
+                        }
                         Rep n{0};
-                        auto result = jsoncons::utility::dec_to_integer(sv.data(), sv.size(), n);
+                        auto result = jsoncons::utility::dec_to_integer((*res).data(), (*res).size(), n);
                         if (!result)
                         {
-                            return duration_type();
+                            return result_type(unexpect, conv_errc::not_epoch);
                         }
-                        return duration_type(n);
+                        return result_type(in_place, n);
                     }
                     case semantic_tag::epoch_nano:
                     {
                         auto sv = j.as_string_view();
-                        bigint n = bigint::from_string(sv.data(), sv.length());
+                        bigint n;
+                        auto r = to_bigint(sv.data(), sv.length(), n);
+                        if (!r) {return result_type(jsoncons::unexpect, conv_errc::not_epoch);}
                         if (n != 0)
                         {
                             n = n / nanos_in_milli;
                         }
-                        return duration_type(static_cast<Rep>(n));
+                        return result_type(in_place, static_cast<Rep>(n));
                     }
                     default:
                     {
-                        auto count = j.template as<Rep>();
-                        return duration_type(count);
+                        auto res = j.template try_as<Rep>();
+                        if (!res)
+                        {
+                            return result_type(unexpect, conv_errc::not_epoch);
+                        }
+                        return result_type(in_place, *res);
                     }
                 }
             }
             else
             {
-                return duration_type();
+                return result_type(unexpect, conv_errc::not_epoch);
             }
         }
 
         template <typename PeriodT=Period>
         static 
-        typename std::enable_if<std::is_same<PeriodT,std::nano>::value, duration_type>::type
+        typename std::enable_if<std::is_same<PeriodT,std::nano>::value, result_type>::type
         from_json_(const Json& j)
         {
             if (j.is_int64() || j.is_uint64() || j.is_double())
@@ -1814,13 +1882,13 @@ namespace variant_detail
                 switch (j.tag())
                 {
                     case semantic_tag::epoch_second:
-                        return duration_type(count*nanos_in_second);
+                        return result_type(in_place, count*nanos_in_second);
                     case semantic_tag::epoch_milli:
-                        return duration_type(count*nanos_in_milli);
+                        return result_type(in_place, count*nanos_in_milli);
                     case semantic_tag::epoch_nano:
-                        return duration_type(count);
+                        return result_type(in_place, count);
                     default:
-                        return duration_type(count);
+                        return result_type(in_place, count);
                 }
             }
             else if (j.is_double())
@@ -1829,33 +1897,37 @@ namespace variant_detail
                 switch (j.tag())
                 {
                     case semantic_tag::epoch_second:
-                        return duration_type(static_cast<Rep>(count * nanos_in_second));
+                        return result_type(in_place, static_cast<Rep>(count * nanos_in_second));
                     case semantic_tag::epoch_milli:
-                        return duration_type(static_cast<Rep>(count * nanos_in_milli));
+                        return result_type(in_place, static_cast<Rep>(count * nanos_in_milli));
                     case semantic_tag::epoch_nano:
-                        return duration_type(static_cast<Rep>(count));
+                        return result_type(in_place, static_cast<Rep>(count));
                     default:
-                        return duration_type(static_cast<Rep>(count));
+                        return result_type(in_place, static_cast<Rep>(count));
                 }
             }
             else if (j.is_string())
             {
-                auto count = j.template as<Rep>();
+                auto res = j.template try_as<Rep>();
+                if (!res)
+                {
+                    return result_type(unexpect, conv_errc::not_epoch);
+                }
                 switch (j.tag())
                 {
                     case semantic_tag::epoch_second:
-                        return duration_type(count*nanos_in_second);
+                        return result_type(in_place, *res*nanos_in_second);
                     case semantic_tag::epoch_milli:
-                        return duration_type(count*nanos_in_milli);
+                        return result_type(in_place, *res*nanos_in_milli);
                     case semantic_tag::epoch_nano:
-                        return duration_type(count);
+                        return result_type(in_place, *res);
                     default:
-                        return duration_type(count);
+                        return result_type(in_place, *res);
                 }
             }
             else
             {
-                return duration_type();
+                return result_type(unexpect, conv_errc::not_epoch);
             }
         }
 

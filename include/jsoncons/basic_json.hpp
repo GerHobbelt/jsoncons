@@ -1508,64 +1508,100 @@ namespace jsoncons {
 
         string_view_type as_string_view() const
         {
+           auto result = try_as_string_view();
+           if (!result)
+           {
+               JSONCONS_THROW(conv_error(result.error().code()));
+           }
+           return *result;
+        }
+
+        conversion_result<string_view_type> try_as_string_view() const
+        {
+            using result_type = conversion_result<string_view_type>;
+
             switch (storage_kind())
             {
                 case json_storage_kind::short_str:
-                    return string_view_type(cast<short_string_storage>().data(),cast<short_string_storage>().length());
+                    return result_type(in_place, cast<short_string_storage>().data(),cast<short_string_storage>().length());
                 case json_storage_kind::long_str:
-                    return string_view_type(cast<long_string_storage>().data(),cast<long_string_storage>().length());
+                    return result_type(in_place, cast<long_string_storage>().data(),cast<long_string_storage>().length());
                 case json_storage_kind::json_const_reference:
-                    return cast<json_const_reference_storage>().value().as_string_view();
+                    return result_type(cast<json_const_reference_storage>().value().as_string_view());
                 case json_storage_kind::json_reference:
-                    return cast<json_reference_storage>().value().as_string_view();
+                    return result_type(cast<json_reference_storage>().value().as_string_view());
                 default:
-                    JSONCONS_THROW(json_runtime_error<std::domain_error>("Not a string"));
+                   return result_type(unexpect, conv_errc::not_string);
             }
         }
 
-        template <typename BAllocator=std::allocator<uint8_t>>
-        basic_byte_string<BAllocator> as_byte_string() const
+        template <typename BytesAlloc=std::allocator<uint8_t>>
+        conversion_result<basic_byte_string<BytesAlloc>> try_as_byte_string() const
         {
-            using byte_string_type = basic_byte_string<BAllocator>;
-            std::error_code ec;
+            using byte_string_type = basic_byte_string<BytesAlloc>;
+            using result_type = conversion_result<byte_string_type>;
 
             switch (storage_kind())
             {
                 case json_storage_kind::short_str:
                 case json_storage_kind::long_str:
                 {
+                    std::error_code ec;
                     value_converter<jsoncons::string_view, byte_string_type> converter;
                     byte_string_type v = converter.convert(as_string_view(),tag(), ec);
                     if (JSONCONS_UNLIKELY(ec))
                     {
-                        JSONCONS_THROW(ser_error(ec));
+                        return result_type(unexpect, ec);
                     }
-                    return v;
+                    return result_type(v);
                 }
                 case json_storage_kind::byte_str:
-                    return basic_byte_string<BAllocator>(cast<byte_string_storage>().data(),cast<byte_string_storage>().length());
+                    return result_type(in_place, cast<byte_string_storage>().data(),cast<byte_string_storage>().length());
                 case json_storage_kind::json_const_reference:
-                    return cast<json_const_reference_storage>().value().as_byte_string();
+                    return cast<json_const_reference_storage>().value().template try_as_byte_string<BytesAlloc>();
                 case json_storage_kind::json_reference:
-                    return cast<json_reference_storage>().value().as_byte_string();
+                    return cast<json_reference_storage>().value().template try_as_byte_string<BytesAlloc>();
                 default:
-                    JSONCONS_THROW(json_runtime_error<std::domain_error>("Not a byte string"));
+                    return result_type(unexpect, conv_errc::not_byte_string);
+            }
+        }
+
+        template <typename BytesAlloc=std::allocator<uint8_t>>
+        basic_byte_string<BytesAlloc> as_byte_string() const
+        {
+            auto result = try_as_byte_string<BytesAlloc>();
+            if (!result)
+            {
+                JSONCONS_THROW(conv_error(result.error().code()));
+            }
+            return *result;
+        }
+
+        conversion_result<byte_string_view> try_as_byte_string_view() const
+        {
+            using result_type = conversion_result<byte_string_view>;
+
+            switch (storage_kind())
+            {
+                case json_storage_kind::byte_str:
+                    return result_type(in_place, cast<byte_string_storage>().data(),cast<byte_string_storage>().length());
+                case json_storage_kind::json_const_reference:
+                    return cast<json_const_reference_storage>().value().try_as_byte_string_view();
+                case json_storage_kind::json_reference:
+                    return cast<json_reference_storage>().value().try_as_byte_string_view();
+                default:
+                    return result_type(unexpect, conv_errc::not_byte_string);
             }
         }
 
         byte_string_view as_byte_string_view() const
         {
-            switch (storage_kind())
+            auto result = try_as_byte_string_view();
+            if (!result)
             {
-                case json_storage_kind::byte_str:
-                    return byte_string_view(cast<byte_string_storage>().data(),cast<byte_string_storage>().length());
-                case json_storage_kind::json_const_reference:
-                    return cast<json_const_reference_storage>().value().as_byte_string_view();
-                case json_storage_kind::json_reference:
-                    return cast<json_reference_storage>().value().as_byte_string_view();
-                default:
-                    JSONCONS_THROW(json_runtime_error<std::domain_error>("Not a byte string"));
+                JSONCONS_THROW(conv_error(result.error().code()));
             }
+            return *result;
         }
 
         int compare(const basic_json& rhs) const noexcept
@@ -1898,14 +1934,14 @@ namespace jsoncons {
             return decoder.get_result();
         }
 
-        template <typename Source,typename TempAllocator >
+        template <typename Source,typename TempAlloc >
         static
          typename std::enable_if<ext_traits::is_sequence_of<Source,char_type>::value,basic_json>::type
-            parse(const allocator_set<allocator_type,TempAllocator>& alloc_set, const Source& source, 
+            parse(const allocator_set<allocator_type,TempAlloc>& aset, const Source& source, 
               const basic_json_decode_options<char_type>& options = basic_json_options<char_type>())
         {
-            json_decoder<basic_json> decoder(alloc_set.get_allocator(), alloc_set.get_temp_allocator());
-            basic_json_parser<char_type,TempAllocator> parser(options, alloc_set.get_temp_allocator());
+            json_decoder<basic_json> decoder(aset.get_allocator(), aset.get_temp_allocator());
+            basic_json_parser<char_type,TempAlloc> parser(options, aset.get_temp_allocator());
 
             auto r = unicode_traits::detect_encoding_from_bom(source.data(), source.size());
             if (!(r.encoding == unicode_traits::encoding_kind::utf8 || r.encoding == unicode_traits::encoding_kind::undetected))
@@ -1936,19 +1972,19 @@ namespace jsoncons {
             return parse(jsoncons::basic_string_view<char_type>(source), options);
         }
 
-        template <typename TempAllocator >
-        static basic_json parse(const allocator_set<allocator_type,TempAllocator>& alloc_set, const char_type* source, 
+        template <typename TempAlloc >
+        static basic_json parse(const allocator_set<allocator_type,TempAlloc>& aset, const char_type* source, 
             const basic_json_decode_options<char_type>& options = basic_json_options<char_type>())
         {
-            return parse(alloc_set, jsoncons::basic_string_view<char_type>(source), options);
+            return parse(aset, jsoncons::basic_string_view<char_type>(source), options);
         }
 
-        template <typename TempAllocator >
-        static basic_json parse(const allocator_set<allocator_type,TempAllocator>& alloc_set, 
+        template <typename TempAlloc >
+        static basic_json parse(const allocator_set<allocator_type,TempAlloc>& aset, 
             const char_type* str, std::size_t length,
             const basic_json_decode_options<char_type>& options = basic_json_options<char_type>())
         {
-            return parse(alloc_set, jsoncons::basic_string_view<char_type>(str, length), options);
+            return parse(aset, jsoncons::basic_string_view<char_type>(str, length), options);
         }
 
         // from stream
@@ -1967,12 +2003,12 @@ namespace jsoncons {
             return decoder.get_result();
         }
 
-        template <typename TempAllocator >
-        static basic_json parse(const allocator_set<allocator_type,TempAllocator>& alloc_set, std::basic_istream<char_type>& is, 
+        template <typename TempAlloc >
+        static basic_json parse(const allocator_set<allocator_type,TempAlloc>& aset, std::basic_istream<char_type>& is, 
             const basic_json_decode_options<char_type>& options = basic_json_options<CharT>())
         {
-            json_decoder<basic_json> decoder(alloc_set.get_allocator(), alloc_set.get_temp_allocator());
-            basic_json_reader<char_type,stream_source<char_type>,Allocator> reader(is, decoder, options, alloc_set.get_temp_allocator());
+            json_decoder<basic_json> decoder(aset.get_allocator(), aset.get_temp_allocator());
+            basic_json_reader<char_type,stream_source<char_type>,Allocator> reader(is, decoder, options, aset.get_temp_allocator());
             reader.read_next();
             reader.check_done();
             if (JSONCONS_UNLIKELY(!decoder.is_valid()))
@@ -2000,14 +2036,14 @@ namespace jsoncons {
             return decoder.get_result();
         }
 
-        template <typename InputIt,typename TempAllocator >
-        static basic_json parse(const allocator_set<allocator_type,TempAllocator>& alloc_set, InputIt first, InputIt last, 
+        template <typename InputIt,typename TempAlloc >
+        static basic_json parse(const allocator_set<allocator_type,TempAlloc>& aset, InputIt first, InputIt last, 
                                 const basic_json_decode_options<char_type>& options = basic_json_options<CharT>())
         {
-            json_decoder<basic_json> decoder(alloc_set.get_allocator(), alloc_set.get_temp_allocator());
+            json_decoder<basic_json> decoder(aset.get_allocator(), aset.get_temp_allocator());
             basic_json_reader<char_type,iterator_source<InputIt>,Allocator> reader(iterator_source<InputIt>(std::forward<InputIt>(first),
                 std::forward<InputIt>(last)), 
-                decoder, options, alloc_set.get_temp_allocator());
+                decoder, options, aset.get_temp_allocator());
             reader.read_next();
             reader.check_done();
             if (JSONCONS_UNLIKELY(!decoder.is_valid()))
@@ -3371,18 +3407,18 @@ namespace jsoncons {
             }
         }
 
-        template <typename IntegerType>
-        conversion_result<IntegerType> try_as_integer() const
+        template <typename T>
+        conversion_result<T> try_as_integer() const
         {
-            using result_type = conversion_result<IntegerType>;
+            using result_type = conversion_result<T>;
             
             switch (storage_kind())
             {
                 case json_storage_kind::short_str:
                 case json_storage_kind::long_str:
                 {
-                    IntegerType val;
-                    auto result = jsoncons::utility::to_integer<IntegerType>(as_string_view().data(), as_string_view().length(), val);
+                    T val;
+                    auto result = jsoncons::utility::to_integer<T>(as_string_view().data(), as_string_view().length(), val);
                     if (!result)
                     {
                         return result_type(unexpect, conv_errc::not_integer);
@@ -3390,28 +3426,28 @@ namespace jsoncons {
                     return val;
                 }
                 case json_storage_kind::half_float:
-                    return result_type(static_cast<IntegerType>(cast<half_storage>().value()));
+                    return result_type(static_cast<T>(cast<half_storage>().value()));
                 case json_storage_kind::float64:
-                    return result_type(static_cast<IntegerType>(cast<double_storage>().value()));
+                    return result_type(static_cast<T>(cast<double_storage>().value()));
                 case json_storage_kind::int64:
-                    return result_type(static_cast<IntegerType>(cast<int64_storage>().value()));
+                    return result_type(static_cast<T>(cast<int64_storage>().value()));
                 case json_storage_kind::uint64:
-                    return result_type(static_cast<IntegerType>(cast<uint64_storage>().value()));
+                    return result_type(static_cast<T>(cast<uint64_storage>().value()));
                 case json_storage_kind::boolean:
-                    return result_type(static_cast<IntegerType>(cast<bool_storage>().value() ? 1 : 0));
+                    return result_type(static_cast<T>(cast<bool_storage>().value() ? 1 : 0));
                 case json_storage_kind::json_const_reference:
-                    return cast<json_const_reference_storage>().value().template try_as_integer<IntegerType>();
+                    return cast<json_const_reference_storage>().value().template try_as_integer<T>();
                 case json_storage_kind::json_reference:
-                    return cast<json_reference_storage>().value().template try_as_integer<IntegerType>();
+                    return cast<json_reference_storage>().value().template try_as_integer<T>();
                 default:
                     return result_type(unexpect, conv_errc::not_integer);
             }
         }
 
-        template <typename IntegerType>
-        IntegerType as_integer() const
+        template <typename T>
+        T as_integer() const
         {
-            auto result = try_as_integer<IntegerType>();
+            auto result = try_as_integer<T>();
             if (!result)
             {
                 JSONCONS_THROW(conv_error(result.error().code()));
@@ -3419,27 +3455,27 @@ namespace jsoncons {
             return *result;
         }
 
-        template <typename IntegerType>
-        typename std::enable_if<ext_traits::is_signed_integer<IntegerType>::value && sizeof(IntegerType) <= sizeof(int64_t),bool>::type
+        template <typename T>
+        typename std::enable_if<ext_traits::is_signed_integer<T>::value && sizeof(T) <= sizeof(int64_t),bool>::type
         is_integer() const noexcept
         {
             switch (storage_kind())
             {
                 case json_storage_kind::int64:
-                    return (as_integer<int64_t>() >= (ext_traits::integer_limits<IntegerType>::lowest)()) && (as_integer<int64_t>() <= (ext_traits::integer_limits<IntegerType>::max)());
+                    return (as_integer<int64_t>() >= (ext_traits::integer_limits<T>::lowest)()) && (as_integer<int64_t>() <= (ext_traits::integer_limits<T>::max)());
                 case json_storage_kind::uint64:
-                    return as_integer<uint64_t>() <= static_cast<uint64_t>((ext_traits::integer_limits<IntegerType>::max)());
+                    return as_integer<uint64_t>() <= static_cast<uint64_t>((ext_traits::integer_limits<T>::max)());
                 case json_storage_kind::json_const_reference:
-                    return cast<json_const_reference_storage>().value().template is_integer<IntegerType>();
+                    return cast<json_const_reference_storage>().value().template is_integer<T>();
                 case json_storage_kind::json_reference:
-                    return cast<json_reference_storage>().value().template is_integer<IntegerType>();
+                    return cast<json_reference_storage>().value().template is_integer<T>();
                 default:
                     return false;
             }
         }
 
-        template <typename IntegerType>
-        typename std::enable_if<ext_traits::is_signed_integer<IntegerType>::value && sizeof(int64_t) < sizeof(IntegerType),bool>::type
+        template <typename T>
+        typename std::enable_if<ext_traits::is_signed_integer<T>::value && sizeof(int64_t) < sizeof(T),bool>::type
         is_integer() const noexcept
         {
             switch (storage_kind())
@@ -3447,18 +3483,18 @@ namespace jsoncons {
                 case json_storage_kind::short_str:
                 case json_storage_kind::long_str:
                 {
-                    IntegerType val;
-                    auto result = jsoncons::utility::to_integer<IntegerType>(as_string_view().data(), as_string_view().length(), val);
+                    T val;
+                    auto result = jsoncons::utility::to_integer<T>(as_string_view().data(), as_string_view().length(), val);
                     return result ? true : false;
                 }
                 case json_storage_kind::int64:
-                    return (as_integer<int64_t>() >= (ext_traits::integer_limits<IntegerType>::lowest)()) && (as_integer<int64_t>() <= (ext_traits::integer_limits<IntegerType>::max)());
+                    return (as_integer<int64_t>() >= (ext_traits::integer_limits<T>::lowest)()) && (as_integer<int64_t>() <= (ext_traits::integer_limits<T>::max)());
                 case json_storage_kind::uint64:
-                    return as_integer<uint64_t>() <= static_cast<uint64_t>((ext_traits::integer_limits<IntegerType>::max)());
+                    return as_integer<uint64_t>() <= static_cast<uint64_t>((ext_traits::integer_limits<T>::max)());
                 case json_storage_kind::json_const_reference:
-                    return cast<json_const_reference_storage>().value().template is_integer<IntegerType>();
+                    return cast<json_const_reference_storage>().value().template is_integer<T>();
                 case json_storage_kind::json_reference:
-                    return cast<json_reference_storage>().value().template is_integer<IntegerType>();
+                    return cast<json_reference_storage>().value().template is_integer<T>();
                 default:
                     return false;
             }
@@ -3575,16 +3611,16 @@ namespace jsoncons {
             return *result;
         }
 
-        template <typename SAllocator=std::allocator<char_type>>
-        std::basic_string<char_type,char_traits_type,SAllocator> as_string() const 
+        template <typename CharsAlloc=std::allocator<char_type>>
+        std::basic_string<char_type,char_traits_type,CharsAlloc> as_string() const 
         {
-            return as_string(SAllocator());
+            return as_string(CharsAlloc());
         }
 
-        template <typename SAllocator=std::allocator<char_type>>
-        std::basic_string<char_type,char_traits_type,SAllocator> as_string(const SAllocator& alloc) const 
+        template <typename CharsAlloc=std::allocator<char_type>>
+        std::basic_string<char_type,char_traits_type,CharsAlloc> as_string(const CharsAlloc& alloc) const 
         {
-            using string_type2 = std::basic_string<char_type,char_traits_type,SAllocator>;
+            using string_type2 = std::basic_string<char_type,char_traits_type,CharsAlloc>;
 
             std::error_code ec;
             switch (storage_kind())

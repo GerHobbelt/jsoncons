@@ -1,12 +1,12 @@
 ### jsoncons::conv_error
 
 ```cpp
-#include <jsoncons/json_exception.hpp>
+#include <jsoncons/conv_error.hpp>
 ```
 
 <br>
 
-`jsoncons::conv_error` defines an exception type for reporting serialization and deserialization failures.
+`jsoncons::conv_error` defines an exception type for reporting type conversion failures.
 
 ![conv_error](./diagrams/conv_error.png)
 
@@ -22,6 +22,8 @@ std::exception
 
     conv_error(const conv_error& other);
 
+    conv_error(conv_error&& other);
+
 #### Member functions
 
     const char* what() const noexcept final
@@ -36,27 +38,23 @@ Returns an error code for this exception
 
 ```cpp
 #include <jsoncons/json.hpp>
-
-using jsoncons::json;
+#include <iostream>
 
 int main()
 {
-    string s = "[1,2,3,4,]";
-    try 
+    try
     {
-        jsoncons::json j = jsoncons::json::parse(s);
-    } 
-    catch(const jsoncons::conv_error& e) 
+        jsoncons::json j(10);
+        auto sv = j.as<std::string_view>();
+    }
+    catch (const jsoncons::conv_error& e)
     {
-        std::cout << "Caught conv_error with category " 
-                  << e.code().category().name() 
-                  << ", code " << e.code().value() 
-                  << " and message " << e.what() << '\n';
+        std::cout << e.what() << "\n";
     }
 }
 ```
 
 Output:
 ```
-Caught conv_error with category json_input, code 1 and message Unexpected value separator ',' at line 1 and column 10
+Cannot convert to string
 ```
