@@ -2,6 +2,7 @@
 // Distributed under Boost license
 
 #include <cassert>
+#include <iostream>
 #include <regex>
 #include <jsoncons/json.hpp>
 
@@ -163,7 +164,7 @@ namespace ns {
         static std::map<Employee, uint64_t> employee_id_map = {{Employee("John", "Smith"), 1},{Employee("Jane", "Doe"), 2}};
 
         std::vector<uint64_t> ids;
-        for (auto employee : employees)
+        for (const auto& employee : employees)
         {
             ids.push_back(employee_id_map.at(employee));
         }

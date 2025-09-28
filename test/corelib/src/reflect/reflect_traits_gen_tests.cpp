@@ -14,6 +14,7 @@
 #include <utility>
 #include <ctime>
 #include <cstdint>
+#include <iostream>
 
 using namespace jsoncons;
 
@@ -460,6 +461,28 @@ namespace ns {
         jsoncons::optional<std::string> field12;
     };
 
+    class Foo
+    {
+    public:
+        virtual ~Foo() noexcept = default;
+    };
+
+    class Bar : public Foo
+    {
+        static const bool bar;
+        JSONCONS_TYPE_TRAITS_FRIEND
+    };
+
+    const bool Bar::bar = true;
+
+    class Baz : public Foo 
+    {
+        static const bool baz;
+        JSONCONS_TYPE_TRAITS_FRIEND
+    };
+
+    const bool Baz::baz = true;
+
 } // namespace ns
 } // namespace 
  
@@ -492,6 +515,10 @@ JSONCONS_ALL_MEMBER_TRAITS(ns::hiking_reputation, application, reputons)
 JSONCONS_N_MEMBER_TRAITS(ns::smart_pointer_and_optional_test1,6,
                          field1,field2,field3,field4,field5,field6,
                          field7,field8,field9,field10,field11,field12)
+
+JSONCONS_N_MEMBER_TRAITS(ns::Bar, 1, bar)
+JSONCONS_N_MEMBER_TRAITS(ns::Baz,1,baz)
+JSONCONS_POLYMORPHIC_TRAITS(ns::Foo, ns::Bar, ns::Baz)
 
 void test_is_json_type_traits_declared(std::true_type)
 {
@@ -1527,5 +1554,27 @@ TEST_CASE("JSONCONS_N_MEMBER_TRAITS pointer and optional test")
         CHECK_FALSE(other.field10);
         CHECK_FALSE(other.field11);
         CHECK_FALSE(other.field12);
+    }
+}
+
+TEST_CASE("JSONCONS_POLYMORPHIC_TRAITS with constants tests")
+{
+    SECTION("decode vector of shared_ptr test")
+    {
+        std::vector<std::unique_ptr<ns::Foo>> u;
+        u.emplace_back(new ns::Bar());
+        u.emplace_back(new ns::Baz());
+
+        std::string buffer;
+        encode_json(u, buffer);
+        //std::cout << "(1)\n" << buffer << "\n\n";
+
+        auto v = decode_json<std::vector<std::unique_ptr<ns::Foo>>>(buffer);
+
+        REQUIRE(v.size() == 2);
+        CHECK(dynamic_cast<ns::Bar*>(v[0].get()) != nullptr);
+        CHECK(dynamic_cast<ns::Baz*>(v[0].get()) == nullptr);
+        CHECK(dynamic_cast<ns::Baz*>(v[1].get()) != nullptr);
+        CHECK(dynamic_cast<ns::Bar*>(v[1].get()) == nullptr);
     }
 }

@@ -2,17 +2,49 @@
 // Distributed under the Boost license, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
-// See https://github.com/danielaparker/jsoncons2 for latest version
+// See https://github.com/danielaparker/jsoncons for latest version
 
-#ifndef JSONCONS_READ_RESULT_HPP    
-#define JSONCONS_READ_RESULT_HPP    
+#ifndef JSONCONS_SER_UTIL_HPP
+#define JSONCONS_SER_UTIL_HPP
 
+#include <cstddef>
+#include <ostream>
 #include <system_error>
-#include <type_traits>
+
 #include <jsoncons/config/jsoncons_config.hpp>
-#include <jsoncons/json_exception.hpp>
 
 namespace jsoncons {
+
+class ser_context
+{
+public:
+    virtual ~ser_context() = default;
+
+    virtual size_t line() const
+    {
+        return 0;
+    }
+
+    virtual size_t column() const
+    {
+        return 0;
+    }
+
+    virtual size_t position() const
+    {
+        return 0;
+    }
+
+    virtual size_t begin_position() const
+    {
+        return 0;
+    }
+
+    virtual size_t end_position() const
+    {
+        return 0;
+    }
+};
 
 class read_error
 {
@@ -56,42 +88,43 @@ public:
     {
         return column_;
     }
-};
 
-inline
-std::string to_string(const read_error& err)
-{
-    std::string str(err.message_arg());
-    if (!str.empty())
+    std::string message() const
     {
-        str.append(": ");
+        std::string str(message_arg_);
+        if (!str.empty())
+        {
+            str.append(": ");
+        }
+        str.append(ec_.message());
+        if (line_ != 0 && column_ != 0)
+        {
+            str.append(" at line ");
+            str.append(std::to_string(line_));
+            str.append(" and column ");
+            str.append(std::to_string(column_));
+        }
+        else if (column_ != 0)
+        {
+            str.append(" at position ");
+            str.append(std::to_string(column_));
+        }
+        return str;
     }
-    str.append(err.code().message());
-    if (err.line() != 0 && err.column() != 0)
-    {
-        str.append(" at line ");
-        str.append(std::to_string(err.line()));
-        str.append(" and column ");
-        str.append(std::to_string(err.column()));
-    }
-    else if (err.column() != 0)
-    {
-        str.append(" at position ");
-        str.append(std::to_string(err.column()));
-    }
-    return str;
-}
+};
 
 inline
 std::ostream& operator<<(std::ostream& os, const read_error& err)
 {
-    os << to_string(err);
+    os << err.message();
     return os;
 }
 
 template <typename T>
-using read_result = result<T,read_error>;
+using read_result = expected<T,read_error>;
 
-} // jsoncons
+using write_result = jsoncons::expected<void, std::error_code>;
 
-#endif // JSONCONS_READ_RESULT_HPP
+} // namespace jsoncons
+
+#endif // JSONCONS_SER_UTIL_HPP

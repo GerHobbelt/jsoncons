@@ -19,15 +19,14 @@
 #include <jsoncons/json_parser.hpp>
 #include <jsoncons/json_type.hpp>
 #include <jsoncons/json_visitor.hpp>
-#include <jsoncons/read_result.hpp>
 #include <jsoncons/semantic_tag.hpp>
-#include <jsoncons/ser_context.hpp>
+#include <jsoncons/ser_util.hpp>
 #include <jsoncons/sink.hpp>
 #include <jsoncons/staj_event.hpp>
 #include <jsoncons/typed_array_view.hpp>
 #include <jsoncons/utility/bigint.hpp>
 #include <jsoncons/utility/write_number.hpp>
-#include <jsoncons/conversion.hpp>
+#include <jsoncons/utility/conversion.hpp>
 
 namespace jsoncons {
 
@@ -797,7 +796,7 @@ read_result<Json> to_json_single(const allocator_set<Alloc,TempAlloc>& aset,
         }
         case staj_event_type::null_value:
         {
-            return result_type(Json{null_arg});
+            return result_type(Json{null_arg, semantic_tag::none});
         }
         case staj_event_type::bool_value:
         {

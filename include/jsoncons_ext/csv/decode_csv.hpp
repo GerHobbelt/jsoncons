@@ -7,14 +7,15 @@
 #ifndef JSONCONS_EXT_CSV_DECODE_CSV_HPP
 #define JSONCONS_EXT_CSV_DECODE_CSV_HPP
 
+#include <istream>
 #include <type_traits>
 
 #include <jsoncons/allocator_set.hpp>
-#include <jsoncons/config/compiler_support.hpp>
 #include <jsoncons/basic_json.hpp>
-#include <jsoncons/reflect/decode_traits.hpp>
+#include <jsoncons/config/compiler_support.hpp>
 #include <jsoncons/json_exception.hpp>
-#include <jsoncons/read_result.hpp>
+#include <jsoncons/reflect/decode_traits.hpp>
+#include <jsoncons/ser_util.hpp>
 #include <jsoncons/source.hpp>
 
 #include <jsoncons_ext/csv/csv_cursor.hpp>

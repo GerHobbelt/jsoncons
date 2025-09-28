@@ -25,9 +25,8 @@
 #include <jsoncons/json_type.hpp>
 #include <jsoncons/json_visitor.hpp>
 #include <jsoncons/reflect/json_conv_traits.hpp>
-#include <jsoncons/read_result.hpp>
 #include <jsoncons/semantic_tag.hpp>
-#include <jsoncons/ser_context.hpp>
+#include <jsoncons/ser_util.hpp>
 #include <jsoncons/source.hpp>
 #include <jsoncons/staj_cursor.hpp>
 #include <jsoncons/staj_event.hpp>
@@ -252,8 +251,6 @@ struct decode_traits<T,
                 return result_type(jsoncons::unexpect, r.error()); 
             }
             v.push_back(std::move(*r));
-            //v.push_back(/*element_type(aset.get_allocator())*/);
-            //v.emplace_back(1,'a');
             cursor.next(ec);
             if (JSONCONS_UNLIKELY(ec)) { return result_type(jsoncons::unexpect, ec, cursor.line(), cursor.column()); }
         }
@@ -460,7 +457,6 @@ struct decode_traits<T,
             }
             v.insert(std::move(*r));
             if (JSONCONS_UNLIKELY(ec)) {return result_type(jsoncons::unexpect, ec, cursor.line(), cursor.column());}
-            //std::cout << "cursor.next 20\n";
             cursor.next(ec);
             if (JSONCONS_UNLIKELY(ec)) {return result_type{jsoncons::unexpect, ec, cursor.line(), cursor.column()};}
         }
@@ -521,7 +517,6 @@ struct decode_traits<T,
             }
             v.push_front(std::move(*r));
             if (JSONCONS_UNLIKELY(ec)) {return result_type(jsoncons::unexpect, ec, cursor.line(), cursor.column());}
-            //std::cout << "cursor.next 20\n";
             cursor.next(ec);
             if (JSONCONS_UNLIKELY(ec)) {return result_type{jsoncons::unexpect, ec, cursor.line(), cursor.column()};}
         }
@@ -637,7 +632,6 @@ struct decode_traits<T,
                 return result_type(jsoncons::unexpect, r2.error());
             }
             val.emplace(std::move(*r1), std::move(*r2));
-            //std::cout << "cursor.next 300\n";
             cursor.next(ec);
             if (JSONCONS_UNLIKELY(ec)) 
             {
@@ -702,7 +696,6 @@ struct decode_traits<T,
             {
                 return result_type{jsoncons::unexpect, json_errc::invalid_number, cursor.line(), cursor.column()}; 
             }
-            //std::cout << "cursor.next 500\n";
             cursor.next(ec);
             if (JSONCONS_UNLIKELY(ec))
             {
@@ -714,7 +707,6 @@ struct decode_traits<T,
                 return result_type(jsoncons::unexpect, r1.error());
             }
             val.emplace(n, std::move(*r1));
-            //std::cout << "cursor.next 600\n";
             cursor.next(ec);
             if (JSONCONS_UNLIKELY(ec)) 
             {
