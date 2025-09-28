@@ -34,7 +34,7 @@
 #include <jsoncons/utility/byte_string.hpp>
 #include <jsoncons/utility/more_type_traits.hpp>
 #include <jsoncons/value_converter.hpp>
-#include <jsoncons/conv_result.hpp>
+#include <jsoncons/conversion_result.hpp>
 #include <jsoncons/json_type_traits.hpp>
 
 #if defined(JSONCONS_HAS_STD_VARIANT)
@@ -57,7 +57,7 @@ namespace reflect {
     template <typename Json,typename T,typename Enable=void>
     struct json_conv_traits
     {
-        using result_type = conv_result<T>;
+        using result_type = conversion_result<T>;
         using allocator_type = typename Json::allocator_type;
 
         static constexpr bool is_compatible = false;
@@ -74,9 +74,9 @@ namespace reflect {
             {
                 return result_type(json_type_traits<Json,T>::as(j));
             }
-            JSONCONS_CATCH (const ser_error&)
+            JSONCONS_CATCH (const ser_error& ec)
             {
-                return result_type(conv_errc::conversion_failed);
+                return result_type(jsoncons::unexpect, ec.code());
             }
         }
 
@@ -140,7 +140,7 @@ has_can_convert = ext_traits::is_detected<traits_can_convert_t, Json, T>;
 
     // is_json_conv_traits_specialized
     template <typename Json,typename T,typename Enable=void>
-    struct is_json_conv_traits_specialized : std::false_type {};
+    struct is_json_conv_traits_specialized : is_json_type_traits_specialized<Json,T> {};
 
     template <typename Json,typename T>
     struct is_json_conv_traits_specialized<Json,T, 
@@ -152,7 +152,7 @@ has_can_convert = ext_traits::is_detected<traits_can_convert_t, Json, T>;
     {
         using char_type = typename Json::char_type;
         using allocator_type = typename Json::allocator_type;
-        using result_type = conv_result<const char_type*>;
+        using result_type = conversion_result<const char_type*>;
 
         static bool is(const Json& j) noexcept
         {
@@ -194,7 +194,7 @@ has_can_convert = ext_traits::is_detected<traits_can_convert_t, Json, T>;
     >::type>
     {
         using allocator_type = typename Json::allocator_type;
-        using result_type = conv_result<T>;
+        using result_type = conversion_result<T>;
 
         static bool is(const Json& j) noexcept
         {
@@ -222,7 +222,7 @@ has_can_convert = ext_traits::is_detected<traits_can_convert_t, Json, T>;
     >::type>
     {
         using allocator_type = typename Json::allocator_type;
-        using result_type = conv_result<T>;
+        using result_type = conversion_result<T>;
 
         static bool is(const Json& j) noexcept
         {
@@ -245,7 +245,7 @@ has_can_convert = ext_traits::is_detected<traits_can_convert_t, Json, T>;
     >::type>
     {
         using allocator_type = typename Json::allocator_type;
-        using result_type = conv_result<T>;
+        using result_type = conversion_result<T>;
 
         static bool is(const Json& j) noexcept
         {
@@ -309,7 +309,7 @@ has_can_convert = ext_traits::is_detected<traits_can_convert_t, Json, T>;
     struct json_conv_traits<Json, Json>
     {
         using allocator_type = typename Json::allocator_type;
-        using result_type = conv_result<Json>;
+        using result_type = conversion_result<Json>;
 
         static bool is(const Json&) noexcept
         {
@@ -333,7 +333,7 @@ has_can_convert = ext_traits::is_detected<traits_can_convert_t, Json, T>;
     struct json_conv_traits<Json, jsoncons::null_type>
     {
         using allocator_type = typename Json::allocator_type;
-        using result_type = conv_result<typename jsoncons::null_type>;
+        using result_type = conversion_result<typename jsoncons::null_type>;
 
         static bool is(const Json& j) noexcept
         {
@@ -343,7 +343,7 @@ has_can_convert = ext_traits::is_detected<traits_can_convert_t, Json, T>;
         {
             if (!j.is_null())
             {
-                return result_type{conv_errc::not_jsoncons_null_type};
+                return result_type{jsoncons::unexpect, conv_errc::not_jsoncons_null_type};
             }
             return result_type{jsoncons::null_type()};
         }
@@ -361,7 +361,7 @@ has_can_convert = ext_traits::is_detected<traits_can_convert_t, Json, T>;
     struct json_conv_traits<Json, bool>
     {
         using allocator_type = typename Json::allocator_type;
-        using result_type = conv_result<bool>;
+        using result_type = conversion_result<bool>;
 
         static bool is(const Json& j) noexcept
         {
@@ -388,7 +388,7 @@ has_can_convert = ext_traits::is_detected<traits_can_convert_t, Json, T>;
                          void>::type>::value>::type>
     {
         using allocator_type = typename Json::allocator_type;
-        using result_type = conv_result<bool>;
+        using result_type = conversion_result<bool>;
 
         static bool is(const Json& j) noexcept
         {
@@ -412,7 +412,7 @@ has_can_convert = ext_traits::is_detected<traits_can_convert_t, Json, T>;
     struct json_conv_traits<Json, std::vector<bool>::reference>
     {
         using allocator_type = typename Json::allocator_type;
-        using result_type = conv_result<bool>;
+        using result_type = conversion_result<bool>;
 
         static bool is(const Json& j) noexcept
         {
@@ -439,7 +439,7 @@ has_can_convert = ext_traits::is_detected<traits_can_convert_t, Json, T>;
                                                     std::is_same<typename Json::char_type,typename T::value_type>::value>::type>
     {
         using allocator_type = typename Json::allocator_type;
-        using result_type = conv_result<T>;
+        using result_type = conversion_result<T>;
 
         static bool is(const Json& j) noexcept
         {
@@ -448,7 +448,7 @@ has_can_convert = ext_traits::is_detected<traits_can_convert_t, Json, T>;
 
         static result_type try_as(const Json& j)
         {
-            return result_type{T(j.as_string())};
+            return result_type{jsoncons::in_place, j.as_string()};
         }
 
         static Json to_json(const T& val)
@@ -470,7 +470,7 @@ has_can_convert = ext_traits::is_detected<traits_can_convert_t, Json, T>;
     {
         using char_type = typename Json::char_type;
         using allocator_type = typename Json::allocator_type;
-        using result_type = conv_result<T>;
+        using result_type = conversion_result<T>;
 
         static bool is(const Json& j) noexcept
         {
@@ -508,7 +508,7 @@ has_can_convert = ext_traits::is_detected<traits_can_convert_t, Json, T>;
                                                     std::is_same<typename Json::char_type,typename T::value_type>::value>::type>
     {
         using allocator_type = typename Json::allocator_type;
-        using result_type = conv_result<T>;
+        using result_type = conversion_result<T>;
 
         static bool is(const Json& j) noexcept
         {
@@ -517,7 +517,7 @@ has_can_convert = ext_traits::is_detected<traits_can_convert_t, Json, T>;
 
         static result_type try_as(const Json& j)
         {
-            return result_type(T(j.as_string_view().data(),j.as_string_view().size()));
+            return result_type(jsoncons::in_place, j.as_string_view().data(),j.as_string_view().size());
         }
 
         static Json to_json(const T& val)
@@ -536,13 +536,13 @@ has_can_convert = ext_traits::is_detected<traits_can_convert_t, Json, T>;
     template <typename Json,typename T>
     struct json_conv_traits<Json, T, 
                             typename std::enable_if<!is_json_conv_traits_declared<T>::value && 
-                                                    jsoncons::detail::is_compatible_array_type<Json,T>::value &&
+                                                    detail::is_compatible_array_type<Json,T>::value &&
                                                     ext_traits::is_back_insertable<T>::value 
                                                     >::type>
     {
         typedef typename std::iterator_traits<typename T::iterator>::value_type value_type;
         using allocator_type = typename Json::allocator_type;
-        using result_type = conv_result<T>;
+        using result_type = conversion_result<T>;
 
         static bool is(const Json& j) noexcept
         {
@@ -573,14 +573,19 @@ has_can_convert = ext_traits::is_detected<traits_can_convert_t, Json, T>;
                 visit_reserve_(typename std::integral_constant<bool, ext_traits::has_reserve<T>::value>::type(),result,j.size());
                 for (const auto& item : j.array_range())
                 {
-                    result.push_back(item.template as<value_type>());
+                    auto res = item.template try_as<value_type>();
+                    if (JSONCONS_UNLIKELY(!res))
+                    {
+                        return result_type(jsoncons::unexpect, conv_errc::not_vector);
+                    }
+                    result.push_back(std::move(res.value()));
                 }
 
                 return result_type(std::move(result));
             }
             else 
             {
-                return result_type(conv_errc::not_vector);
+                return result_type(jsoncons::unexpect, conv_errc::not_vector);
             }
         }
 
@@ -597,7 +602,12 @@ has_can_convert = ext_traits::is_detected<traits_can_convert_t, Json, T>;
                 visit_reserve_(typename std::integral_constant<bool, ext_traits::has_reserve<T>::value>::type(),result,j.size());
                 for (const auto& item : j.array_range())
                 {
-                    result.push_back(item.template as<value_type>());
+                    auto res = item.template try_as<value_type>();
+                    if (JSONCONS_UNLIKELY(!res))
+                    {
+                        return result_type(jsoncons::unexpect, conv_errc::not_vector);
+                    }
+                    result.push_back(std::move(res.value()));
                 }
 
                 return result_type(std::move(result));
@@ -624,7 +634,7 @@ has_can_convert = ext_traits::is_detected<traits_can_convert_t, Json, T>;
             }
             else
             {
-                return result_type(conv_errc::not_vector);
+                return result_type(jsoncons::unexpect, conv_errc::not_vector);
             }
         }
 
@@ -691,13 +701,13 @@ has_can_convert = ext_traits::is_detected<traits_can_convert_t, Json, T>;
     template <typename Json,typename T>
     struct json_conv_traits<Json, T, 
                             typename std::enable_if<!is_json_conv_traits_declared<T>::value && 
-                                                    jsoncons::detail::is_compatible_array_type<Json,T>::value &&
+                                                    detail::is_compatible_array_type<Json,T>::value &&
                                                     !ext_traits::is_back_insertable<T>::value &&
                                                     ext_traits::is_insertable<T>::value>::type>
     {
         typedef typename std::iterator_traits<typename T::iterator>::value_type value_type;
         using allocator_type = typename Json::allocator_type;
-        using result_type = conv_result<T>;
+        using result_type = conversion_result<T>;
 
         static bool is(const Json& j) noexcept
         {
@@ -723,14 +733,19 @@ has_can_convert = ext_traits::is_detected<traits_can_convert_t, Json, T>;
                 T result;
                 for (const auto& item : j.array_range())
                 {
-                    result.insert(item.template as<value_type>());
+                    auto res = item.template try_as<value_type>();
+                    if (JSONCONS_UNLIKELY(!res))
+                    {
+                        return result_type(jsoncons::unexpect, conv_errc::not_vector);
+                    }
+                    result.insert(std::move(res.value()));
                 }
 
                 return result_type(std::move(result));
             }
             else 
             {
-                return result_type(conv_errc::not_vector);
+                return result_type(jsoncons::unexpect, conv_errc::not_vector);
             }
         }
 
@@ -768,14 +783,14 @@ has_can_convert = ext_traits::is_detected<traits_can_convert_t, Json, T>;
     template <typename Json,typename T>
     struct json_conv_traits<Json, T, 
                             typename std::enable_if<!is_json_conv_traits_declared<T>::value && 
-                                                    jsoncons::detail::is_compatible_array_type<Json,T>::value &&
+                                                    detail::is_compatible_array_type<Json,T>::value &&
                                                     !ext_traits::is_back_insertable<T>::value &&
                                                     !ext_traits::is_insertable<T>::value &&
                                                     ext_traits::is_front_insertable<T>::value>::type>
     {
         typedef typename std::iterator_traits<typename T::iterator>::value_type value_type;
         using allocator_type = typename Json::allocator_type;
-        using result_type = conv_result<T>;
+        using result_type = conversion_result<T>;
 
         static bool is(const Json& j) noexcept
         {
@@ -804,14 +819,19 @@ has_can_convert = ext_traits::is_detected<traits_can_convert_t, Json, T>;
                 auto end = j.array_range().rend();
                 for (; it != end; ++it)
                 {
-                    result.push_front((*it).template as<value_type>());
+                    auto res = (*it).template try_as<value_type>();
+                    if (JSONCONS_UNLIKELY(!res))
+                    {
+                        return result_type(jsoncons::unexpect, conv_errc::not_vector);
+                    }
+                    result.push_front(std::move(res.value()));
                 }
 
                 return result_type(std::move(result));
             }
             else 
             {
-                return result_type(conv_errc::not_vector);
+                return result_type(jsoncons::unexpect, conv_errc::not_vector);
             }
         }
 
@@ -850,7 +870,7 @@ has_can_convert = ext_traits::is_detected<traits_can_convert_t, Json, T>;
     struct json_conv_traits<Json, std::array<E, N>>
     {
         using allocator_type = typename Json::allocator_type;
-        using result_type = conv_result<std::array<E, N>>;
+        using result_type = conversion_result<std::array<E, N>>;
 
         using value_type = E;
 
@@ -876,11 +896,16 @@ has_can_convert = ext_traits::is_detected<traits_can_convert_t, Json, T>;
             std::array<E, N> buff;
             if (j.size() != N)
             {
-                return result_type(conv_errc::not_array);
+                return result_type(jsoncons::unexpect, conv_errc::not_array);
             }
             for (std::size_t i = 0; i < N; i++)
             {
-                buff[i] = j[i].template as<E>();
+                auto res = j[i].template try_as<E>();
+                if (JSONCONS_UNLIKELY(!res))
+                {
+                    return result_type(jsoncons::unexpect, conv_errc::not_array);
+                }
+                buff[i] = std::move(res.value());
             }
             return result_type(std::move(buff));
         }
@@ -922,7 +947,7 @@ has_can_convert = ext_traits::is_detected<traits_can_convert_t, Json, T>;
         using value_type = typename T::value_type;
         using key_type = typename T::key_type;
         using allocator_type = typename Json::allocator_type;
-        using result_type = conv_result<T>;
+        using result_type = conversion_result<T>;
 
         static bool is(const Json& j) noexcept
         {
@@ -941,7 +966,7 @@ has_can_convert = ext_traits::is_detected<traits_can_convert_t, Json, T>;
         {
             if (!j.is_object())
             {
-                return result_type(conv_errc::not_map);
+                return result_type(jsoncons::unexpect, conv_errc::not_map);
             }
             T result;
             for (const auto& item : j.object_range())
@@ -978,7 +1003,7 @@ has_can_convert = ext_traits::is_detected<traits_can_convert_t, Json, T>;
         using value_type = typename T::value_type;
         using key_type = typename T::key_type;
         using allocator_type = typename Json::allocator_type;
-        using result_type = conv_result<T>;
+        using result_type = conversion_result<T>;
 
         static bool is(const Json& val) noexcept 
         {
@@ -1005,8 +1030,12 @@ has_can_convert = ext_traits::is_detected<traits_can_convert_t, Json, T>;
             for (const auto& item : val.object_range())
             {
                 Json j(item.key());
-                auto key = json_conv_traits<Json,key_type>::as(j);
-                result.emplace(std::move(key), item.value().template as<mapped_type>());
+                auto r = json_conv_traits<Json,key_type>::try_as(j);
+                if (!r)
+                {
+                    return result_type(r.error());
+                }
+                result.emplace(std::move(r.value()), item.value().template as<mapped_type>());
             }
 
             return result_type(std::move(result));
@@ -1114,7 +1143,7 @@ has_can_convert = ext_traits::is_detected<traits_can_convert_t, Json, T>;
 
     public:
         using allocator_type = typename Json::allocator_type;
-        using result_type = conv_result<std::tuple<E...>>;
+        using result_type = conversion_result<std::tuple<E...>>;
 
         static bool is(const Json& j) noexcept
         {
@@ -1151,7 +1180,7 @@ has_can_convert = ext_traits::is_detected<traits_can_convert_t, Json, T>;
     {
     public:
         using allocator_type = typename Json::allocator_type;
-        using result_type = conv_result<std::pair<T1,T2>>;
+        using result_type = conversion_result<std::pair<T1,T2>>;
 
         static bool is(const Json& j) noexcept
         {
@@ -1188,7 +1217,7 @@ has_can_convert = ext_traits::is_detected<traits_can_convert_t, Json, T>;
     {
     public:
         using allocator_type = typename Json::allocator_type;
-        using result_type = conv_result<T>;
+        using result_type = conversion_result<T>;
 
         static bool is(const Json& j) noexcept
         {
@@ -1214,7 +1243,7 @@ has_can_convert = ext_traits::is_detected<traits_can_convert_t, Json, T>;
     >::type>
     {
         using allocator_type = typename Json::allocator_type;
-        using result_type = conv_result<std::shared_ptr<ValueType>>;
+        using result_type = conversion_result<std::shared_ptr<ValueType>>;
 
         static bool is(const Json& j) noexcept
         {
@@ -1223,7 +1252,16 @@ has_can_convert = ext_traits::is_detected<traits_can_convert_t, Json, T>;
 
         static result_type try_as(const Json& j) 
         {
-            return j.is_null() ? result_type(std::shared_ptr<ValueType>(nullptr)) : result_type(std::make_shared<ValueType>(j.template as<ValueType>()));
+            if (j.is_null())
+            {
+                return result_type(std::shared_ptr<ValueType>(nullptr));
+            }
+            auto r = j.template try_as<ValueType>();
+            if (!r)
+            {
+                return result_type(r.error());
+            }
+            return result_type(std::make_shared<ValueType>(std::move(r.value())));
         }
 
         static Json to_json(const std::shared_ptr<ValueType>& ptr, 
@@ -1248,7 +1286,7 @@ has_can_convert = ext_traits::is_detected<traits_can_convert_t, Json, T>;
     >::type>
     {
         using allocator_type = typename Json::allocator_type;
-        using result_type = conv_result<std::unique_ptr<ValueType>>;
+        using result_type = conversion_result<std::unique_ptr<ValueType>>;
 
         static bool is(const Json& j) noexcept
         {
@@ -1257,7 +1295,16 @@ has_can_convert = ext_traits::is_detected<traits_can_convert_t, Json, T>;
 
         static result_type try_as(const Json& j) 
         {
-            return j.is_null() ? result_type(std::unique_ptr<ValueType>(nullptr)) : result_type(jsoncons::make_unique<ValueType>(j.template as<ValueType>()));
+            if (j.is_null())
+            {
+                return result_type(std::unique_ptr<ValueType>(nullptr));
+            }
+            auto r = j.template try_as<ValueType>();
+            if (!r)
+            {
+                return result_type(r.error());
+            }
+            return result_type(jsoncons::make_unique<ValueType>(std::move(r.value())));
         }
 
         static Json to_json(const std::unique_ptr<ValueType>& ptr,
@@ -1281,7 +1328,7 @@ has_can_convert = ext_traits::is_detected<traits_can_convert_t, Json, T>;
     {
         using allocator_type = typename Json::allocator_type;
     public:
-        using result_type = conv_result<jsoncons::optional<T>>;
+        using result_type = conversion_result<jsoncons::optional<T>>;
 
         static bool is(const Json& j) noexcept
         {
@@ -1290,7 +1337,16 @@ has_can_convert = ext_traits::is_detected<traits_can_convert_t, Json, T>;
         
         static result_type try_as(const Json& j)
         { 
-            return j.is_null() ? result_type(jsoncons::optional<T>()) : result_type(jsoncons::optional<T>(j.template as<T>()));
+            if (j.is_null())
+            {
+                return result_type(jsoncons::optional<T>());
+            }
+            auto r = j.template try_as<T>();
+            if (!r)
+            {
+                return result_type(r.error());
+            }
+            return result_type(jsoncons::optional<T>(std::move(r.value())));
         }
         
         static Json to_json(const jsoncons::optional<T>& val, 
@@ -1306,7 +1362,7 @@ has_can_convert = ext_traits::is_detected<traits_can_convert_t, Json, T>;
         using allocator_type = typename Json::allocator_type;
 
     public:
-        using result_type = conv_result<byte_string_view>;
+        using result_type = conversion_result<byte_string_view>;
 
         static bool is(const Json& j) noexcept
         {
@@ -1332,7 +1388,7 @@ has_can_convert = ext_traits::is_detected<traits_can_convert_t, Json, T>;
     public:
         using allocator_type = typename Json::allocator_type;
         using char_type = typename Json::char_type;
-        using result_type = conv_result<basic_bigint<Allocator>>;
+        using result_type = conversion_result<basic_bigint<Allocator>>;
 
         static bool is(const Json& j) noexcept
         {
@@ -1355,18 +1411,27 @@ has_can_convert = ext_traits::is_detected<traits_can_convert_t, Json, T>;
                 case json_type::string_value:
                     if (!jsoncons::utility::is_base10(j.as_string_view().data(), j.as_string_view().length()))
                     {
-                        return result_type(conv_errc::not_bigint);
+                        return result_type(jsoncons::unexpect, conv_errc::not_bigint);
                     }
                     return result_type(basic_bigint<Allocator>::from_string(j.as_string_view().data(), j.as_string_view().length()));
                 case json_type::half_value:
                 case json_type::double_value:
-                    return basic_bigint<Allocator>(j.template as<int64_t>());
+                {
+                    auto res = j.template try_as<int64_t>();
+                    return res ? result_type(jsoncons::in_place, res.value()) : result_type(jsoncons::unexpect, conv_errc::not_bigint);
+                }
                 case json_type::int64_value:
-                    return basic_bigint<Allocator>(j.template as<int64_t>());
+                {
+                    auto res = j.template try_as<int64_t>();
+                    return res ? result_type(jsoncons::in_place, res.value()) : result_type(jsoncons::unexpect, conv_errc::not_bigint);
+                }
                 case json_type::uint64_value:
-                    return basic_bigint<Allocator>(j.template as<uint64_t>());
+                {
+                    auto res = j.template try_as<uint64_t>();
+                    return res ? result_type(jsoncons::in_place, res.value()) : result_type(jsoncons::unexpect, conv_errc::not_bigint);
+                }
                 default:
-                    return result_type(conv_errc::not_bigint);
+                    return result_type(jsoncons::unexpect, conv_errc::not_bigint);
             }
         }
         
@@ -1391,7 +1456,7 @@ has_can_convert = ext_traits::is_detected<traits_can_convert_t, Json, T>;
     struct json_conv_traits<Json, std::valarray<T>>
     {
         using allocator_type = typename Json::allocator_type;
-        using result_type = conv_result<std::valarray<T>>;
+        using result_type = conversion_result<std::valarray<T>>;
 
         static bool is(const Json& j) noexcept
         {
@@ -1417,13 +1482,18 @@ has_can_convert = ext_traits::is_detected<traits_can_convert_t, Json, T>;
                 std::valarray<T> v(j.size());
                 for (std::size_t i = 0; i < j.size(); ++i)
                 {
-                    v[i] = j[i].template as<T>();
+                    auto res = j[i].template try_as<T>();
+                    if (JSONCONS_UNLIKELY(!res))
+                    {
+                        return result_type(jsoncons::unexpect, conv_errc::not_array);
+                    }
+                    v[i] = std::move(res.value());
                 }
                 return result_type(std::move(v));
             }
             else
             {
-                return result_type(conv_errc::not_array);
+                return result_type(jsoncons::unexpect, conv_errc::not_array);
             }
         }
         
@@ -1482,19 +1552,25 @@ namespace variant_detail
     }
 
     template<int N,typename Json,typename Variant,typename ... Args>
-    typename std::enable_if<N == std::variant_size_v<Variant>, conv_result<Variant>>::type
+    typename std::enable_if<N == std::variant_size_v<Variant>, conversion_result<Variant>>::type
     as_variant(const Json& /*j*/)
     {
-        return conv_result<Variant>(conv_errc::not_variant);
+        return conversion_result<Variant>(jsoncons::unexpect, conv_errc::not_variant);
     }
 
     template<std::size_t N,typename Json,typename Variant,typename T,typename ... U>
-    typename std::enable_if<N < std::variant_size_v<Variant>, conv_result<Variant>>::type
+    typename std::enable_if<N < std::variant_size_v<Variant>, conversion_result<Variant>>::type
     as_variant(const Json& j)
     {
-      if (j.template is<T>())
+        using result_type = conversion_result<Variant>;
+        if (j.template is<T>())
       {
-        return conv_result<Variant>(Variant(j.template as<T>()));
+          auto res = j.template try_as<T>();
+          if (JSONCONS_UNLIKELY(!res))
+          {
+              return result_type(jsoncons::unexpect, conv_errc::not_variant);
+          }
+          return conversion_result<Variant>(jsoncons::in_place, std::move(res.value()));
       }
       else
       {
@@ -1524,7 +1600,7 @@ namespace variant_detail
     public:
         using variant_type = typename std::variant<VariantTypes...>;
         using allocator_type = typename Json::allocator_type;
-        using result_type = conv_result<std::variant<VariantTypes...>>;
+        using result_type = conversion_result<std::variant<VariantTypes...>>;
 
         static bool is(const Json& j) noexcept
         {
@@ -1561,7 +1637,7 @@ namespace variant_detail
     {
         using duration_type = std::chrono::duration<Rep,Period>;
         using allocator_type = typename Json::allocator_type;
-        using result_type = conv_result<duration_type>;
+        using result_type = conversion_result<duration_type>;
 
         static constexpr int64_t nanos_in_milli = 1000000;
         static constexpr int64_t nanos_in_second = 1000000000;
@@ -1808,7 +1884,7 @@ namespace variant_detail
     struct json_conv_traits<Json,std::nullptr_t>
     {
         using allocator_type = typename Json::allocator_type;
-        using result_type = conv_result<std::nullptr_t>;
+        using result_type = conversion_result<std::nullptr_t>;
 
         static bool is(const Json& j) noexcept
         {
@@ -1819,7 +1895,7 @@ namespace variant_detail
         {
             if (!j.is_null())
             {
-                return result_type(conv_errc::not_nullptr);
+                return result_type(jsoncons::unexpect, conv_errc::not_nullptr);
             }
             return result_type(nullptr);
         }
@@ -1845,7 +1921,7 @@ namespace variant_detail
     struct json_conv_traits<Json, std::bitset<N>>
     {
         using allocator_type = typename Json::allocator_type;
-        using result_type = conv_result<std::bitset<N>>;
+        using result_type = conversion_result<std::bitset<N>>;
 
         static bool is(const Json& j) noexcept
         {
@@ -1885,7 +1961,7 @@ namespace variant_detail
                     auto result = base16_to_bytes(sv.begin(), sv.end(), bits);
                     if (result.ec != conv_errc::success)
                     {
-                        return result_type(conv_errc::not_bitset);
+                        return result_type(jsoncons::unexpect, conv_errc::not_bitset);
                     }
                 }
                 std::uint8_t byte = 0;
@@ -1898,7 +1974,7 @@ namespace variant_detail
                     {
                         if (pos >= bits.size())
                         {
-                            return result_type(conv_errc::not_bitset);
+                            return result_type(jsoncons::unexpect, conv_errc::not_bitset);
                         }
                         byte = bits.at(pos++);
                         mask = 0x80;
@@ -1911,11 +1987,11 @@ namespace variant_detail
 
                     mask = static_cast<std::uint8_t>(mask >> 1);
                 }
-                return bs;
+                return result_type(std::move(bs));
             }
             else
             {
-                return result_type(conv_errc::not_bitset);
+                return result_type(jsoncons::unexpect, conv_errc::not_bitset);
             }
         }
 

@@ -20,7 +20,6 @@
 #include <jsoncons/allocator_set.hpp>
 #include <jsoncons/basic_json.hpp>
 #include <jsoncons/config/compiler_support.hpp>
-#include <jsoncons/conv_error.hpp>
 #include <jsoncons/json_cursor.hpp>
 #include <jsoncons/json_exception.hpp>
 #include <jsoncons/json_type.hpp>
@@ -50,15 +49,18 @@ struct decode_traits
     {
         std::error_code ec;
         
+        std::size_t line = cursor.line(); 
+        std::size_t column = cursor.column();
         using json_type = basic_json<CharT>;
         auto j = try_to_json<json_type>(cursor, ec);
         if (JSONCONS_UNLIKELY(ec))
         {
-            return result_type(read_error{ec, cursor.line(), cursor.column()});
+            return result_type(jsoncons::unexpect, ec, cursor.line(), cursor.column());
         }
-        auto result = reflect::json_conv_traits<json_type, value_type>::try_as(j);
+        auto conv_res = reflect::json_conv_traits<json_type, value_type>::try_as(j);
 
-        return result ? result_type(std::move(result.value())) : result_type(read_error{result.error(), cursor.line(), cursor.column()});
+        return conv_res ? result_type(std::move(*conv_res)) : result_type(jsoncons::unexpect, 
+            conv_res.error().code(), conv_res.error().message(), line, column);
     }
 };
 
@@ -80,7 +82,7 @@ struct decode_traits<T,
         std::error_code ec;
         
         T v = cursor.current().template get<value_type>(ec);
-        return ec ? result_type{read_error{ec, cursor.line(), cursor.column()}} : result_type{std::move(v)};
+        return ec ? result_type{jsoncons::unexpect, ec, cursor.line(), cursor.column()} : result_type{std::move(v)};
     }
 };
 
@@ -100,7 +102,7 @@ struct decode_traits<T,
         std::error_code ec;
 
         T v = cursor.current().template get<value_type>(ec);
-        return ec ? result_type{read_error{ec, cursor.line(), cursor.column()}} : result_type{std::move(v)};
+        return ec ? result_type{jsoncons::unexpect, ec, cursor.line(), cursor.column()} : result_type{std::move(v)};
     }
 
     template <typename CharT>
@@ -112,7 +114,7 @@ struct decode_traits<T,
         auto val = cursor.current().template get<std::basic_string<CharT>>(ec);
         if (JSONCONS_UNLIKELY(ec))
         {
-            return result_type(read_error{ec, cursor.line(), cursor.column()});
+            return result_type(jsoncons::unexpect, ec, cursor.line(), cursor.column());
         }
         else
         {
@@ -139,16 +141,16 @@ struct decode_traits<std::pair<T1, T2>>
         cursor.array_expected(ec);
         if (JSONCONS_UNLIKELY(ec))
         {
-            return result_type(read_error{ec, cursor.line(), cursor.column()});
+            return result_type(jsoncons::unexpect, ec, cursor.line(), cursor.column());
         }
         if (cursor.current().event_type() != staj_event_type::begin_array)
         {
-            return result_type(read_error{conv_errc::not_pair, cursor.line(), cursor.column()});
+            return result_type(jsoncons::unexpect, conv_errc::not_pair, cursor.line(), cursor.column());
         }
         cursor.next(ec); // skip past array
         if (JSONCONS_UNLIKELY(ec))
         {
-            return result_type(read_error{ec, cursor.line(), cursor.column()});
+            return result_type(jsoncons::unexpect, ec, cursor.line(), cursor.column());
         }
 
         auto r1 = decode_traits<T1>::try_decode(cursor);
@@ -159,7 +161,7 @@ struct decode_traits<std::pair<T1, T2>>
         cursor.next(ec);
         if (JSONCONS_UNLIKELY(ec)) 
         {
-            return result_type(read_error{ec, cursor.line(), cursor.column()});
+            return result_type(jsoncons::unexpect, ec, cursor.line(), cursor.column());
         }
         auto r2 = decode_traits<T2>::try_decode(cursor);
         if (JSONCONS_UNLIKELY(!r2.has_value())) 
@@ -169,12 +171,12 @@ struct decode_traits<std::pair<T1, T2>>
         cursor.next(ec);
         if (JSONCONS_UNLIKELY(ec))
         {
-            return result_type(read_error{ec, cursor.line(), cursor.column()});
+            return result_type(jsoncons::unexpect, ec, cursor.line(), cursor.column());
         }
 
         if (cursor.current().event_type() != staj_event_type::end_array)
         {
-            return result_type(read_error{conv_errc::not_pair, cursor.line(), cursor.column()}); 
+            return result_type(jsoncons::unexpect, conv_errc::not_pair, cursor.line(), cursor.column()); 
         }
         return result_type{std::make_pair(std::move(r1.value()), std::move(r2.value()))};
     }
@@ -202,13 +204,14 @@ struct decode_traits<T,
         cursor.array_expected(ec);
         if (JSONCONS_UNLIKELY(ec))
         {
-            return result_type(read_error{ec, cursor.line(), cursor.column()});
+            return result_type(jsoncons::unexpect, ec, cursor.line(), cursor.column());
         }
         if (cursor.current().event_type() != staj_event_type::begin_array)
         {
-            return result_type(read_error{conv_errc::not_vector, cursor.line(), cursor.column()}); 
+            return result_type(jsoncons::unexpect, conv_errc::not_vector, cursor.line(), cursor.column()); 
         }
         cursor.next(ec);
+        if (JSONCONS_UNLIKELY(ec)) { return result_type(jsoncons::unexpect, ec, cursor.line(), cursor.column()); }
         while (cursor.current().event_type() != staj_event_type::end_array && !ec)
         {
             auto r = decode_traits<element_type>::try_decode(cursor);
@@ -217,9 +220,9 @@ struct decode_traits<T,
                 return result_type(r.error()); 
             }
             v.push_back(std::move(r.value()));
-            if (JSONCONS_UNLIKELY(ec)) {return result_type(read_error{ec, cursor.line(), cursor.column()});}
             //std::cout << "read next 10\n";
             cursor.next(ec);
+            if (JSONCONS_UNLIKELY(ec)) { return result_type(jsoncons::unexpect, ec, cursor.line(), cursor.column()); }
         }
         return result_type{std::move(v)};
     }
@@ -367,7 +370,7 @@ struct decode_traits<T,
         cursor.array_expected(ec);
         if (JSONCONS_UNLIKELY(ec))
         {
-            return result_type(read_error{ec, cursor.line(), cursor.column()});
+            return result_type(jsoncons::unexpect, ec, cursor.line(), cursor.column());
         }
         switch (cursor.current().event_type())
         {
@@ -390,7 +393,7 @@ struct decode_traits<T,
                 }
                 else
                 {
-                    return result_type(read_error{ec, cursor.line(), cursor.column()});
+                    return result_type(jsoncons::unexpect, ec, cursor.line(), cursor.column());
                 }
             }
             case staj_event_type::begin_array:
@@ -406,7 +409,7 @@ struct decode_traits<T,
             }
             default:
             {
-                return result_type(read_error{conv_errc::not_vector, cursor.line(), cursor.column()}); 
+                return result_type(jsoncons::unexpect, conv_errc::not_vector, cursor.line(), cursor.column()); 
             }
         }
     }
@@ -441,7 +444,7 @@ struct decode_traits<T,
         cursor.array_expected(ec);
         if (JSONCONS_UNLIKELY(ec))
         {
-            return result_type(read_error{ec, cursor.line(), cursor.column()});
+            return result_type(jsoncons::unexpect, ec, cursor.line(), cursor.column());
         }
         switch (cursor.current().event_type())
         {
@@ -458,7 +461,7 @@ struct decode_traits<T,
             }
             default:
             {
-                return result_type(read_error{conv_errc::not_vector, cursor.line(), cursor.column()}); 
+                return result_type(jsoncons::unexpect, conv_errc::not_vector, cursor.line(), cursor.column()); 
             }
         }
     }
@@ -495,11 +498,11 @@ struct decode_traits<T,
         cursor.array_expected(ec);
         if (JSONCONS_UNLIKELY(ec))
         {
-            return result_type(read_error{ec, cursor.line(), cursor.column()});
+            return result_type(jsoncons::unexpect, ec, cursor.line(), cursor.column());
         }
         if (cursor.current().event_type() != staj_event_type::begin_array)
         {
-            return result_type(read_error{conv_errc::not_vector, cursor.line(), cursor.column()}); 
+            return result_type(jsoncons::unexpect, conv_errc::not_vector, cursor.line(), cursor.column()); 
         }
         if (cursor.current().size() > 0)
         {
@@ -514,10 +517,10 @@ struct decode_traits<T,
                 return result_type(r.error());
             }
             v.insert(std::move(r.value()));
-            if (JSONCONS_UNLIKELY(ec)) {return result_type(read_error{ec, cursor.line(), cursor.column()});}
+            if (JSONCONS_UNLIKELY(ec)) {return result_type(jsoncons::unexpect, ec, cursor.line(), cursor.column());}
             //std::cout << "cursor.next 20\n";
             cursor.next(ec);
-            if (JSONCONS_UNLIKELY(ec)) {return result_type{read_error{ec, cursor.line(), cursor.column()}};}
+            if (JSONCONS_UNLIKELY(ec)) {return result_type{jsoncons::unexpect, ec, cursor.line(), cursor.column()};}
         }
         return result_type{std::move(v)};
     }
@@ -550,7 +553,7 @@ struct decode_traits<std::array<T,N>>
         cursor.array_expected(ec);
         if (JSONCONS_UNLIKELY(ec))
         {
-            return result_type(read_error{ec, cursor.line(), cursor.column()});
+            return result_type(jsoncons::unexpect, ec, cursor.line(), cursor.column());
         }
         v.fill(T{});
         if (cursor.current().event_type() != staj_event_type::begin_array)
@@ -615,13 +618,13 @@ struct decode_traits<T,
             auto key = cursor.current().template get<key_type>(ec);
             if (JSONCONS_UNLIKELY(ec)) 
             {
-                return result_type{read_error{ec, cursor.line(), cursor.column()}}; 
+                return result_type{jsoncons::unexpect, ec, cursor.line(), cursor.column()}; 
             }
             //std::cout << "cursor.next 200\n";
             cursor.next(ec);
             if (JSONCONS_UNLIKELY(ec)) 
             {
-                return result_type{read_error{ec, cursor.line(), cursor.column()}}; 
+                return result_type{jsoncons::unexpect, ec, cursor.line(), cursor.column()}; 
             }
             auto r = decode_traits<mapped_type>::try_decode(cursor);
             if (!r)
@@ -633,7 +636,7 @@ struct decode_traits<T,
             cursor.next(ec);
             if (JSONCONS_UNLIKELY(ec)) 
             {
-                return result_type{read_error{ec, cursor.line(), cursor.column()}}; 
+                return result_type{jsoncons::unexpect, ec, cursor.line(), cursor.column()}; 
             }
         }
         return result_type{std::move(val)};
@@ -686,7 +689,7 @@ struct decode_traits<T,
             auto s = cursor.current().template get<jsoncons::basic_string_view<CharT>>(ec);
             if (JSONCONS_UNLIKELY(ec))
             {
-                return result_type{read_error{ec, cursor.line(), cursor.column()}}; 
+                return result_type{jsoncons::unexpect, ec, cursor.line(), cursor.column()}; 
             }
             key_type n{0};
             auto r = jsoncons::utility::to_integer(s.data(), s.size(), n); 
@@ -698,7 +701,7 @@ struct decode_traits<T,
             cursor.next(ec);
             if (JSONCONS_UNLIKELY(ec))
             {
-                return result_type{read_error{ec, cursor.line(), cursor.column()}}; 
+                return result_type{jsoncons::unexpect, ec, cursor.line(), cursor.column()}; 
             }
             auto r1 = decode_traits<mapped_type>::try_decode(cursor);
             if (!r1)
@@ -710,7 +713,7 @@ struct decode_traits<T,
             cursor.next(ec);
             if (JSONCONS_UNLIKELY(ec)) 
             {
-                return result_type{read_error{ec, cursor.line(), cursor.column()}}; 
+                return result_type{jsoncons::unexpect, ec, cursor.line(), cursor.column()}; 
             }
         }
         return result_type{std::move(val)};

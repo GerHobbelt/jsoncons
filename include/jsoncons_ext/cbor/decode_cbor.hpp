@@ -65,7 +65,7 @@ try_decode_cbor(const Source& v,
     basic_cbor_cursor<bytes_source> cursor(v, options, ec);
     if (JSONCONS_UNLIKELY(ec))
     {
-        return result_type{read_error{ec, cursor.line(), cursor.column()}};
+        return result_type{jsoncons::unexpect, ec, cursor.line(), cursor.column()};
     }
 
     return reflect::decode_traits<T>::try_decode(cursor);
@@ -107,7 +107,7 @@ try_decode_cbor(std::istream& is,
     basic_cbor_cursor<binary_stream_source> cursor(is, options, ec);
     if (JSONCONS_UNLIKELY(ec))
     {
-        return result_type{read_error{ec, cursor.line(), cursor.column()}};
+        return result_type{jsoncons::unexpect, ec, cursor.line(), cursor.column()};
     }
 
     return reflect::decode_traits<T>::try_decode(cursor);
@@ -149,7 +149,7 @@ try_decode_cbor(InputIt first, InputIt last,
     basic_cbor_cursor<binary_iterator_source<InputIt>> cursor(binary_iterator_source<InputIt>(first, last), options, ec);
     if (JSONCONS_UNLIKELY(ec))
     {
-        return result_type{read_error{ec, cursor.line(), cursor.column()}};
+        return result_type{jsoncons::unexpect, ec, cursor.line(), cursor.column()};
     }
 
     return reflect::decode_traits<T>::try_decode(cursor);
@@ -197,7 +197,7 @@ try_decode_cbor(const allocator_set<Allocator,TempAllocator>& alloc_set,
     basic_cbor_cursor<bytes_source,TempAllocator> cursor(std::allocator_arg, alloc_set.get_temp_allocator(), v, options, ec);
     if (JSONCONS_UNLIKELY(ec))
     {
-        return result_type{read_error{ec, cursor.line(), cursor.column()}};
+        return result_type{jsoncons::unexpect, ec, cursor.line(), cursor.column()};
     }
 
     return reflect::decode_traits<T>::try_decode(cursor);
@@ -241,7 +241,7 @@ try_decode_cbor(const allocator_set<Allocator,TempAllocator>& alloc_set,
     basic_cbor_cursor<binary_stream_source,TempAllocator> cursor(std::allocator_arg, alloc_set.get_temp_allocator(), is, options, ec);
     if (JSONCONS_UNLIKELY(ec))
     {
-        return result_type{read_error{ec, cursor.line(), cursor.column()}};
+        return result_type{jsoncons::unexpect, ec, cursor.line(), cursor.column()};
     }
 
     return reflect::decode_traits<T>::try_decode(cursor);
@@ -253,7 +253,7 @@ T decode_cbor(Args&& ... args)
     auto result = try_decode_cbor<T>(std::forward<Args>(args)...); 
     if (!result)
     {
-        JSONCONS_THROW(ser_error(result.error().ec(), result.error().line(), result.error().column()));
+        JSONCONS_THROW(ser_error(result.error().code(), result.error().line(), result.error().column()));
     }
     return std::move(result.value());
 }
