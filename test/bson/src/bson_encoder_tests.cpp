@@ -29,17 +29,12 @@ namespace {
     void check_equal(const std::vector<uint8_t>& v, const std::vector<uint8_t>& expected)
     {
         test_equal(v, expected);
-        JSONCONS_TRY
-        {
-            json j = bson::decode_bson<json>(v);
-            std::vector<uint8_t> u;
-            bson::encode_bson(j, u);
-            test_equal(v,u);
-        }
-        JSONCONS_CATCH (const std::exception& e)
-        {
-            std::cout << e.what() << '\n';
-        }
+        auto result = bson::try_decode_bson<json>(v);
+        REQUIRE(result);
+        json& j(*result);
+        std::vector<uint8_t> u;
+        bson::encode_bson(j, u);
+        test_equal(v,u);
     }
 }
 
@@ -243,14 +238,8 @@ TEST_CASE("serialize object to bson")
     encoder.end_object();
     encoder.flush();
 
-    JSONCONS_TRY
-    {
-        json result = bson::decode_bson<json>(v);
-    }
-    JSONCONS_CATCH (const std::exception& e)
-    {
-        std::cout << e.what() << '\n';
-    }
+    auto result = bson::try_decode_bson<json>(v);
+    REQUIRE(result);
 }
 
 struct bson_bytes_encoder_reset_test_fixture
