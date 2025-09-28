@@ -47,19 +47,30 @@ namespace jsoncons {
             JSONCONS_STR( 0 ))); }
 #endif // _DEBUG
 
-#if defined(JSONCONS_HAS_2017)
-#  define JSONCONS_FALLTHROUGH [[fallthrough]]
-#elif defined(__clang__)
-#  define JSONCONS_FALLTHROUGH [[clang::fallthrough]]
-#elif defined(__GNUC__) && ((__GNUC__ >= 7))
-#  define JSONCONS_FALLTHROUGH __attribute__((fallthrough))
-#elif defined (__GNUC__)
-#  define JSONCONS_FALLTHROUGH // FALLTHRU
+#include <jsoncons/detail/utility.hpp>
+namespace jsoncons {
+using jsoncons::detail::in_place_t;
+JSONCONS_INLINE_CONSTEXPR in_place_t in_place{};
+} // namespace jsoncons
+
+#if !defined(JSONCONS_HAS_STD_EXPECTED)
+  #include <jsoncons/detail/result.hpp>
+  namespace jsoncons {
+  using jsoncons::detail::result;
+  using jsoncons::detail::unexpect_t;
+  using jsoncons::detail::unexpect;
+  } // namespace jsoncons
 #else
-#  define JSONCONS_FALLTHROUGH
+  #include <expected>
+  namespace jsoncons {
+  template <typename R,typename E>
+  using result = std::expected<R,E>;
+  using unexpect_t = std::unexpect_t;
+  JSONCONS_INLINE_CONSTEXPR unexpect_t unexpect{};
+  } // namespace jsoncons
 #endif
         
-#include <jsoncons/detail/obj_uses_allocator.hpp>
+#include <jsoncons/detail/make_obj_using_allocator.hpp>
 namespace jsoncons {
 using jsoncons::detail::make_obj_using_allocator;
 } // namespace jsoncons

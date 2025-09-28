@@ -4,25 +4,19 @@
 
 // See https://github.com/danielaparker/jsoncons2 for latest version
 
-#ifndef JSONCONS_RESULT_HPP    
-#define JSONCONS_RESULT_HPP    
+#ifndef JSONCONS_DETAIL_RESULT_HPP    
+#define JSONCONS_DETAIL_RESULT_HPP    
 
 #include <system_error>
 #include <type_traits>
-#include <jsoncons/config/jsoncons_config.hpp>
+#include <jsoncons/config/compiler_support.hpp>
+#include <jsoncons/detail/utility.hpp>
 #include <jsoncons/json_exception.hpp>
-#include <jsoncons/conv_error.hpp>
 #include <cassert>
 
 namespace jsoncons {
+namespace detail {
     
-struct in_place_t
-{
-    explicit in_place_t() = default; 
-};
-
-JSONCONS_INLINE_CONSTEXPR in_place_t in_place{};
-
 struct unexpect_t
 {
     explicit unexpect_t() = default; 
@@ -43,6 +37,11 @@ private:
         T value_;
     };
 public:
+    template <typename U=T>
+    result(typename std::enable_if<std::is_default_constructible<U>::value, int>::type = 0)
+        : result(T{})
+    {
+    }
 
     result(const T& value) 
         : has_value_(true)
@@ -50,29 +49,17 @@ public:
         construct(value);
     }
 
-     result(T&& value) noexcept
-         : has_value_(true)
-     {
-         construct(std::move(value));
-     }
-
-     template <typename... Args>    
-     result(in_place_t, Args&& ... args) noexcept
-         : has_value_(true)
-     {
-         ::new (&value_) T(std::forward<Args>(args)...);
-     }
-
-     result(const E& err)
-        : has_value_(false)
+    result(T&& value) noexcept
+        : has_value_(true)
     {
-        ::new (&error_) E(err);
+        construct(std::move(value));
     }
 
-    result(E&& err) noexcept
-        : has_value_(false)
+    template <typename... Args>    
+    result(jsoncons::detail::in_place_t, Args&& ... args) noexcept
+        : has_value_(true)
     {
-        ::new (&error_) E(std::move(err));
+        ::new (&value_) T(std::forward<Args>(args)...);
     }
 
     template <typename... Args>    
@@ -328,6 +315,149 @@ private:
     }
 };
 
+template <typename E>
+class result<void,E>
+{
+public:
+    using value_type = void;
+    using error_type = E;
+private:
+    bool has_value_;
+    union {
+        char dummy_;
+        E error_;
+    };
+public:
+
+    result()
+        : has_value_(true), dummy_{}
+    {
+    }
+
+    template <typename... Args>    
+    result(unexpect_t, Args&& ... args) noexcept
+        : has_value_(false)
+    {
+        ::new (&error_) E(std::forward<Args>(args)...);
+    }
+    
+    // copy constructors
+    result(const result<void,E>& other) 
+        : has_value_(other.has_value()), dummy_{}
+    {
+        if (!other)
+        {
+            ::new (&error_) E(other.error_);
+        }
+    }
+
+    // move constructors
+    result(result<void,E>&& other) noexcept
+        : has_value_(other.has_value()), dummy_{}
+    {
+        if (!other)
+        {
+            ::new (&error_) E(other.error_);
+        }
+    }
+
+    ~result() noexcept
+    {
+        destroy();
+    }
+
+    result& operator=(const result& other)
+    {
+        if (other)
+        {
+            assign(*other);
+        }
+        else
+        {
+            destroy();
+            ::new (&error_) E(other.error_);
+        }
+        return *this;
+    }
+
+    result& operator=(result&& other)
+    {
+        if (other)
+        {
+            assign(std::move(*other));
+        }
+        else
+        {
+            destroy();
+            ::new (&error_) E(other.error_);
+        }
+        return *this;
+    }
+
+    constexpr operator bool() const noexcept
+    {
+        return has_value_;
+    }
+    
+    constexpr bool has_value() const noexcept
+    {
+        return has_value_;
+    }
+
+    JSONCONS_CPP14_CONSTEXPR E& error() & noexcept
+    {
+        assert(!has_value_);
+        return this->error_;
+    }
+
+    JSONCONS_CPP14_CONSTEXPR const E& error() const& noexcept
+    {
+        assert(!has_value_);
+        return this->error_;
+    }
+
+    JSONCONS_CPP14_CONSTEXPR E&& error() && noexcept
+    {
+        assert(!has_value_);
+        return std::move(this->error_);
+    }
+
+    JSONCONS_CPP14_CONSTEXPR const E&& error() const && noexcept
+    {
+        assert(!has_value_);
+        return std::move(this->error_);
+    }
+
+    void swap(result& other) noexcept
+    {
+        const bool contains_a_value = has_value();
+        if (contains_a_value == other.has_value())
+        {
+            if (contains_a_value)
+            {
+                using std::swap;
+                swap(**this, *other);
+            }
+        }
+        else
+        {
+            result& source = contains_a_value ? *this : other;
+            result& target = contains_a_value ? other : *this;
+            target = result<void,E>(*source);
+            source.destroy();
+            source.error_ = target.error_;
+        }
+    }
+private:
+    void destroy() noexcept 
+    {
+        if (!has_value_) 
+        {
+            error_.~E();
+        }
+    }
+};
+
 template <typename T,typename E>
 typename std::enable_if<std::is_nothrow_move_constructible<T>::value,void>::type
 swap(result<T,E>& lhs, result<T,E>& rhs) noexcept
@@ -335,6 +465,7 @@ swap(result<T,E>& lhs, result<T,E>& rhs) noexcept
     lhs.swap(rhs);
 }
 
-} // jsoncons
+} // namespace detail
+} // namespace jsoncons
 
-#endif // JSONCONS_RESULT_HPP
+#endif // JSONCONS_DETAIL_RESULT_HPP

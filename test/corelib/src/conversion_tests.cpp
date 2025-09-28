@@ -2,7 +2,7 @@
 // Distributed under Boost license
 
 #include <jsoncons/utility/more_type_traits.hpp>
-#include <jsoncons/value_converter.hpp>
+#include <jsoncons/conversion.hpp>
 #include <vector>
 #include <catch/catch.hpp>
 
@@ -14,25 +14,19 @@ TEST_CASE("convert into string")
 
     SECTION("from byte_string into string")
     {
-        value_converter<byte_string_view,std::string> converter;
-
         std::string expected = "Zm9vYmFy";
 
-        std::error_code ec;
-        std::string s = converter.convert(byte_string_view(bytes), semantic_tag::base64url, ec);
-        REQUIRE(!ec); 
+        std::string s;
+        bytes_to_string(bytes.begin(), bytes.end(), semantic_tag::base64url, s);
         
         CHECK(expected == s);
     }
     SECTION("from byte string into wstring")
     {
-        value_converter<byte_string_view,std::wstring> converter;
-
         std::wstring expected = L"Zm9vYmFy";
 
-        std::error_code ec;
-        std::wstring s = converter.convert(byte_string_view(bytes), semantic_tag::base64url, ec);
-        REQUIRE(!ec);
+        std::wstring s;
+        bytes_to_string(bytes.begin(), bytes.end(), semantic_tag::base64url, s);
 
         CHECK(expected == s);
     }

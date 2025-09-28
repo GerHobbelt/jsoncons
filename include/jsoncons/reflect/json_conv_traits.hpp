@@ -33,10 +33,9 @@
 #include <jsoncons/utility/bigint.hpp>
 #include <jsoncons/utility/byte_string.hpp>
 #include <jsoncons/utility/more_type_traits.hpp>
-#include <jsoncons/value_converter.hpp>
+#include <jsoncons/conversion.hpp>
 #include <jsoncons/conversion_result.hpp>
 #include <jsoncons/json_type_traits.hpp>
-#include <jsoncons/json_uses_allocator.hpp>
 
 #if defined(JSONCONS_HAS_STD_VARIANT)
   #include <variant>
@@ -168,7 +167,7 @@ has_can_convert = ext_traits::is_detected<traits_can_convert_t, Json, T>;
         template <typename Alloc>
         static Json to_json(const Alloc& alloc, const char_type* s)
         {
-            return make_json_using_allocator<Json>(alloc, s, semantic_tag::none);
+            return jsoncons::make_obj_using_allocator<Json>(alloc, s, semantic_tag::none);
         }
     };
 
@@ -185,7 +184,7 @@ has_can_convert = ext_traits::is_detected<traits_can_convert_t, Json, T>;
         template <typename Alloc>
         static Json to_json(const Alloc& alloc, const char_type* s)
         {
-            return make_json_using_allocator<Json>(alloc, s, semantic_tag::none);
+            return jsoncons::make_obj_using_allocator<Json>(alloc, s, semantic_tag::none);
         }
     };
 
@@ -235,7 +234,7 @@ has_can_convert = ext_traits::is_detected<traits_can_convert_t, Json, T>;
         template <typename Alloc>
         static Json to_json(const Alloc& alloc, T val)
         {
-            return make_json_using_allocator<Json>(alloc, val, semantic_tag::none);
+            return jsoncons::make_obj_using_allocator<Json>(alloc, val, semantic_tag::none);
         }
     };
 
@@ -256,7 +255,7 @@ has_can_convert = ext_traits::is_detected<traits_can_convert_t, Json, T>;
             auto result = j.try_as_double();
             if (JSONCONS_UNLIKELY(!result))
             {
-                return result_type(result.error().code());
+                return result_type(jsoncons::unexpect, result.error().code());
             }
             return result_type(static_cast<T>(*result));
         }
@@ -320,7 +319,7 @@ has_can_convert = ext_traits::is_detected<traits_can_convert_t, Json, T>;
         template <typename Alloc>
         static Json to_json(const Alloc& alloc, const Json& val)
         {
-            return make_json_using_allocator<Json>(alloc, val);
+            return jsoncons::make_obj_using_allocator<Json>(alloc, val);
         }
     };
 
@@ -426,6 +425,7 @@ has_can_convert = ext_traits::is_detected<traits_can_convert_t, Json, T>;
                                                     std::is_same<typename Json::char_type,typename T::value_type>::value>::type>
     {
         using result_type = conversion_result<T>;
+        using char_type = typename T::value_type;
 
         static bool is(const Json& j) noexcept
         {
@@ -433,15 +433,16 @@ has_can_convert = ext_traits::is_detected<traits_can_convert_t, Json, T>;
         }
 
         template<typename Alloc,typename TempAlloc>
-        static result_type try_as(const allocator_set<Alloc,TempAlloc>&, const Json& j)
+        static result_type try_as(const allocator_set<Alloc,TempAlloc>& aset, const Json& j)
         {
-            return result_type{jsoncons::in_place, j.as_string()};
+            auto s = j.template as_string<typename T::allocator_type>(aset.get_allocator());
+            return result_type{std::move(s)};
         }
 
         template <typename Alloc>
         static Json to_json(const Alloc& alloc, const T& val)
         {
-            return make_json_using_allocator<Json>(alloc, val, semantic_tag::none);
+            return jsoncons::make_obj_using_allocator<Json>(alloc, val, semantic_tag::none);
         }
     };
 
@@ -473,7 +474,7 @@ has_can_convert = ext_traits::is_detected<traits_can_convert_t, Json, T>;
         {
             std::basic_string<char_type> s;
             unicode_traits::convert(val.data(), val.size(), s);
-            return make_json_using_allocator<Json>(alloc, s, semantic_tag::none);
+            return jsoncons::make_obj_using_allocator<Json>(alloc, s, semantic_tag::none);
         }
     };
 
@@ -500,7 +501,7 @@ has_can_convert = ext_traits::is_detected<traits_can_convert_t, Json, T>;
         template <typename Alloc>
         static Json to_json(const Alloc& alloc, const T& val)
         {
-            return make_json_using_allocator<Json>(alloc, val, semantic_tag::none);
+            return jsoncons::make_obj_using_allocator<Json>(alloc, val, semantic_tag::none);
         }
     };
 
@@ -587,7 +588,7 @@ has_can_convert = ext_traits::is_detected<traits_can_convert_t, Json, T>;
                 auto v = converter.convert(j.as_byte_string_view(),j.tag(), ec);
                 if (JSONCONS_UNLIKELY(ec))
                 {
-                    return result_type(ec);
+                    return result_type(jsoncons::unexpect, ec);
                 }
                 return v;
             }
@@ -597,7 +598,7 @@ has_can_convert = ext_traits::is_detected<traits_can_convert_t, Json, T>;
                 auto v = converter.convert(j.as_string_view(),j.tag(), ec);
                 if (JSONCONS_UNLIKELY(ec))
                 {
-                    return result_type(ec);
+                    return result_type(jsoncons::unexpect, ec);
                 }
                 return v;
             }
@@ -675,7 +676,7 @@ has_can_convert = ext_traits::is_detected<traits_can_convert_t, Json, T>;
         {
             if (j.is_array())
             {
-                T result;
+                T result = jsoncons::make_obj_using_allocator<T>(aset.get_allocator());
                 for (const auto& item : j.array_range())
                 {
                     auto res = item.template try_as<value_type>(aset);
@@ -745,7 +746,7 @@ has_can_convert = ext_traits::is_detected<traits_can_convert_t, Json, T>;
         {
             if (j.is_array())
             {
-                T result;
+                T result = jsoncons::make_obj_using_allocator<T>(aset.get_allocator());
 
                 auto it = j.array_range().rbegin();
                 auto end = j.array_range().rend();
@@ -847,7 +848,7 @@ has_can_convert = ext_traits::is_detected<traits_can_convert_t, Json, T>;
     struct json_conv_traits<Json, T, 
                             typename std::enable_if<!is_json_conv_traits_declared<T>::value && 
                                                     ext_traits::is_map_like<T>::value &&
-                                                    ext_traits::is_constructible_from_const_pointer_and_size<typename T::key_type>::value &&
+                                                    ext_traits::is_string<typename T::key_type>::value &&
                                                     is_json_conv_traits_specialized<Json,typename T::mapped_type>::value>::type
     >
     {
@@ -876,15 +877,17 @@ has_can_convert = ext_traits::is_detected<traits_can_convert_t, Json, T>;
             {
                 return result_type(jsoncons::unexpect, conv_errc::not_map);
             }
-            T result;
+            T result = jsoncons::make_obj_using_allocator<T>(aset.get_allocator());
             for (const auto& item : j.object_range())
             {
-                auto res = item.value().template try_as<mapped_type>(aset);
-                if (!res)
+                auto key = jsoncons::make_obj_using_allocator<key_type>(aset.get_allocator(), 
+                    item.key().data(), item.key().size());
+                auto r2 = item.value().template try_as<mapped_type>(aset);
+                if (!r2)
                 {
-                    return result_type(jsoncons::unexpect, res.error().code(), res.error().message_arg());
+                    return result_type(jsoncons::unexpect, r2.error().code(), r2.error().message_arg());
                 }
-                result.emplace(key_type(item.key().data(),item.key().size()), std::move(*res));
+                result.emplace(std::move(key), std::move(*r2));
             }
 
             return result_type(std::move(result));
@@ -893,7 +896,7 @@ has_can_convert = ext_traits::is_detected<traits_can_convert_t, Json, T>;
         template <typename Alloc>
         static Json to_json(const Alloc& alloc, const T& val)
         {
-            return make_json_using_allocator<Json>(alloc, json_object_arg, val.begin(), val.end(), semantic_tag::none);
+            return jsoncons::make_obj_using_allocator<Json>(alloc, json_object_arg, val.begin(), val.end(), semantic_tag::none);
         }
     };
 
@@ -901,7 +904,7 @@ has_can_convert = ext_traits::is_detected<traits_can_convert_t, Json, T>;
     struct json_conv_traits<Json, T, 
                             typename std::enable_if<!is_json_conv_traits_declared<T>::value && 
                                                     ext_traits::is_map_like<T>::value &&
-                                                    !ext_traits::is_constructible_from_const_pointer_and_size<typename T::key_type>::value &&
+                                                    !ext_traits::is_string<typename T::key_type>::value &&
                                                     is_json_conv_traits_specialized<Json,typename T::key_type>::value &&
                                                     is_json_conv_traits_specialized<Json,typename T::mapped_type>::value>::type
     >
@@ -931,18 +934,23 @@ has_can_convert = ext_traits::is_detected<traits_can_convert_t, Json, T>;
         }
 
         template <typename Alloc, typename TempAlloc>
-        static result_type try_as(const allocator_set<Alloc,TempAlloc>&, const Json& val) 
+        static result_type try_as(const allocator_set<Alloc,TempAlloc>& aset, const Json& val) 
         {
             T result;
             for (const auto& item : val.object_range())
             {
-                Json j(item.key());
-                auto r = json_conv_traits<Json,key_type>::try_as(make_alloc_set(), j);
-                if (!r)
+                auto j = jsoncons::make_obj_using_allocator<Json>(val.get_allocator(), item.key());
+                auto r1 = j.template try_as<key_type>(aset);
+                if (!r1)
                 {
-                    return result_type(r.error());
+                    return result_type(jsoncons::unexpect, r1.error());
                 }
-                result.emplace(std::move(r.value()), item.value().template as<mapped_type>());
+                auto r2 = item.value().template try_as<mapped_type>(aset);
+                if (!r2)
+                {
+                    return result_type(jsoncons::unexpect, r2.error());
+                }
+                result.emplace(std::move(*r1), std::move(*r2));
             }
 
             return result_type(std::move(result));
@@ -951,7 +959,7 @@ has_can_convert = ext_traits::is_detected<traits_can_convert_t, Json, T>;
         template <typename Alloc>
         static Json to_json(const Alloc& alloc, const T& val) 
         {
-            Json j = make_json_using_allocator<Json>(alloc, json_object_arg, semantic_tag::none);
+            Json j = jsoncons::make_obj_using_allocator<Json>(alloc, json_object_arg, semantic_tag::none);
             j.reserve(val.size());
             for (const auto& item : val)
             {
@@ -1055,7 +1063,7 @@ has_can_convert = ext_traits::is_detected<traits_can_convert_t, Json, T>;
             helper::try_as(val, aset, j, ec);
             if (ec)
             {
-                return result_type(unexpect, ec);
+                return result_type(jsoncons::unexpect, ec);
             }
             return result_type(std::move(val));
         }
@@ -1063,7 +1071,7 @@ has_can_convert = ext_traits::is_detected<traits_can_convert_t, Json, T>;
         template <typename Alloc>
         static Json to_json(const Alloc& alloc, const std::tuple<E...>& val)
         {
-            Json j = make_json_using_allocator<Json>(alloc, json_array_arg, semantic_tag::none);
+            Json j = jsoncons::make_obj_using_allocator<Json>(alloc, json_array_arg, semantic_tag::none);
             j.reserve(sizeof...(E));
             helper::to_json(alloc, val, j);
             return j;
@@ -1086,17 +1094,17 @@ has_can_convert = ext_traits::is_detected<traits_can_convert_t, Json, T>;
         {
             if (!j.is_array() || j.size() != 2)
             {
-                return result_type(unexpect, conv_errc::not_pair);
+                return result_type(jsoncons::unexpect, conv_errc::not_pair);
             }
             auto res1 = j[0].template try_as<T1>(aset);
             if (!res1)
             {
-                return result_type(unexpect, res1.error().code());
+                return result_type(jsoncons::unexpect, res1.error().code());
             }
             auto res2 = j[1].template try_as<T2>(aset);
             if (!res2)
             {
-                return result_type(unexpect, res2.error().code());
+                return result_type(jsoncons::unexpect, res2.error().code());
             }
             return result_type(std::make_pair<T1,T2>(std::move(*res1), std::move(*res2)));
         }
@@ -1104,7 +1112,7 @@ has_can_convert = ext_traits::is_detected<traits_can_convert_t, Json, T>;
         template <typename Alloc>
         static Json to_json(const Alloc& alloc, const std::pair<T1, T2>& val)
         {
-            Json j = make_json_using_allocator<Json>(alloc, json_array_arg, semantic_tag::none);
+            Json j = jsoncons::make_obj_using_allocator<Json>(alloc, json_array_arg, semantic_tag::none);
             j.reserve(2);
             j.push_back(val.first);
             j.push_back(val.second);
@@ -1133,7 +1141,7 @@ has_can_convert = ext_traits::is_detected<traits_can_convert_t, Json, T>;
         template <typename Alloc>
         static Json to_json(const Alloc& alloc, const T& val)
         {
-            return make_json_using_allocator<Json>(alloc, byte_string_arg, val, semantic_tag::none);
+            return jsoncons::make_obj_using_allocator<Json>(alloc, byte_string_arg, val, semantic_tag::none);
         }
     };
 
@@ -1160,7 +1168,7 @@ has_can_convert = ext_traits::is_detected<traits_can_convert_t, Json, T>;
             auto r = j.template try_as<ValueType>(aset);
             if (!r)
             {
-                return result_type(r.error());
+                return result_type(jsoncons::unexpect, r.error());
             }
             return result_type(std::make_shared<ValueType>(std::move(r.value())));
         }
@@ -1170,7 +1178,7 @@ has_can_convert = ext_traits::is_detected<traits_can_convert_t, Json, T>;
         {
             if (ptr.get() != nullptr) 
             {
-                return make_json_using_allocator<Json>(alloc, *ptr, semantic_tag::none);
+                return jsoncons::make_obj_using_allocator<Json>(alloc, *ptr, semantic_tag::none);
             }
             else 
             {
@@ -1202,7 +1210,7 @@ has_can_convert = ext_traits::is_detected<traits_can_convert_t, Json, T>;
             auto r = j.template try_as<ValueType>(aset);
             if (!r)
             {
-                return result_type(r.error());
+                return result_type(jsoncons::unexpect, r.error());
             }
             return result_type(jsoncons::make_unique<ValueType>(std::move(r.value())));
         }
@@ -1212,7 +1220,7 @@ has_can_convert = ext_traits::is_detected<traits_can_convert_t, Json, T>;
         {
             if (ptr.get() != nullptr) 
             {
-                return make_json_using_allocator<Json>(alloc, *ptr, semantic_tag::none);
+                return jsoncons::make_obj_using_allocator<Json>(alloc, *ptr, semantic_tag::none);
             }
             else 
             {
@@ -1243,7 +1251,7 @@ has_can_convert = ext_traits::is_detected<traits_can_convert_t, Json, T>;
             auto r = j.template try_as<T>(aset);
             if (!r)
             {
-                return result_type(r.error());
+                return result_type(jsoncons::unexpect, r.error());
             }
             return result_type(jsoncons::optional<T>(std::move(r.value())));
         }
@@ -1251,7 +1259,7 @@ has_can_convert = ext_traits::is_detected<traits_can_convert_t, Json, T>;
         template <typename Alloc>
         static Json to_json(const Alloc& alloc, const jsoncons::optional<T>& val)
         {
-            return val.has_value() ? make_json_using_allocator<Json>(alloc, *val, semantic_tag::none) : Json::null();
+            return val.has_value() ? jsoncons::make_obj_using_allocator<Json>(alloc, *val, semantic_tag::none) : Json::null();
         }
     };
 
@@ -1275,7 +1283,7 @@ has_can_convert = ext_traits::is_detected<traits_can_convert_t, Json, T>;
         template <typename Alloc>
         static Json to_json(const Alloc& alloc, const byte_string_view& val)
         {
-            return make_json_using_allocator<Json>(alloc, byte_string_arg, val, semantic_tag::none);
+            return jsoncons::make_obj_using_allocator<Json>(alloc, byte_string_arg, val, semantic_tag::none);
         }
     };
 
@@ -1345,7 +1353,7 @@ has_can_convert = ext_traits::is_detected<traits_can_convert_t, Json, T>;
         {
             std::basic_string<char_type> s;
             val.write_string(s);
-            return make_json_using_allocator<Json>(alloc, s, semantic_tag::bigint);
+            return jsoncons::make_obj_using_allocator<Json>(alloc, s, semantic_tag::bigint);
         }
     };
 
@@ -1399,7 +1407,7 @@ has_can_convert = ext_traits::is_detected<traits_can_convert_t, Json, T>;
         template <typename Alloc>
         static Json to_json(const Alloc& alloc, const std::valarray<T>& val)
         {
-            Json j = make_json_using_allocator<Json>(alloc, json_array_arg, semantic_tag::none);
+            Json j = jsoncons::make_obj_using_allocator<Json>(alloc, json_array_arg, semantic_tag::none);
             auto first = std::begin(val);
             auto last = std::end(val);
             std::size_t size = std::distance(first,last);
@@ -1501,7 +1509,7 @@ namespace variant_detail
         template <typename Alloc>
         static Json to_json(const Alloc& alloc, const std::variant<VariantTypes...>& var)
         {
-            Json j = make_json_using_allocator<Json>(alloc, json_array_arg, semantic_tag::none);
+            Json j = jsoncons::make_obj_using_allocator<Json>(alloc, json_array_arg, semantic_tag::none);
             variant_detail::variant_to_json_visitor<Json> visitor(j);
             std::visit(visitor, var);
             return j;
@@ -1566,7 +1574,7 @@ namespace variant_detail
                         auto res = j.template try_as<Rep>();
                         if (!res)
                         {
-                            return result_type(unexpect, conv_errc::not_epoch);
+                            return result_type(jsoncons::unexpect, conv_errc::not_epoch);
                         }
                         return result_type(in_place, *res);
                     }
@@ -1599,7 +1607,7 @@ namespace variant_detail
                         auto res = j.template try_as<Rep>(aset);
                         if (!res)
                         {
-                            return result_type(unexpect, conv_errc::not_epoch);
+                            return result_type(jsoncons::unexpect, conv_errc::not_epoch);
                         }
                         return result_type(in_place, *res);
                     }
@@ -1607,7 +1615,7 @@ namespace variant_detail
             }
             else
             {
-                return result_type(unexpect, conv_errc::not_epoch);
+                return result_type(jsoncons::unexpect, conv_errc::not_epoch);
             }
         }
 
@@ -1621,7 +1629,7 @@ namespace variant_detail
                 auto res = j.template try_as<Rep>();
                 if (!res)
                 {
-                    return result_type(unexpect, conv_errc::not_epoch);
+                    return result_type(jsoncons::unexpect, conv_errc::not_epoch);
                 }
                 switch (j.tag())
                 {
@@ -1640,7 +1648,7 @@ namespace variant_detail
                 auto res = j.template try_as<double>();
                 if (!res)
                 {
-                    return result_type(unexpect, conv_errc::not_epoch);
+                    return result_type(jsoncons::unexpect, conv_errc::not_epoch);
                 }
                 switch (j.tag())
                 {
@@ -1663,7 +1671,7 @@ namespace variant_detail
                         auto res = j.template try_as<Rep>();
                         if (!res)
                         {
-                            return result_type(unexpect, conv_errc::not_epoch);
+                            return result_type(jsoncons::unexpect, conv_errc::not_epoch);
                         }
                         return result_type(in_place, *res*millis_in_second);
                     }
@@ -1672,13 +1680,13 @@ namespace variant_detail
                         auto res = j.try_as_string_view();
                         if (!res)
                         {
-                            return result_type(unexpect, conv_errc::not_epoch);
+                            return result_type(jsoncons::unexpect, conv_errc::not_epoch);
                         }
                         Rep n{0};
                         auto result = jsoncons::utility::dec_to_integer((*res).data(), (*res).size(), n);
                         if (!result)
                         {
-                            return result_type(unexpect, conv_errc::not_epoch);
+                            return result_type(jsoncons::unexpect, conv_errc::not_epoch);
                         }
                         return result_type(in_place, n);
                     }
@@ -1699,7 +1707,7 @@ namespace variant_detail
                         auto res = j.template try_as<Rep>(aset);
                         if (!res)
                         {
-                            return result_type(unexpect, conv_errc::not_epoch);
+                            return result_type(jsoncons::unexpect, conv_errc::not_epoch);
                         }
                         return result_type(in_place, *res);
                     }
@@ -1707,7 +1715,7 @@ namespace variant_detail
             }
             else
             {
-                return result_type(unexpect, conv_errc::not_epoch);
+                return result_type(jsoncons::unexpect, conv_errc::not_epoch);
             }
         }
 
@@ -1751,7 +1759,7 @@ namespace variant_detail
                 auto res = j.template try_as<Rep>(aset);
                 if (!res)
                 {
-                    return result_type(unexpect, conv_errc::not_epoch);
+                    return result_type(jsoncons::unexpect, conv_errc::not_epoch);
                 }
                 switch (j.tag())
                 {
@@ -1767,7 +1775,7 @@ namespace variant_detail
             }
             else
             {
-                return result_type(unexpect, conv_errc::not_epoch);
+                return result_type(jsoncons::unexpect, conv_errc::not_epoch);
             }
         }
 
@@ -1776,7 +1784,7 @@ namespace variant_detail
         typename std::enable_if<std::is_same<PeriodT,std::ratio<1>>::value,Json>::type
         to_json_(const Alloc& alloc, const duration_type& val)
         {
-            return make_json_using_allocator<Json>(alloc, val.count(), semantic_tag::epoch_second);
+            return jsoncons::make_obj_using_allocator<Json>(alloc, val.count(), semantic_tag::epoch_second);
         }
 
         template <typename Alloc,typename PeriodT=Period>
@@ -1784,7 +1792,7 @@ namespace variant_detail
         typename std::enable_if<std::is_same<PeriodT,std::milli>::value,Json>::type
         to_json_(const Alloc& alloc, const duration_type& val)
         {
-            return make_json_using_allocator<Json>(alloc, val.count(), semantic_tag::epoch_milli);
+            return jsoncons::make_obj_using_allocator<Json>(alloc, val.count(), semantic_tag::epoch_milli);
         }
 
         template <typename Alloc,typename PeriodT=Period>
@@ -1792,7 +1800,7 @@ namespace variant_detail
         typename std::enable_if<std::is_same<PeriodT,std::nano>::value,Json>::type
         to_json_(const Alloc& alloc, const duration_type& val)
         {
-            return make_json_using_allocator<Json>(alloc, val.count(), semantic_tag::epoch_nano);
+            return jsoncons::make_obj_using_allocator<Json>(alloc, val.count(), semantic_tag::epoch_nano);
         }
     };
 
@@ -1944,7 +1952,7 @@ namespace variant_detail
                 bits.push_back(byte);
             }
 
-            return make_json_using_allocator<Json>(alloc, byte_string_arg, bits, semantic_tag::base16);
+            return jsoncons::make_obj_using_allocator<Json>(alloc, byte_string_arg, bits, semantic_tag::base16);
         }
     };
 

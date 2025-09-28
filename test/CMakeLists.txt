@@ -82,6 +82,7 @@ add_executable(unit_tests
                corelib/src/double_round_trip_tests.cpp
                corelib/src/double_to_string_tests.cpp
                corelib/src/dtoa_tests.cpp
+               corelib/src/decode_json_using_allocator_tests.cpp
                corelib/src/encode_decode_json_tests.cpp
                corelib/src/json_array_tests.cpp
                corelib/src/json_as_tests.cpp
@@ -129,6 +130,7 @@ add_executable(unit_tests
                corelib/src/reflect/reflect_traits_gen_functional_tests.cpp
                corelib/src/reflect/reflect_traits_gen_limit_tests.cpp
                corelib/src/reflect/reflect_traits_gen_tests.cpp
+               corelib/src/reflect/reflect_traits_gen_using_allocator_tests.cpp
                corelib/src/reflect/reflect_traits_name_gen_tests.cpp
                corelib/src/scoped_allocator_adaptor_tests.cpp
                corelib/src/short_string_tests.cpp
@@ -146,7 +148,7 @@ add_executable(unit_tests
                corelib/src/utility/read_number_tests.cpp
                corelib/src/utility/unicode_conv_tests.cpp
                corelib/src/utility/uri_tests.cpp
-               corelib/src/value_converter_tests.cpp
+               corelib/src/conversion_tests.cpp
                corelib/src/wjson_tests.cpp
                csv/src/csv_cursor_tests.cpp
                csv/src/csv_reader_tests.cpp

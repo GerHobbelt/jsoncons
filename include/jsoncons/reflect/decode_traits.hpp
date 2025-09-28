@@ -52,17 +52,18 @@ struct decode_traits
         std::size_t column = cursor.column();
 
         using json_type = basic_json<CharT,sorted_policy,TempAlloc>;
-        auto j_result = try_to_json<json_type>(make_alloc_set(aset.get_temp_allocator(), aset.get_temp_allocator()), cursor);
-        if (JSONCONS_UNLIKELY(!j_result))
+        auto r1 = try_to_json<json_type>(make_alloc_set(aset.get_temp_allocator(), aset.get_temp_allocator()), 
+            cursor);
+        if (JSONCONS_UNLIKELY(!r1))
         {
-            return result_type(jsoncons::unexpect, j_result.error().code(), j_result.error().message_arg(), line, column);
+            return result_type(jsoncons::unexpect, r1.error().code(), r1.error().message_arg(), line, column);
         }
-        auto c_result = (*j_result).template try_as<T>();
-        if (JSONCONS_UNLIKELY(!c_result))
+        auto r2 = (*r1).template try_as<T>(aset);
+        if (JSONCONS_UNLIKELY(!r2))
         {
-            return result_type(jsoncons::unexpect, c_result.error().code(), c_result.error().message_arg(), line, column);
+            return result_type(jsoncons::unexpect, r2.error().code(), r2.error().message_arg(), line, column);
         }
-        return result_type(std::move(*c_result));
+        return result_type(std::move(*r2));
     }
 };
 
@@ -80,7 +81,7 @@ struct decode_traits<T,
         auto j_result = try_to_json<T>(aset, cursor);
         if (JSONCONS_UNLIKELY(!j_result))
         {
-            return result_type(std::move(j_result.error()));
+            return result_type(jsoncons::unexpect, std::move(j_result.error()));
         }
         return j_result;
     }
@@ -132,7 +133,7 @@ struct decode_traits<T,
             return result_type{jsoncons::unexpect, ec, cursor.line(), cursor.column()};
         }
 
-        return result_type{make_obj_using_allocator<T>(aset.get_allocator(), sv.data(), sv.size())};
+        return result_type{jsoncons::make_obj_using_allocator<T>(aset.get_allocator(), sv.data(), sv.size())};
     }
 
     template <typename CharT,typename Alloc,typename TempAlloc>
@@ -187,7 +188,7 @@ struct decode_traits<std::pair<T1, T2>>
         auto r1 = decode_traits<T1>::try_decode(aset, cursor);
         if (JSONCONS_UNLIKELY(!r1))
         {
-            return result_type(r1.error());
+            return result_type(jsoncons::unexpect, r1.error());
         }
         cursor.next(ec);
         if (JSONCONS_UNLIKELY(ec)) 
@@ -197,7 +198,7 @@ struct decode_traits<std::pair<T1, T2>>
         auto r2 = decode_traits<T2>::try_decode(aset, cursor);
         if (JSONCONS_UNLIKELY(!r2)) 
         {
-            return result_type(r2.error());
+            return result_type(jsoncons::unexpect, r2.error());
         }
         cursor.next(ec);
         if (JSONCONS_UNLIKELY(ec))
@@ -209,7 +210,7 @@ struct decode_traits<std::pair<T1, T2>>
         {
             return result_type(jsoncons::unexpect, conv_errc::not_pair, cursor.line(), cursor.column()); 
         }
-        return result_type{std::make_pair(std::move(*r1), std::move(*r2))};
+        return result_type{jsoncons::make_obj_using_allocator<value_type>(aset.get_allocator(), std::move(*r1), std::move(*r2))};
     }
 };
 
@@ -230,7 +231,7 @@ struct decode_traits<T,
     static result_type try_decode(const allocator_set<Alloc,TempAlloc>& aset, basic_staj_cursor<CharT>& cursor)
     {
         std::error_code ec;
-        T v(aset.get_allocator());
+        T v(jsoncons::make_obj_using_allocator<T>(aset.get_allocator()));
 
         cursor.array_expected(ec);
         if (JSONCONS_UNLIKELY(ec))
@@ -248,7 +249,7 @@ struct decode_traits<T,
             auto r = decode_traits<element_type>::try_decode(aset, cursor);
             if (!r)
             {
-                return result_type(r.error()); 
+                return result_type(jsoncons::unexpect, r.error()); 
             }
             v.push_back(std::move(*r));
             //v.push_back(/*element_type(aset.get_allocator())*/);
@@ -257,128 +258,6 @@ struct decode_traits<T,
             if (JSONCONS_UNLIKELY(ec)) { return result_type(jsoncons::unexpect, ec, cursor.line(), cursor.column()); }
         }
         return result_type{std::move(v)};
-    }
-};
-
-template <typename T>
-struct typed_array_visitor : public default_json_visitor
-{
-    T& v_;
-    int level_{0};
-public:
-    using element_type = typename T::value_type;
-    using value_type = T;
-    using result_type = read_result<value_type>;
-
-    typed_array_visitor(T& v)
-        : default_json_visitor(), v_(v)
-    {
-    }
-private:
-    JSONCONS_VISITOR_RETURN_TYPE visit_begin_array(semantic_tag, 
-        const ser_context&, 
-        std::error_code& ec) override
-    {      
-        if (++level_ != 1)
-        {
-            ec = conv_errc::not_vector;
-            JSONCONS_VISITOR_RETURN;
-        }
-        JSONCONS_VISITOR_RETURN;
-    }
-
-    JSONCONS_VISITOR_RETURN_TYPE visit_begin_array(std::size_t size, 
-        semantic_tag, 
-        const ser_context&, 
-        std::error_code& ec) override
-    {
-        if (++level_ != 1)
-        {
-            ec = conv_errc::not_vector;
-            JSONCONS_VISITOR_RETURN;
-        }
-        if (size > 0)
-        {
-            reserve_storage(typename std::integral_constant<bool, ext_traits::has_reserve<T>::value>::type(), v_, size);
-        }
-        JSONCONS_VISITOR_RETURN;
-    }
-
-    JSONCONS_VISITOR_RETURN_TYPE visit_end_array(const ser_context&, 
-        std::error_code& ec) override
-    {
-        if (level_ != 1)
-        {
-            ec = conv_errc::not_vector;
-            JSONCONS_VISITOR_RETURN;
-        }
-        JSONCONS_VISITOR_RETURN;
-    }
-
-    JSONCONS_VISITOR_RETURN_TYPE visit_uint64(uint64_t value, 
-        semantic_tag, 
-        const ser_context&,
-        std::error_code&) override
-    {
-        v_.push_back(static_cast<element_type>(value));
-        JSONCONS_VISITOR_RETURN;
-    }
-
-    JSONCONS_VISITOR_RETURN_TYPE visit_int64(int64_t value, 
-        semantic_tag,
-        const ser_context&,
-        std::error_code&) override
-    {
-        v_.push_back(static_cast<element_type>(value));
-        JSONCONS_VISITOR_RETURN;
-    }
-
-    JSONCONS_VISITOR_RETURN_TYPE visit_half(uint16_t value, 
-        semantic_tag,
-        const ser_context&,
-        std::error_code&) override
-    {
-        visit_half_(typename std::integral_constant<bool, std::is_integral<element_type>::value>::type(), value);
-        JSONCONS_VISITOR_RETURN;
-    }
-
-    void visit_half_(std::true_type, uint16_t value)
-    {
-        v_.push_back(static_cast<element_type>(value));
-    }
-
-    void visit_half_(std::false_type, uint16_t value)
-    {
-        v_.push_back(static_cast<element_type>(binary::decode_half(value)));
-    }
-
-    JSONCONS_VISITOR_RETURN_TYPE visit_double(double value, 
-        semantic_tag,
-        const ser_context&,
-        std::error_code&) override
-    {
-        v_.push_back(static_cast<element_type>(value));
-        JSONCONS_VISITOR_RETURN;
-    }
-
-    JSONCONS_VISITOR_RETURN_TYPE visit_typed_array(const jsoncons::span<const element_type>& data,  
-        semantic_tag,
-        const ser_context&,
-        std::error_code&) override
-    {
-        v_ = std::vector<element_type>(data.begin(),data.end());
-        JSONCONS_VISITOR_RETURN;
-    }
-
-    static
-    void reserve_storage(std::true_type, T& v, std::size_t new_cap)
-    {
-        v.reserve(new_cap);
-    }
-
-    static
-    void reserve_storage(std::false_type, T&, std::size_t)
-    {
     }
 };
 
@@ -395,7 +274,8 @@ struct decode_traits<T,
     using result_type = read_result<value_type>;
 
     template <typename CharT,typename Alloc,typename TempAlloc>
-    static result_type try_decode(const allocator_set<Alloc,TempAlloc>&, basic_staj_cursor<CharT>& cursor)
+    static result_type try_decode(const allocator_set<Alloc,TempAlloc>& aset, 
+        basic_staj_cursor<CharT>& cursor)
     {
         std::error_code ec;
 
@@ -430,13 +310,28 @@ struct decode_traits<T,
             }
             case staj_event_type::begin_array:
             {
-                T v;
+                T v = jsoncons::make_obj_using_allocator<T>(aset.get_allocator());
                 if (cursor.current().size() > 0)
                 {
                     reserve_storage(typename std::integral_constant<bool, ext_traits::has_reserve<T>::value>::type(), v, cursor.current().size());
                 }
-                typed_array_visitor<T> visitor(v);
-                cursor.read_to(visitor, ec);
+                cursor.next(ec);
+                while (cursor.current().event_type() != staj_event_type::end_array && !ec)
+                {
+                    auto r = decode_traits<element_type>::try_decode(aset, cursor);
+                    if (!r)
+                    {
+                        return result_type(jsoncons::unexpect, r.error());
+                    }
+                    v.push_back(*r);
+                    //v[i] = std::move(*r);
+                    cursor.next(ec);
+                }
+                if (JSONCONS_UNLIKELY(ec)) 
+                {
+                    return result_type{jsoncons::unexpect, conv_errc::not_vector, cursor.line(), cursor.column()}; 
+                }
+
                 return result_type{std::move(v)};
             }
             default:
@@ -465,11 +360,12 @@ struct decode_traits<T,
              ext_traits::is_typed_array<T>::value
 >::type>
 {
+    using element_type = typename T::value_type;
     using value_type = T;
     using result_type = read_result<value_type>;
 
     template <typename CharT,typename Alloc,typename TempAlloc>
-    static result_type try_decode(const allocator_set<Alloc,TempAlloc>&, basic_staj_cursor<CharT>& cursor)
+    static result_type try_decode(const allocator_set<Alloc,TempAlloc>& aset, basic_staj_cursor<CharT>& cursor)
     {
         std::error_code ec;
 
@@ -482,13 +378,27 @@ struct decode_traits<T,
         {
             case staj_event_type::begin_array:
             {
-                T v;
+                T v = jsoncons::make_obj_using_allocator<T>(aset.get_allocator());
                 if (cursor.current().size() > 0)
                 {
                     reserve_storage(typename std::integral_constant<bool, ext_traits::has_reserve<T>::value>::type(), v, cursor.current().size());
                 }
-                typed_array_visitor<T> visitor(v);
-                cursor.read_to(visitor, ec);
+                cursor.next(ec);
+                while (cursor.current().event_type() != staj_event_type::end_array && !ec)
+                {
+                    auto r = decode_traits<element_type>::try_decode(aset, cursor);
+                    if (!r)
+                    {
+                        return result_type(jsoncons::unexpect, r.error());
+                    }
+                    v.push_back(*r);
+                    //v[i] = std::move(*r);
+                    cursor.next(ec);
+                }
+                if (JSONCONS_UNLIKELY(ec)) 
+                {
+                    return result_type{jsoncons::unexpect, conv_errc::not_vector, cursor.line(), cursor.column()}; 
+                }
                 return result_type{std::move(v)};
             }
             default:
@@ -525,7 +435,7 @@ struct decode_traits<T,
     static result_type try_decode(const allocator_set<Alloc,TempAlloc>& aset, basic_staj_cursor<CharT>& cursor)
     {
         std::error_code ec;
-        T v;
+        T v = jsoncons::make_obj_using_allocator<T>(aset.get_allocator());
 
         cursor.array_expected(ec);
         if (JSONCONS_UNLIKELY(ec))
@@ -546,9 +456,70 @@ struct decode_traits<T,
             auto r = decode_traits<element_type>::try_decode(aset, cursor);
             if (!r)
             {
-                return result_type(r.error());
+                return result_type(jsoncons::unexpect, r.error());
             }
             v.insert(std::move(*r));
+            if (JSONCONS_UNLIKELY(ec)) {return result_type(jsoncons::unexpect, ec, cursor.line(), cursor.column());}
+            //std::cout << "cursor.next 20\n";
+            cursor.next(ec);
+            if (JSONCONS_UNLIKELY(ec)) {return result_type{jsoncons::unexpect, ec, cursor.line(), cursor.column()};}
+        }
+        return result_type{std::move(v)};
+    }
+
+    static void reserve_storage(std::true_type, T& v, std::size_t new_cap)
+    {
+        v.reserve(new_cap);
+    }
+
+    static void reserve_storage(std::false_type, T&, std::size_t)
+    {
+    }
+};
+
+// std::forward_list
+template <typename T>
+struct decode_traits<T,
+    typename std::enable_if<!reflect::is_json_conv_traits_declared<T>::value && 
+             ext_traits::is_array_like<T>::value &&
+             !ext_traits::is_back_insertable<T>::value &&
+             !ext_traits::is_insertable<T>::value &&
+             ext_traits::is_front_insertable<T>::value 
+>::type>
+{
+    using element_type = typename T::value_type;
+    using value_type = T;
+    using result_type = read_result<value_type>;
+
+    template <typename CharT,typename Alloc,typename TempAlloc>
+    static result_type try_decode(const allocator_set<Alloc,TempAlloc>& aset, basic_staj_cursor<CharT>& cursor)
+    {
+        std::error_code ec;
+
+        cursor.array_expected(ec);
+        if (JSONCONS_UNLIKELY(ec))
+        {
+            return result_type(jsoncons::unexpect, ec, cursor.line(), cursor.column());
+        }
+
+        T v = jsoncons::make_obj_using_allocator<T>(aset.get_allocator());
+        if (cursor.current().event_type() != staj_event_type::begin_array)
+        {
+            return result_type(jsoncons::unexpect, conv_errc::not_vector, cursor.line(), cursor.column()); 
+        }
+        if (cursor.current().size() > 0)
+        {
+            reserve_storage(typename std::integral_constant<bool, ext_traits::has_reserve<T>::value>::type(), v, cursor.current().size());
+        }
+        cursor.next(ec);
+        while (cursor.current().event_type() != staj_event_type::end_array && !ec)
+        {
+            auto r = decode_traits<element_type>::try_decode(aset, cursor);
+            if (!r)
+            {
+                return result_type(jsoncons::unexpect, r.error());
+            }
+            v.push_front(std::move(*r));
             if (JSONCONS_UNLIKELY(ec)) {return result_type(jsoncons::unexpect, ec, cursor.line(), cursor.column());}
             //std::cout << "cursor.next 20\n";
             cursor.next(ec);
@@ -587,10 +558,9 @@ struct decode_traits<std::array<T,N>>
         {
             return result_type(jsoncons::unexpect, ec, cursor.line(), cursor.column());
         }
-        v.fill(T{});
         if (cursor.current().event_type() != staj_event_type::begin_array)
         {
-            return result_type{read_error{conv_errc::not_vector, cursor.line(), cursor.column()}}; 
+            return result_type{jsoncons::unexpect, conv_errc::not_vector, cursor.line(), cursor.column()}; 
         }
         cursor.next(ec);
         for (std::size_t i = 0; i < N && cursor.current().event_type() != staj_event_type::end_array && !ec; ++i)
@@ -598,13 +568,13 @@ struct decode_traits<std::array<T,N>>
             auto r = decode_traits<element_type>::try_decode(aset, cursor);
             if (!r)
             {
-                return result_type(r.error());
+                return result_type(jsoncons::unexpect, r.error());
             }
             v[i] = std::move(*r);
             cursor.next(ec);
             if (JSONCONS_UNLIKELY(ec)) 
             {
-                return result_type{read_error{conv_errc::not_vector, cursor.line(), cursor.column()}}; 
+                return result_type{jsoncons::unexpect, conv_errc::not_vector, cursor.line(), cursor.column()}; 
             }
         }
         return v;
@@ -617,7 +587,7 @@ template <typename T>
 struct decode_traits<T,
     typename std::enable_if<!reflect::is_json_conv_traits_declared<T>::value && 
                             ext_traits::is_map_like<T>::value &&
-                            ext_traits::is_constructible_from_const_pointer_and_size<typename T::key_type>::value
+                            ext_traits::is_string<typename T::key_type>::value
 >::type>
 {
     using mapped_type = typename T::mapped_type;
@@ -630,10 +600,10 @@ struct decode_traits<T,
     {
         std::error_code ec;
 
-        T val;
+        auto val = jsoncons::make_obj_using_allocator<T>(aset.get_allocator());
         if (cursor.current().event_type() != staj_event_type::begin_object)
         {
-            return result_type{read_error{conv_errc::not_map, cursor.line(), cursor.column()}}; 
+            return result_type{jsoncons::unexpect, conv_errc::not_map, cursor.line(), cursor.column()}; 
         }
         if (cursor.current().size() > 0)
         {
@@ -645,25 +615,28 @@ struct decode_traits<T,
         {
             if (cursor.current().event_type() != staj_event_type::key)
             {
-                return result_type{read_error{json_errc::expected_key, cursor.line(), cursor.column()}}; 
+                return result_type{jsoncons::unexpect, json_errc::expected_key, cursor.line(), cursor.column()}; 
             }
-            auto key = cursor.current().template get<key_type>(ec);
+            auto r1 = decode_traits<key_type>::try_decode(aset, cursor);
+            if (!r1)
+            {
+                return result_type(jsoncons::unexpect, r1.error());
+            }
             if (JSONCONS_UNLIKELY(ec)) 
             {
                 return result_type{jsoncons::unexpect, ec, cursor.line(), cursor.column()}; 
             }
-            //std::cout << "cursor.next 200\n";
             cursor.next(ec);
             if (JSONCONS_UNLIKELY(ec)) 
             {
                 return result_type{jsoncons::unexpect, ec, cursor.line(), cursor.column()}; 
             }
-            auto r = decode_traits<mapped_type>::try_decode(aset, cursor);
-            if (!r)
+            auto r2 = decode_traits<mapped_type>::try_decode(aset, cursor);
+            if (!r2)
             {
-                return result_type(r.error());
+                return result_type(jsoncons::unexpect, r2.error());
             }
-            val.emplace(std::move(key), std::move(*r));
+            val.emplace(std::move(*r1), std::move(*r2));
             //std::cout << "cursor.next 300\n";
             cursor.next(ec);
             if (JSONCONS_UNLIKELY(ec)) 
@@ -704,7 +677,7 @@ struct decode_traits<T,
         T val;
         if (cursor.current().event_type() != staj_event_type::begin_object)
         {
-            return result_type{read_error{conv_errc::not_map, cursor.line(), cursor.column()}}; 
+            return result_type{jsoncons::unexpect, conv_errc::not_map, cursor.line(), cursor.column()}; 
         }
         if (cursor.current().size() > 0)
         {
@@ -716,7 +689,7 @@ struct decode_traits<T,
         {
             if (cursor.current().event_type() != staj_event_type::key)
             {
-                return result_type{read_error{json_errc::expected_key, cursor.line(), cursor.column()}}; 
+                return result_type{jsoncons::unexpect, json_errc::expected_key, cursor.line(), cursor.column()}; 
             }
             auto s = cursor.current().template get<jsoncons::basic_string_view<CharT>>(ec);
             if (JSONCONS_UNLIKELY(ec))
@@ -727,7 +700,7 @@ struct decode_traits<T,
             auto r = jsoncons::utility::to_integer(s.data(), s.size(), n); 
             if (r.ec != std::errc())
             {
-                return result_type{read_error{json_errc::invalid_number, cursor.line(), cursor.column()}}; 
+                return result_type{jsoncons::unexpect, json_errc::invalid_number, cursor.line(), cursor.column()}; 
             }
             //std::cout << "cursor.next 500\n";
             cursor.next(ec);
@@ -738,7 +711,7 @@ struct decode_traits<T,
             auto r1 = decode_traits<mapped_type>::try_decode(aset, cursor);
             if (!r1)
             {
-                return result_type(r1.error());
+                return result_type(jsoncons::unexpect, r1.error());
             }
             val.emplace(n, std::move(*r1));
             //std::cout << "cursor.next 600\n";
