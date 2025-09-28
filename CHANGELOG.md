@@ -1,3 +1,15 @@
+1.4.0 preview
+-----
+
+- Enhancements
+
+    - Use `std::from_chars` for chars to double conversion when supported in GCC and VC.
+    This reverts the removal of this feature in 0.170.0, because of issue [std::from_chars parsing fails tests on Windows](https://github.com/danielaparker/jsoncons/issues/405).
+    That issue has been addressed.
+
+    - New `basic_json_options` member `lossless_bignum`. If `true`, reads out of range floating point numbers 
+    as strings with tag `semantic_tag::bigdec`. Defaults to true.
+
 1.3.2 
 -----
 
