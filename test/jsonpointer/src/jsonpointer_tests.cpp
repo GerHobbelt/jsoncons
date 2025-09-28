@@ -507,10 +507,10 @@ TEST_CASE("[jsonpointer] create_if_missing")
 #if defined(JSONCONS_HAS_STATEFUL_ALLOCATOR) && JSONCONS_HAS_STATEFUL_ALLOCATOR == 1
 
 #include <scoped_allocator>
-#include <common/free_list_allocator.hpp>
+#include <common/mock_stateful_allocator.hpp>
 
 template <typename T>
-using MyScopedAllocator = std::scoped_allocator_adaptor<free_list_allocator<T>>;
+using MyScopedAllocator = std::scoped_allocator_adaptor<mock_stateful_allocator<T>>;
 
 using cust_json = basic_json<char,sorted_policy,MyScopedAllocator<char>>;
 
@@ -519,7 +519,7 @@ TEST_CASE("jsonpointer get with stateful allocator")
     MyScopedAllocator<char> alloc(1);
 
     // Example from RFC 6901
-    const cust_json example = cust_json::parse(combine_allocators(alloc), R"(
+    const cust_json example = cust_json::parse(make_alloc_set(alloc), R"(
        {
           "foo": ["bar", "baz"],
           "": 0,
@@ -548,7 +548,7 @@ TEST_CASE("jsonpointer get with stateful allocator")
     check_contains(example,"/m~0n",true);
 
     check_get(example,"",example);
-    check_get(example,"/foo", cust_json::parse(combine_allocators(alloc),
+    check_get(example,"/foo", cust_json::parse(make_alloc_set(alloc),
         jsoncons::string_view("[\"bar\", \"baz\"]"), json_options()));
     check_get(example,"/foo/0", cust_json("bar", semantic_tag::none, alloc));
     check_get(example,"/", cust_json(0));

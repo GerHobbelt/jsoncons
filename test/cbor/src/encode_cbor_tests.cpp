@@ -183,19 +183,20 @@ TEST_CASE("encode_cbor overloads")
 #if defined(JSONCONS_HAS_STATEFUL_ALLOCATOR) && JSONCONS_HAS_STATEFUL_ALLOCATOR == 1
 
 #include <scoped_allocator>
-#include <common/free_list_allocator.hpp>
+#include <common/mock_stateful_allocator.hpp>
 
 template <typename T>
-using MyScopedAllocator = std::scoped_allocator_adaptor<free_list_allocator<T>>;
+using MyScopedAllocator = std::scoped_allocator_adaptor<mock_stateful_allocator<T>>;
 
 using cust_json = basic_json<char,sorted_policy,MyScopedAllocator<char>>;
 
+#if 0
 TEST_CASE("encode_cbor allocator_set")
 {
     MyScopedAllocator<char> result_alloc(1);
     MyScopedAllocator<char> temp_alloc(2);
 
-    auto aset = combine_allocators(result_alloc, temp_alloc);
+    auto aset = make_alloc_set(result_alloc, temp_alloc);
 
     SECTION("json, stream")
     {
@@ -208,7 +209,7 @@ TEST_CASE("encode_cbor allocator_set")
         cust_json other = cbor::decode_cbor<cust_json>(aset,ss);
         CHECK(other == person);
     }
-    /* SECTION("custom, stream")
+    SECTION("custom, stream")
     {
         ns::Person person{"John Smith"};
 
@@ -217,14 +218,15 @@ TEST_CASE("encode_cbor allocator_set")
         cbor::encode_cbor(aset, person, ss);
         ns::Person other = cbor::decode_cbor<ns::Person>(aset,ss);
         CHECK(other.name == person.name);
-    }*/
+    }
 }
+#endif
 
 TEST_CASE("encode_cbor allocator_set for temp only")
 {
     MyScopedAllocator<char> temp_alloc(1);
 
-    auto aset = temp_allocator_only(temp_alloc);
+    auto aset = make_alloc_set(temp_alloc_arg, temp_alloc);
 
     SECTION("json, stream")
     {

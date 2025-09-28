@@ -112,8 +112,10 @@ add_executable(unit_tests
                corelib/src/json_reader_tests.cpp
                corelib/src/json_storage_tests.cpp
                corelib/src/json_swap_tests.cpp
+               corelib/src/json_uses_allocator_tests.cpp
                corelib/src/jsoncons_tests.cpp
                corelib/src/JSONTestSuite_tests.cpp
+               corelib/src/legacy_json_type_traits_tests.cpp
                corelib/src/ojson_object_tests.cpp
                corelib/src/ojson_tests.cpp
                corelib/src/parse_string_tests.cpp
@@ -123,7 +125,6 @@ add_executable(unit_tests
                corelib/src/reflect/json_conv_traits_chrono_tests.cpp
                corelib/src/reflect/json_conv_traits_string_tests.cpp
                corelib/src/reflect/json_conv_traits_tests.cpp
-               corelib/src/reflect/json_type_traits_tests.cpp
                corelib/src/reflect/reflect_traits_container_tests.cpp
                corelib/src/reflect/reflect_traits_gen_functional_tests.cpp
                corelib/src/reflect/reflect_traits_gen_limit_tests.cpp
@@ -137,6 +138,7 @@ add_executable(unit_tests
                corelib/src/staj_iterator_tests.cpp
                corelib/src/string_to_double_tests.cpp
                corelib/src/try_decode_json_tests.cpp
+               corelib/src/try_to_json_tests.cpp
                corelib/src/utility/bigint_tests.cpp
                corelib/src/utility/byte_string_tests.cpp
                corelib/src/utility/extension_traits_tests.cpp

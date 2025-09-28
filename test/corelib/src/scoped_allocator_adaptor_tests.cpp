@@ -13,12 +13,12 @@
 #if defined(JSONCONS_HAS_STATEFUL_ALLOCATOR) && JSONCONS_HAS_STATEFUL_ALLOCATOR == 1
 
 #include <scoped_allocator>
-#include <common/free_list_allocator.hpp>
+#include <common/mock_stateful_allocator.hpp>
 
 using namespace jsoncons;
 
 template <typename T>
-using MyScopedAllocator = std::scoped_allocator_adaptor<free_list_allocator<T>>;
+using MyScopedAllocator = std::scoped_allocator_adaptor<mock_stateful_allocator<T>>;
 
 using cust_json = jsoncons::basic_json<char, jsoncons::sorted_policy, MyScopedAllocator<char>>;
 using cust_string = std::basic_string<char, std::char_traits<char>, MyScopedAllocator<char>>;
@@ -72,8 +72,9 @@ TEST_CASE("scoped allocator adaptor basic_json tests")
         cust_json j(json_array_arg, alloc1);
         j.emplace_back(1);
         j.emplace_back(long_string);
+        j.emplace_back(jsoncons::json_array_arg);
 
-        CHECK(2 == j.size());
+        CHECK(3 == j.size());
         CHECK(1 == j.at(0));
         CHECK(j.at(1).as<std::string>() == long_string);
     }
