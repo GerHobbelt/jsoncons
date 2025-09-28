@@ -1,4 +1,4 @@
-### jsoncons::decode_json, jsoncons::try_decode_json
+### jsoncons::decode_json, try_decode_json
 
 Decodes a JSON data format to a C++ data structure. `decode_json` will 
 work for all C++ classes that support jsoncons reflection traits.
@@ -57,18 +57,18 @@ read_result<T> try_decode_json(Iterator first, Iterator last,
 
 (1) Reads JSON from a contiguous character sequence provided by `s` into a type T, using the specified (or defaulted) [options](basic_json_options.md). 
 Type 'T' must be an instantiation of [basic_json](basic_json.md) 
-or support [json_type_traits](../json_type_traits.md).
+or support [json_type_traits](../json_type_traits/json_type_traits.md).
 
 (2) Reads JSON from an input stream into a type T, using the specified (or defaulted) [options](basic_json_options.md). 
 Type 'T' must be an instantiation of [basic_json](basic_json.md) 
-or support [json_type_traits](../json_type_traits.md).
+or support [json_type_traits](../json_type_traits/json_type_traits.md).
 
 (3)-(4) are identical to (1)-(2) except an [allocator_set](allocator_set.md) is passed as an additional argument and
 provides allocators for result data and temporary allocations.
 
 (5) Reads JSON from the range [first,last) into a type T, using the specified (or defaulted) [options](basic_json_options.md). 
 Type 'T' must be an instantiation of [basic_json](basic_json.md) 
-or support [json_type_traits](json_type_traits.md).
+or support [json_type_traits](json_type_traits/json_type_traits.md).
 
 (6)-(10) Non-throwing versions of (1)-(5)
 
@@ -80,7 +80,7 @@ or support [json_type_traits](json_type_traits.md).
 
 #### Exceptions
 
-(1)-(5) Throw [ser_error](ser_error.md) if read fails.
+(1)-(5) Throw [ser_error](ser_error.md) if decode fails.
 
 Any overload may throw `std::bad_alloc` if memory allocation fails.
 
@@ -152,7 +152,7 @@ int main()
 
         auto result = jsoncons::try_decode_json<ns::book>(input);
         if (!result)
-            std::cout << "(1) " << result.error() << "\n\n";
+            std::cout << "(1) " << result.error().message() << "\n\n";
     }
 
     // Unexpected JSON
@@ -161,7 +161,7 @@ int main()
 
         auto result = jsoncons::try_decode_json<ns::book>(input);
         if (!result)
-            std::cout << "(2) " << result.error() << "\n\n";
+            std::cout << "(2) " << result.error() .message() << "\n\n";
     }
 
     // Missing required member
@@ -175,7 +175,7 @@ int main()
 
         auto result = jsoncons::try_decode_json<ns::book>(input);
         if (!result)
-            std::cout << "(3) " << result.error() << "\n\n";
+            std::cout << "(3) " << result.error() .message() << "\n\n";
     }
 
     // Invalid JSON
@@ -190,7 +190,7 @@ int main()
 
         auto result = jsoncons::try_decode_json<ns::book>(input);
         if (!result)
-            std::cout << "(4) " << result.error() << "\n\n";
+            std::cout << "(4) " << result.error() .message() << "\n\n";
     }
 
     // Success

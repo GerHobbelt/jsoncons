@@ -92,8 +92,8 @@ struct json_traits_helper
     { 
         if (val) j.try_emplace(key, val); 
     } 
-    template <typename U> 
-    static void set_optional_json_member(string_view_type key, const std::unique_ptr<U>& val, Json& j) 
+    template <typename U,typename Deleter> 
+    static void set_optional_json_member(string_view_type key, const std::unique_ptr<U,Deleter>& val, Json& j) 
     { 
         if (val) j.try_emplace(key, val); 
     } 
@@ -127,8 +127,8 @@ write_result try_encode_optional_member(const basic_string_view<CharT>& key, con
     return write_result{}; 
 }
  
-template <typename CharT, typename T> 
-write_result try_encode_optional_member(const basic_string_view<CharT>& key, const std::unique_ptr<T>& val, basic_json_visitor<CharT>& encoder) 
+template <typename CharT, typename T,typename Deleter> 
+write_result try_encode_optional_member(const basic_string_view<CharT>& key, const std::unique_ptr<T,Deleter>& val, basic_json_visitor<CharT>& encoder) 
 { 
     if (val)
     {
@@ -161,8 +161,8 @@ bool is_optional_value_set(const std::shared_ptr<T>& val)
 { 
     return val ? true : false; 
 } 
-template <typename T> 
-bool is_optional_value_set(const std::unique_ptr<T>& val) 
+template <typename T,typename Deleter> 
+bool is_optional_value_set(const std::unique_ptr<T,Deleter>& val) 
 { 
     return val ? true : false;
 } 
@@ -280,7 +280,17 @@ using identity = reflect::identity;
     template <typename JSON,typename T,typename Enable> \
     friend struct jsoncons::reflect::json_conv_traits; \
     template <typename T,typename Enable> \
-    friend struct jsoncons::reflect::encode_traits;
+    friend struct jsoncons::reflect::encode_traits; \
+    template <typename T,typename Enable> \
+    friend struct jsoncons::reflect::decode_traits;
+
+#define JSONCONS_CONV_TRAITS_FRIEND \
+    template <typename JSON,typename T,typename Enable> \
+    friend struct jsoncons::reflect::json_conv_traits; \
+    template <typename T,typename Enable> \
+    friend struct jsoncons::reflect::encode_traits; \
+    template <typename T,typename Enable> \
+    friend struct jsoncons::reflect::decode_traits;
 
 #define JSONCONS_EXPAND_CALL2(Call, Expr, Id) JSONCONS_PP_EXPAND(Call(Expr, Id))
 
@@ -1834,22 +1844,32 @@ namespace reflect { \
 
 #define JSONCONS_POLYMORPHIC_AS_UNIQUE_PTR(BaseClass, P2, P3, DerivedClass, Count) { \
   auto result = ajson.template try_as<DerivedClass>(aset); \
-  if (result) {return result_type(jsoncons::make_unique<DerivedClass>(std::move(*result)));} \
+  if (result) { \
+  using rebind = typename std::allocator_traits<Alloc>::template rebind_alloc<DerivedClass>; \
+  auto alloc = rebind(aset.get_allocator()); \
+  auto* ptr = alloc.allocate(1); \
+  JSONCONS_TRY {ptr = new(ptr) DerivedClass(*result);} JSONCONS_CATCH(...) {alloc.deallocate(ptr,1); throw;} \
+  return result_type{jsoncons::in_place, ptr, jsoncons::make_obj_using_allocator<Deleter>(alloc)};} \
 } /**/
 
 #define JSONCONS_POLYMORPHIC_AS_UNIQUE_PTR_LAST(BaseClass, P2, P3, DerivedClass, Count) { \
   auto result = ajson.template try_as<DerivedClass>(aset); \
-  if (result) {return result_type(jsoncons::make_unique<DerivedClass>(std::move(*result)));} \
+  if (result) { \
+  using rebind = typename std::allocator_traits<Alloc>::template rebind_alloc<DerivedClass>; \
+  auto alloc = rebind(aset.get_allocator()); \
+  auto* ptr = alloc.allocate(1); \
+  JSONCONS_TRY {ptr = new(ptr) DerivedClass(*result);} JSONCONS_CATCH(...) {alloc.deallocate(ptr,1); throw;} \
+  return result_type{jsoncons::in_place, ptr, jsoncons::make_obj_using_allocator<Deleter>(alloc)};} \
 } /**/
 
 #define JSONCONS_POLYMORPHIC_AS_SHARED_PTR(BaseClass, P2, P3, DerivedClass, Count) { \
   auto result = ajson.template try_as<DerivedClass>(aset); \
-  if (result) {return result_type(std::make_shared<DerivedClass>(std::move(*result)));} \
+  if (result) {return result_type(std::allocate_shared<DerivedClass>(aset.get_allocator(), std::move(*result)));} \
 } /**/
 
 #define JSONCONS_POLYMORPHIC_AS_SHARED_PTR_LAST(BaseClass, P2, P3, DerivedClass, Count) { \
   auto result = ajson.template try_as<DerivedClass>(aset); \
-  if (result) {return result_type(std::make_shared<DerivedClass>(std::move(*result)));} \
+  if (result) {return result_type(std::allocate_shared<DerivedClass>(aset.get_allocator(), std::move(*result)));} \
 } /**/
  
 #define JSONCONS_POLYMORPHIC_TO_JSON(BaseClass, P2, P3, DerivedClass, Count) if (DerivedClass* p = dynamic_cast<DerivedClass*>(ptr.get())) {return jsoncons::make_obj_using_allocator<Json>(aset.get_allocator(), *p);}
@@ -1870,21 +1890,21 @@ namespace reflect { \
 \
         template <typename Alloc,typename TempAlloc> \
         static result_type try_as(const allocator_set<Alloc,TempAlloc>& aset, const Json& ajson) { \
-            if (!ajson.is_object()) return result_type(std::shared_ptr<BaseClass>()); \
+            if (!ajson.is_object()) return result_type(jsoncons::unexpect, conv_errc::expected_object); \
             JSONCONS_VARIADIC_FOR_EACH(JSONCONS_POLYMORPHIC_AS_SHARED_PTR, BaseClass,,, __VA_ARGS__)\
-            return result_type(std::shared_ptr<BaseClass>()); \
+            return result_type(jsoncons::unexpect, conv_errc::conversion_failed); \
         } \
 \
         template <typename Alloc,typename TempAlloc> \
-        static Json to_json(const allocator_set<Alloc,TempAlloc>& aset, const std::shared_ptr<BaseClass>& ptr) { \
+        static Json to_json(const allocator_set<Alloc,TempAlloc>& aset, const value_type& ptr) { \
             if (ptr.get() == nullptr) {return Json::null();} \
             JSONCONS_VARIADIC_FOR_EACH(JSONCONS_POLYMORPHIC_TO_JSON, BaseClass,,, __VA_ARGS__)\
             return Json::null(); \
         } \
     }; \
-    template <typename Json> \
-    struct json_conv_traits<Json, std::unique_ptr<BaseClass>> { \
-        using value_type = std::unique_ptr<BaseClass>; \
+    template <typename Json,typename Deleter> \
+    struct json_conv_traits<Json, std::unique_ptr<BaseClass,Deleter>> { \
+        using value_type = std::unique_ptr<BaseClass,Deleter>; \
         using result_type = conversion_result<value_type>; \
         static bool is(const Json& ajson) noexcept { \
             if (!ajson.is_object()) return false; \
@@ -1893,12 +1913,12 @@ namespace reflect { \
         } \
         template <typename Alloc,typename TempAlloc> \
         static result_type try_as(const allocator_set<Alloc,TempAlloc>& aset, const Json& ajson) { \
-            if (!ajson.is_object()) return result_type(std::unique_ptr<BaseClass>()); \
+            if (!ajson.is_object()) return result_type(jsoncons::unexpect, conv_errc::expected_object); \
             JSONCONS_VARIADIC_FOR_EACH(JSONCONS_POLYMORPHIC_AS_UNIQUE_PTR, BaseClass,,, __VA_ARGS__)\
-            return result_type(std::unique_ptr<BaseClass>()); \
+            return result_type(jsoncons::unexpect, conv_errc::conversion_failed); \
         } \
         template <typename Alloc,typename TempAlloc> \
-        static Json to_json(const allocator_set<Alloc,TempAlloc>& aset, const std::unique_ptr<BaseClass>& ptr) { \
+        static Json to_json(const allocator_set<Alloc,TempAlloc>& aset, const value_type& ptr) { \
             if (ptr.get() == nullptr) {return Json::null();} \
             JSONCONS_VARIADIC_FOR_EACH(JSONCONS_POLYMORPHIC_TO_JSON, BaseClass,,, __VA_ARGS__)\
             return Json::null(); \

@@ -9,6 +9,7 @@
 
 #include <utility>
 #include <jsoncons/config/compiler_support.hpp>
+#include <iostream>
 
 namespace jsoncons {
 namespace detail {

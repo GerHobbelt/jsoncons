@@ -432,9 +432,8 @@ namespace ns {
         JSONCONS_TYPE_TRAITS_FRIEND
 
     public:
-        hiking_reputation()
-        {
-        }
+        hiking_reputation() = default;
+
         hiking_reputation(const std::string& application, const std::vector<hiking_reputon>& reputons)
             : application(application), reputons(reputons)
         {}
@@ -617,7 +616,7 @@ TEST_CASE("JSONCONS_ALL_MEMBER_TRAITS tests")
         auto result = jsoncons::try_decode_json<ns::book_all_m>(input);
         REQUIRE_FALSE(result);
         CHECK(json_errc::expected_colon == result.error().code()                         );
-        //std::cout << result.error() << "\n";
+        //std::cout << result.error() .message() << "\n";
     }
     SECTION("unexpected JSON")
     {
@@ -626,7 +625,7 @@ TEST_CASE("JSONCONS_ALL_MEMBER_TRAITS tests")
         auto result = jsoncons::try_decode_json<ns::book_all_m>(input);
         REQUIRE_FALSE(result);
         CHECK(jsoncons::conv_errc::expected_object == result.error().code()                                    );
-        //std::cout << result.error() << "\n";
+        //std::cout << result.error() .message() << "\n";
     }
     SECTION("missing member")
     {
@@ -641,7 +640,7 @@ TEST_CASE("JSONCONS_ALL_MEMBER_TRAITS tests")
         REQUIRE_FALSE(result);
         CHECK(result.error().code() == jsoncons::conv_errc::missing_required_member);
         CHECK("ns::book_all_m: price" == result.error().message_arg());
-        //std::cout << result.error() << "\n";
+        //std::cout << result.error() .message() << "\n";
     }
     SECTION("invalid JSON value")
     {
@@ -656,7 +655,7 @@ TEST_CASE("JSONCONS_ALL_MEMBER_TRAITS tests")
         auto result = jsoncons::try_decode_json<ns::book_all_m>(input);
         REQUIRE_FALSE(result);
         CHECK(conv_errc::conversion_failed == result.error().code()                         );
-        //std::cout << result.error() << "\n";
+        //std::cout << result.error() .message() << "\n";
     }
 }
 
@@ -744,7 +743,7 @@ TEST_CASE("JSONCONS_N_MEMBER_TRAITS with optional tests")
         auto result = jsoncons::try_decode_json<ns::book_3_m_a>(input);
         REQUIRE_FALSE(result);
         CHECK(json_errc::expected_colon == result.error().code()                         );
-        //std::cout << result.error() << "\n";
+        //std::cout << result.error() .message() << "\n";
     }
     SECTION("unexpected JSON")
     {
@@ -753,7 +752,7 @@ TEST_CASE("JSONCONS_N_MEMBER_TRAITS with optional tests")
         auto result = jsoncons::try_decode_json<ns::book_3_m_a>(input);
         REQUIRE_FALSE(result);
         CHECK(jsoncons::conv_errc::expected_object == result.error().code()                                    );
-        //std::cout << result.error() << "\n";
+        //std::cout << result.error() .message() << "\n";
     }
     SECTION("missing member")
     {
@@ -767,7 +766,7 @@ TEST_CASE("JSONCONS_N_MEMBER_TRAITS with optional tests")
         auto result = jsoncons::try_decode_json<ns::book_3_m_a>(input);
         REQUIRE_FALSE(result);
         CHECK(result.error().code() == jsoncons::conv_errc::missing_required_member);
-        //std::cout << result.error() << "\n";
+        //std::cout << result.error() .message() << "\n";
     }
     SECTION("invalid JSON value")
     {
@@ -782,7 +781,7 @@ TEST_CASE("JSONCONS_N_MEMBER_TRAITS with optional tests")
         auto result = jsoncons::try_decode_json<ns::book_3_m_a>(input);
         REQUIRE_FALSE(result);
         CHECK(conv_errc::conversion_failed == result.error().code()                         );
-        //std::cout << result.error() << "\n";
+        //std::cout << result.error() .message() << "\n";
     }
 }
 
@@ -839,7 +838,7 @@ TEST_CASE("JSONCONS_ALL_CTOR_GETTER_TRAITS tests")
         auto result = jsoncons::try_decode_json<ns::book_all_cg>(input);
         REQUIRE_FALSE(result);
         CHECK(json_errc::expected_colon == result.error().code());
-        //std::cout << result.error() << "\n";
+        //std::cout << result.error() .message() << "\n";
     }
     SECTION("unexpected JSON")
     {
@@ -848,7 +847,7 @@ TEST_CASE("JSONCONS_ALL_CTOR_GETTER_TRAITS tests")
         auto result = jsoncons::try_decode_json<ns::book_all_cg>(input);
         REQUIRE_FALSE(result);
         CHECK(jsoncons::conv_errc::expected_object == result.error().code());
-        //std::cout << result.error() << "\n";
+        //std::cout << result.error() .message() << "\n";
     }
     SECTION("missing member")
     {
@@ -863,7 +862,7 @@ TEST_CASE("JSONCONS_ALL_CTOR_GETTER_TRAITS tests")
         REQUIRE_FALSE(result);
         CHECK(result.error().code() == jsoncons::conv_errc::missing_required_member);
         CHECK("ns::book_all_cg: price" == result.error().message_arg());
-        //std::cout << result.error() << "\n";
+        //std::cout << result.error() .message() << "\n";
     }
     SECTION("invalid JSON value")
     {
@@ -878,7 +877,7 @@ TEST_CASE("JSONCONS_ALL_CTOR_GETTER_TRAITS tests")
         auto result = jsoncons::try_decode_json<ns::book_all_cg>(input);
         REQUIRE_FALSE(result);
         CHECK(conv_errc::conversion_failed == result.error().code()                         );
-        //std::cout << result.error() << "\n";
+        //std::cout << result.error() .message() << "\n";
     }
 }
 
@@ -970,7 +969,7 @@ TEST_CASE("JSONCONS_TPL_ALL_MEMBER_TRAITS tests")
         val.someString = "A string";
 
         std::string s;
-        encode_json(val, s, indenting::indent);
+        encode_json_pretty(val, s);
 
         auto val2 = decode_json<value_type>(s);
 
@@ -989,7 +988,7 @@ TEST_CASE("JSONCONS_TPL_ALL_MEMBER_TRAITS tests")
         val.aT2 = 2;
 
         std::string s;
-        encode_json(val, s, indenting::indent);
+        encode_json_pretty(val, s);
 
         auto val2 = decode_json<value_type>(s);
 
@@ -1007,7 +1006,7 @@ TEST_CASE("JSONCONS_TPL_ALL_MEMBER_TRAITS tests")
         val.aT2 = L"sss";
 
         std::wstring s;
-        encode_json(val, s, indenting::indent);
+        encode_json_pretty(val, s);
 
         auto val2 = decode_json<value_type>(s);
 
@@ -1027,7 +1026,7 @@ TEST_CASE("JSONCONS_TPL_ALL_CTOR_GETTER_TRAITS tests")
         value_type val(std::make_pair(1,2), "A string");
 
         std::string s;
-        encode_json(val, s, indenting::indent);
+        encode_json_pretty(val, s);
 
         auto val2 = decode_json<value_type>(s);
 
@@ -1230,7 +1229,7 @@ TEST_CASE("JSONCONS_ALL_GETTER_SETTER_TRAITS tests")
         auto result = jsoncons::try_decode_json<ns::book_all_gs>(input);
         REQUIRE_FALSE(result);
         CHECK(json_errc::expected_colon == result.error().code()                         );
-        //std::cout << result.error() << "\n";
+        //std::cout << result.error() .message() << "\n";
     }
     SECTION("unexpected JSON")
     {
@@ -1239,7 +1238,7 @@ TEST_CASE("JSONCONS_ALL_GETTER_SETTER_TRAITS tests")
         auto result = jsoncons::try_decode_json<ns::book_all_gs>(input);
         REQUIRE_FALSE(result);
         CHECK(jsoncons::conv_errc::expected_object == result.error().code()                                    );
-        //std::cout << result.error() << "\n";
+        //std::cout << result.error() .message() << "\n";
     }
     SECTION("missing member")
     {
@@ -1254,7 +1253,7 @@ TEST_CASE("JSONCONS_ALL_GETTER_SETTER_TRAITS tests")
         REQUIRE_FALSE(result);
         CHECK(result.error().code() == jsoncons::conv_errc::missing_required_member);
         CHECK("ns::book_all_gs: Price" == result.error().message_arg());
-        //std::cout << result.error() << "\n";
+        //std::cout << result.error() .message() << "\n";
     }
     SECTION("invalid JSON value")
     {
@@ -1269,7 +1268,7 @@ TEST_CASE("JSONCONS_ALL_GETTER_SETTER_TRAITS tests")
         auto result = jsoncons::try_decode_json<ns::book_all_gs>(input);
         REQUIRE_FALSE(result);
         CHECK(conv_errc::conversion_failed == result.error().code()                         );
-        //std::cout << result.error() << "\n";
+        //std::cout << result.error() .message() << "\n";
     }
 }
 
@@ -1399,7 +1398,7 @@ TEST_CASE("hiking_reputation")
     SECTION("2")
     {
         std::string s;
-        encode_json(val, s, indenting::indent);
+        encode_json_pretty(val, s);
         auto val2 = decode_json<ns::hiking_reputation>(s);
         CHECK(val2 == val);
     }
@@ -1416,7 +1415,7 @@ TEST_CASE("hiking_reputation")
     SECTION("4")
     {
         std::string s;
-        encode_json(val, s, indenting::indent);
+        encode_json_pretty(val, s);
         auto val2 = decode_json<ns::hiking_reputation>(make_alloc_set(temp_alloc_arg, alloc1), s);
         CHECK(val2 == val);
     }
@@ -1424,7 +1423,7 @@ TEST_CASE("hiking_reputation")
     SECTION("5")
     {
         std::string s;
-        encode_json(val, s, indenting::indent);
+        encode_json_pretty(val, s);
         auto val2 = decode_json<ns::hiking_reputation>(make_alloc_set(temp_alloc_arg, alloc1),
                                                        s, json_options());
         CHECK(val2 == val);

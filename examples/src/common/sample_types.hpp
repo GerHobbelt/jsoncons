@@ -1,5 +1,5 @@
-#ifndef EXAMPLE_TYPES
-#define EXAMPLE_TYPES
+#ifndef SAMPLE_TYPES
+#define SAMPLE_TYPES
 
 #include <string>
 #include <vector>
@@ -52,6 +52,8 @@ namespace ns {
     class Person
     {
     public:
+        Person() : age(0) {}
+
         Person(const std::string& name, const std::string& surname,
                const std::string& ssn, unsigned int age)
            : name(name), surname(surname), ssn(ssn), age(age) { }
@@ -66,8 +68,6 @@ namespace ns {
     private:
         // Make json_type_traits specializations friends to give accesses to private members
         JSONCONS_TYPE_TRAITS_FRIEND
-
-        Person() : age(0) {}
 
         std::string name;
         std::string surname;
@@ -121,7 +121,12 @@ namespace ns {
     {
         std::string application_;
         std::vector<hiking_reputon> reputons_;
+
+        // Make json_type_traits specializations friends to give accesses to private members
+        JSONCONS_TYPE_TRAITS_FRIEND
     public:
+        hiking_reputation() = default;
+
         hiking_reputation(const std::string& application, 
                           const std::vector<hiking_reputon>& reputons)
             : application_(application), 

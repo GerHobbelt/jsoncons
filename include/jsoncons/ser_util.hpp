@@ -8,7 +8,7 @@
 #define JSONCONS_SER_UTIL_HPP
 
 #include <cstddef>
-#include <ostream>
+#include <string>
 #include <system_error>
 
 #include <jsoncons/config/jsoncons_config.hpp>
@@ -112,13 +112,6 @@ public:
         return str;
     }
 };
-
-inline
-std::ostream& operator<<(std::ostream& os, const read_error& err)
-{
-    os << err.message();
-    return os;
-}
 
 template <typename T>
 using read_result = expected<T,read_error>;
