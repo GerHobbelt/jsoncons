@@ -1,4 +1,17 @@
-1.4.0 preview
+1.4.1
+-----
+
+This patch fixes some issues reported with v1.4.0
+
+- Fixed bug:
+
+    - Git PR #628: fixed uninitialized warning 
+    - Git Issue #631: Using std::variant with std::unordered_map can throw uncatchable exception 
+    - Git PR #633: Fix make_array() call 
+    - Git Issue #634: Regression in encode_json et al. from v1.3.2 to v1.4.0 with std::variant using std::map
+    - Git Issue #635: Support construction of sorted_json_object from moved-in pairs
+
+1.4.0
 -----
 
 - Fixed bug:
@@ -18,10 +31,10 @@
     - New `basic_json_options` member `lossless_bignum`. If `true`, reads out of range floating point numbers 
     as strings with tag `semantic_tag::bigdec`. Defaults to true.
 
-    - New reflection trait definitions, `jsoncons::reflect::json_conv_traits`, that support non-throwing conversions and user-allocator construction.
-      These replace `jsoncons::json_type_traits`, but for backwards compatability, `json_conv_traits` defaults to `json_type_traits` if a type conversion is undefined.
+    - New reflection trait definitions, `jsoncons::reflect::json_conv_traits`, that support non-throwing conversions and uses-allocator construction.
+      These replace `jsoncons::json_type_traits`, but for backwards compatibility, `json_conv_traits` defaults to `json_type_traits` if a type conversion is undefined.
 
-    - New non-throwing versions of the decode functions that return a `std::expected<T,read_error>`-like result,
+    - New non-throwing versions of the decode functions that return a `std::expected`-like result (like `std::expected<T,jsoncons::read_error>`),
 
         - `try_decode_json`
         - `try_decode_csv`
@@ -30,7 +43,7 @@
         - `try_decode_msgpack`
         - `try_decode_ubjson`
 
-    - New non-throwing versions of the encode functions that return a `std::expected<void,write_error>`-like result,
+    - New non-throwing versions of the encode functions that return a `std::expected`-like result (like `std::expected<void,jsoncons::write_error>`),
 
         - `try_encode_json`
         - `try_encode_csv`

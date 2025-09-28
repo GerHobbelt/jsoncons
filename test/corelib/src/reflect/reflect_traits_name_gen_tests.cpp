@@ -300,6 +300,7 @@ namespace ns {
 } // ns
 } // namespace 
 
+
 JSONCONS_ALL_MEMBER_NAME_TRAITS(ns::book_all_m,(author,"Author"),(title,"Title"),(price,"Price"))
 JSONCONS_ALL_MEMBER_NAME_TRAITS(ns::bool_all_m_a,(author,"Author"),(title,"Title"),(price,"Price"))
 JSONCONS_N_MEMBER_NAME_TRAITS(ns::Person1, 1, (name, "n"), (surname, "sn"))
@@ -364,7 +365,7 @@ TEST_CASE("JSONCONS_ALL_MEMBER_NAME_TRAITS tests 1")
 
         auto result = jsoncons::try_decode_json<ns::book_all_m>(input);
         REQUIRE_FALSE(result);
-        CHECK(jsoncons::conv_errc::expected_object == result.error().code()                                    );
+        CHECK(jsoncons::conv_errc::not_map == result.error().code()                                    );
         //std::cout << result.error() .message() << "\n";
     }
     SECTION("missing member")
@@ -393,7 +394,7 @@ TEST_CASE("JSONCONS_ALL_MEMBER_NAME_TRAITS tests 1")
 
         auto result = jsoncons::try_decode_json<ns::book_all_m>(input);
         REQUIRE_FALSE(result);
-        CHECK(conv_errc::conversion_failed == result.error().code()                         );
+        CHECK(conv_errc::not_double == result.error().code()                         );
         //std::cout << result.error() .message() << "\n";
     }
 } 
@@ -593,7 +594,7 @@ TEST_CASE("JSONCONS_ALL_CTOR_GETTER_NAME_TRAITS tests")
 
         auto result = jsoncons::try_decode_json<ns::book_all_cg>(input);
         REQUIRE_FALSE(result);
-        //CHECK(jsoncons::conv_errc::expected_object == result.error().code()                                    );
+        //CHECK(jsoncons::conv_errc::not_map == result.error().code()                                    );
         //std::cout << result.error() .message() << "\n";
     }
     SECTION("missing member")
@@ -623,7 +624,7 @@ TEST_CASE("JSONCONS_ALL_CTOR_GETTER_NAME_TRAITS tests")
 
         auto result = jsoncons::try_decode_json<ns::book_all_cg>(input);
         REQUIRE_FALSE(result);
-        CHECK(conv_errc::conversion_failed == result.error().code()                         );
+        CHECK(conv_errc::not_double == result.error().code()                         );
         //std::cout << result.error() .message() << "\n";
     }
 }
@@ -733,7 +734,7 @@ TEST_CASE("JSONCONS_ALL_GETTER_SETTER_NAME_TRAITS tests")
 
         auto result = jsoncons::try_decode_json<ns::book_all_gs>(input);
         REQUIRE_FALSE(result);
-        //CHECK(jsoncons::conv_errc::expected_object == result.error().code()                                    );
+        //CHECK(jsoncons::conv_errc::not_map == result.error().code()                                    );
         //std::cout << result.error() .message() << "\n";
     }
     SECTION("missing member")
@@ -763,7 +764,7 @@ TEST_CASE("JSONCONS_ALL_GETTER_SETTER_NAME_TRAITS tests")
 
         auto result = jsoncons::try_decode_json<ns::book_all_gs>(input);
         REQUIRE_FALSE(result);
-        CHECK(conv_errc::conversion_failed == result.error().code()                         );
+        CHECK(conv_errc::not_double == result.error().code()                         );
         //std::cout << result.error() .message() << "\n";
     }
 }
@@ -850,7 +851,7 @@ TEST_CASE("JSONCONS_N_GETTER_SETTER_NAME_TRAITS tests")
 
         auto result = jsoncons::try_decode_json<ns::book_2_gs>(input);
         REQUIRE_FALSE(result);
-        CHECK(jsoncons::conv_errc::expected_object == result.error().code());
+        CHECK(jsoncons::conv_errc::not_map == result.error().code());
         //std::cout << result.error() .message() << "\n";
     }
     SECTION("missing member")
@@ -880,8 +881,83 @@ TEST_CASE("JSONCONS_N_GETTER_SETTER_NAME_TRAITS tests")
         auto result = jsoncons::try_decode_json<ns::book_2_gs>(input);
         REQUIRE_FALSE(result);
         CHECK("ns::book_2_gs" == result.error().message_arg());
-        CHECK(conv_errc::conversion_failed == result.error().code()                         );
+        CHECK(conv_errc::not_double == result.error().code());
         //std::cout << result.error() .message() << "\n";
     }
 }
 
+#if defined(JSONCONS_HAS_STD_VARIANT)
+
+#include <variant>
+
+namespace {
+namespace ns {
+
+    typedef std::variant<
+        std::unordered_map<std::string, std::string>,
+        std::unordered_map<std::string, std::unordered_map<std::string, std::string>>,
+        std::string,
+        std::vector<std::string>,
+        int64_t,
+        std::vector<int64_t>,
+        double,
+        std::vector<double>,
+        bool,
+        std::vector<bool>
+    >
+        VARIANTTYPE;
+
+    class SerialisableClass
+    {
+    public:
+        SerialisableClass() = default;
+
+        std::string m_sStr;
+        VARIANTTYPE m_data;
+    };
+
+} // ns
+} // namespace 
+
+JSONCONS_ALL_MEMBER_NAME_TRAITS(ns::SerialisableClass,
+    (m_sStr, "str"),
+    (m_data, "data")
+)
+
+TEST_CASE("JSONCONS_All_MEMBER_NAME_TRAITS variant tests")
+{
+    SECTION("std::string")
+    {
+        std::string sJson1 = R"(
+    {
+        "str": "string_value1",
+        "data": "string_value2"
+    }
+        )";
+
+        ns::SerialisableClass w;
+        REQUIRE_NOTHROW(w = jsoncons::decode_json<ns::SerialisableClass>(sJson1));
+        std::string s;
+        REQUIRE_NOTHROW( s = std::get<std::string>(w.m_data));
+        CHECK("string_value2" == s);
+    }
+    SECTION("std::unordered_map<std::string, std::unordered_map<std::string, std::string>>")
+    {
+        std::string sJson2 = R"(
+    {
+        "str": "string_value",
+        "data": {
+            "key1": "value1"
+        }        
+    }
+        )";
+
+        ns::SerialisableClass w;
+        REQUIRE_NOTHROW(w = jsoncons::decode_json<ns::SerialisableClass>(sJson2));
+        std::unordered_map<std::string, std::string> m;
+        REQUIRE_NOTHROW(m = std::get<std::unordered_map<std::string, std::string>>(w.m_data));
+        CHECK("value1" == m["key1"]);
+    }
+}
+
+#endif

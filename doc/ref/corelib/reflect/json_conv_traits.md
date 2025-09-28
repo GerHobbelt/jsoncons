@@ -13,12 +13,10 @@ and a value of some other type. `json_conv_traits` implementations must speciali
 template <typename Json,typename T,typename Enable=void>
 struct json_conv_traits
 {
-    using result_type = conversion_result<T>;
-
     static constexpr bool is(const Json& j) noexcept;
 
     template<typename Alloc,typename TempAlloc>
-    static result_type try_as(const allocator_set<Alloc,TempAlloc>&, const Json& j);
+    static conversion_result<T> try_as(const allocator_set<Alloc,TempAlloc>&, const Json& j);
 
     template <typename Alloc, typename TempAlloc>
     static Json to_json(const allocator_set<Alloc,TempAlloc>& aset, const T& val);
@@ -37,9 +35,9 @@ type in the variant case.
 The function 
 
     template <typename Alloc, typename TempAlloc>
-    T try_as(const allocator_set<Alloc,TempAlloc>& aset, const Json& j) 
+    conversion_result<T> try_as(const allocator_set<Alloc,TempAlloc>& aset, const Json& j) 
 
-tries to convert `j` to a value of type `T`.
+tries to convert `j` to a value of type `T` and returns an `std::expected`-like result (like `std::expected<T,jsoncons::conversion_error>`.)
 
 The function 
 
@@ -51,7 +49,155 @@ tries to convert `val` into a `Json` value.
 jsoncons includes specializiations for most types in the standard library. And it includes convenience 
 macros that make specializing `json_conv_traits` for your own types easier.
 
+### See also
+
+[allocator_set](../allocator_set.md)  
+[conversion_result](../conversion_result.md)  
+
 ### Examples
+
+#### Optional values
+
+```cpp
+#include <jsoncons/json.hpp>
+#include <string>
+#include <optional>
+#include <iostream>
+#include <cassert>
+
+namespace ns {
+
+struct OptionalExample {
+
+    std::string text;
+    std::optional<std::string> optional;
+    std::optional<std::string> optional_skip;
+
+    explicit OptionalExample() = default;
+};
+
+} // namespace ns
+
+namespace jsoncons {
+namespace reflect {
+
+template <typename Json>
+struct json_conv_traits<Json, ns::OptionalExample>
+{
+    using value_type = ns::OptionalExample;
+
+    static bool is(const Json& j) noexcept
+    {
+        return j.is_object() && j.contains("text") && j.contains("optional");
+    }
+    template <typename Alloc, typename TempAlloc>
+    static conversion_result<value_type> try_as(const allocator_set<Alloc,TempAlloc>&, const Json& j)
+    {
+        using result_type = conversion_result<value_type>;
+
+        if (!j.is_object())
+        {
+            return result_type(jsoncons::unexpect, conv_errc::not_map, "ns::OptionalExample");
+        }
+
+        value_type val;
+        {
+            auto it = j.find("text");
+            if (it == j.object_range().end())
+            {
+                return result_type(jsoncons::unexpect, conv_errc::missing_required_member, "text");
+            }
+            auto r = it->value().template try_as<std::string>();
+            if (!r)
+            {
+                return result_type(unexpect, r.error().code());
+            }
+            val.text = std::move(*r);
+        }
+        {
+            auto it = j.find("optional");
+            if (it != j.object_range().end())
+            {
+                auto r = it->value().template try_as<std::string>();
+                if (!r)
+                {
+                    return result_type(unexpect, r.error().code());
+                }
+                val.optional = std::move(*r);
+            }
+        }
+        {
+            auto it = j.find("optional_skip");
+            if (it != j.object_range().end())
+            {
+                auto r = it->value().template try_as<std::string>();
+                if (!r)
+                {
+                    return result_type(unexpect, r.error().code());
+                }
+                val.optional_skip = std::move(*r);
+            }
+        }
+
+        return result_type(std::move(val));
+    }
+    template <typename Alloc, typename TempAlloc>
+    static Json to_json(const allocator_set<Alloc,TempAlloc>& aset, const ns::OptionalExample& val)
+    {
+        Json j = jsoncons::make_obj_using_allocator<Json>(aset.get_allocator(), json_object_arg);
+        j.try_emplace("text", val.text);
+        if (val.optional)
+        {
+            j.try_emplace("optional", *val.optional);
+        }
+        if (val.optional_skip)
+        {
+            j.try_emplace("optional_skip", *val.optional_skip);
+        }
+        return j;
+    }
+};
+} // namespace reflect
+} // namespace jsoncons
+
+int main()
+{
+    std::error_code ec;
+
+    ns::OptionalExample val;
+    val.text = "Sample!";
+    val.optional = "Available Value";
+
+    std::string buffer;
+    auto wresult = jsoncons::try_encode_json_pretty(val, buffer);
+    if (!wresult)
+    {
+        std::cout << wresult.error().message() << "\n";
+        exit(1);
+    }
+    std::cout << buffer << "\n";
+}
+```
+
+Output:
+
+```json
+{
+    "text": "Sample!",
+    "optional": "Available Value"
+}
+```
+
+#### Remarks
+
+- If you're using C++20 or higher, you can use [std::make_obj_using_allocator](https://en.cppreference.com/w/cpp/memory/make_obj_using_allocator.html) 
+in `to_json` instead of `jsoncons::make_obj_using_allocator`.
+
+- To save typing and enhance readability, you can use the convenience macro `JSONCONS_N_MEMBER_TRAITS` to generate the traits classes,
+
+```
+JSONCONS_N_MEMBER_TRAITS(OptionalExample, 1, text, optional, optional_skip);
+```
 
 #### Uses allocator construction example
 
@@ -105,13 +251,13 @@ struct json_conv_traits<Json, ns::book<Alloc>>
             j.contains("title") && j.contains("price");
     }
     template <typename Alloc, typename TempAlloc>
-    static conversion_result<value_type> try_as(const allocator_set<Alloc,TempAlloc>& aset, const Json& j)
+    static conversion_result<value_type> try_as(const allocator_set<Alloc, TempAlloc>& aset, const Json& j)
     {
         using result_type = conversion_result<value_type>;
 
         if (!j.is_object())
         {
-            return result_type(jsoncons::unexpect, conv_errc::not_object, "ns::book");
+            return result_type(jsoncons::unexpect, conv_errc::not_map, "ns::book");
         }
 
         auto val = jsoncons::make_obj_using_allocator<value_type>(aset.get_allocator());
@@ -197,7 +343,7 @@ int main()
     )";
 
     cust_allocator<book_type> alloc(1);
-    auto aset = jsoncons::make_alloc_set<cust_allocator<book_type>>(alloc);
+    auto aset = jsoncons::make_alloc_set(alloc);
     auto rin = jsoncons::try_decode_json<books_type>(aset, input);
     assert(rin);
 
@@ -223,11 +369,18 @@ Output:
 ]
 ```
 
-To save typing and enhance readability, you can use the convenience macro `JSONCONS_ALL_MEMBER_TRAITS` 
-to generate the traits classes,
+#### Remarks
+
+- If you're using C++20 or higher, you can use [std::make_obj_using_allocator](https://en.cppreference.com/w/cpp/memory/make_obj_using_allocator.html) 
+in `try_as` and `to_json` instead of `jsoncons::make_obj_using_allocator`.
+
+- To save typing and enhance readability, you can use the convenience macro `JSONCONS_TMPL_ALL_MEMBER_TRAITS` to generate the traits classes,
 
 ```
-JSONCONS_ALL_MEMBER_TRAITS(ns::book, author, title, price)
+    JSONCONS_TMPL_ALL_MEMBER_TRAITS(1, ns::book, author, title, price)
 ```
+
+
+
 
 

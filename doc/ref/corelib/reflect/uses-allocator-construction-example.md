@@ -1,6 +1,7 @@
 ### Uses-allocator construction example (requires 1.4.0)
 
-This example illustrates user-allocator construction for types with `json_conv_traits` traits defined. In the
+This example illustrates [uses-allocator construction](https://en.cppreference.com/w/cpp/memory/uses_allocator.html) 
+for types with [json_conv_traits](json_conv_traits.md) traits defined. In the
 example, a user supplied stateful allocator is provided when invoking `jsoncons::try_decode_json`. This
 allocator is used for all result allocations, including the allocated memory for `std::shared_ptr<Employee<Alloc>>`
 and the string type member of `Employee<Alloc>`. A second allocator is provided for allocating memory for 
@@ -215,7 +216,7 @@ int main()
 
 ### See also
 
-[allocator_set](../allocator_set)  
+[allocator_set](../allocator_set.md)  
 [decode_json, try_decode_json](../decode_json.md)  
 [encode_json, encode_json_pretty, try_encode_json, try_encode_json_pretty](../encode_json.md)  
 [basic_json](../basic_json.md)  

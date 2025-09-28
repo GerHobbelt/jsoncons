@@ -41,19 +41,19 @@ void encode_json_pretty(const T& val, std::basic_ostream<CharT>& os,
     const basic_json_encode_options<CharT>& options                             (7) (since 0.155.0)        
         = basic_json_encode_options<CharT>());                                  
 
-template <typename T,typename CharT>
-write_result try_encode_json(const T& val, basic_json_visitor<CharT>& encoder); (8) (since 1.4.0)
-
 template <typename T,typename CharContainer>
 void encode_json_pretty(const allocator_set<Alloc,TempAlloc>& aset,
     const T& val, CharContainer& cont, 
-    const basic_json_encode_options<CharContainer::value_type>& options         (9) (since 1.4.0)
+    const basic_json_encode_options<CharContainer::value_type>& options         (8) (since 1.4.0)
         = basic_json_encode_options<CharContainer::value_type>());              
 
 template <typename T,typename CharT>
 void encode_json_pretty(const allocator_set<Alloc,TempAlloc>& aset,
     const T& val, std::basic_ostream<CharT>& os, 
-    const basic_json_encode_options<CharT>& options                             (10) (since 1.4.0)
+    const basic_json_encode_options<CharT>& options                             (9) (since 1.4.0)
+
+template <typename T,typename CharT>
+write_result try_encode_json(const T& val, basic_json_visitor<CharT>& encoder); (10) (since 1.4.0)
         = basic_json_encode_options<CharT>());                                          
 
 template <typename T,typename CharContainer>
@@ -117,13 +117,12 @@ Functions (8)-(9) are identical to (6)-(7) except an [allocator_set](allocator_s
 
 (10)-(18) Non-throwing versions of (1)-(9)
 
-
 #### Parameters
 
 <table>
   <tr>
     <td>aset</td>
-    <td>[allocator_set](../allocator_set)</td> 
+    <td>[allocator_set](allocator_set.md)</td> 
   </tr>
   <tr>
     <td>val</td>
