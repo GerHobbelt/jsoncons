@@ -11,7 +11,7 @@
 #include <system_error>
 #include <tuple>
 
-#include <jsoncons/encode_traits.hpp>
+#include <jsoncons/reflect/encode_traits.hpp>
 #include <jsoncons/json_exception.hpp>
 #include <jsoncons/json_cursor.hpp>
 #include <jsoncons/basic_json.hpp>
@@ -198,7 +198,7 @@ namespace jsoncons {
     void encode_json(const T& val, basic_json_visitor<CharT>& encoder)
     {
         std::error_code ec;
-        encode_traits<T,CharT>::encode(val, encoder, basic_json<CharT>(), ec);
+        reflect::encode_traits<T,CharT>::encode(val, encoder, basic_json<CharT>(), ec);
         if (JSONCONS_UNLIKELY(ec))
         {
             JSONCONS_THROW(ser_error(ec));

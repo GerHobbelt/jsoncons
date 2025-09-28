@@ -37,7 +37,7 @@
 #include <jsoncons/json_options.hpp>
 #include <jsoncons/json_reader.hpp>
 #include <jsoncons/json_type.hpp>
-#include <jsoncons/json_type_traits.hpp>
+#include <jsoncons/reflect/json_conv_traits.hpp>
 #include <jsoncons/pretty_print.hpp>
 #include <jsoncons/semantic_tag.hpp>
 #include <jsoncons/ser_context.hpp>
@@ -1890,7 +1890,7 @@ namespace jsoncons {
             parser.parse_some(decoder);
             parser.finish_parse(decoder);
             parser.check_done();
-            if (!decoder.is_valid())
+            if (JSONCONS_UNLIKELY(!decoder.is_valid()))
             {
                 JSONCONS_THROW(ser_error(json_errc::source_error, "Failed to parse json string"));
             }
@@ -1916,7 +1916,7 @@ namespace jsoncons {
             parser.parse_some(decoder);
             parser.finish_parse(decoder);
             parser.check_done();
-            if (!decoder.is_valid())
+            if (JSONCONS_UNLIKELY(!decoder.is_valid()))
             {
                 JSONCONS_THROW(ser_error(json_errc::source_error, "Failed to parse json string"));
             }
@@ -1959,7 +1959,7 @@ namespace jsoncons {
             basic_json_reader<char_type,stream_source<char_type>,Allocator> reader(is, decoder, options);
             reader.read_next();
             reader.check_done();
-            if (!decoder.is_valid())
+            if (JSONCONS_UNLIKELY(!decoder.is_valid()))
             {
                 JSONCONS_THROW(ser_error(json_errc::source_error, "Failed to parse json stream"));
             }
@@ -1974,7 +1974,7 @@ namespace jsoncons {
             basic_json_reader<char_type,stream_source<char_type>,Allocator> reader(is, decoder, options, alloc_set.get_temp_allocator());
             reader.read_next();
             reader.check_done();
-            if (!decoder.is_valid())
+            if (JSONCONS_UNLIKELY(!decoder.is_valid()))
             {
                 JSONCONS_THROW(ser_error(json_errc::source_error, "Failed to parse json stream"));
             }
@@ -1992,7 +1992,7 @@ namespace jsoncons {
                 std::forward<InputIt>(last)), decoder, options);
             reader.read_next();
             reader.check_done();
-            if (!decoder.is_valid())
+            if (JSONCONS_UNLIKELY(!decoder.is_valid()))
             {
                 JSONCONS_THROW(ser_error(json_errc::source_error, "Failed to parse json from iterator pair"));
             }
@@ -2009,7 +2009,7 @@ namespace jsoncons {
                 decoder, options, alloc_set.get_temp_allocator());
             reader.read_next();
             reader.check_done();
-            if (!decoder.is_valid())
+            if (JSONCONS_UNLIKELY(!decoder.is_valid()))
             {
                 JSONCONS_THROW(ser_error(json_errc::source_error, "Failed to parse json from iterator pair"));
             }
@@ -2039,7 +2039,7 @@ namespace jsoncons {
             basic_json_reader<char_type,stream_source<char_type>> reader(is, decoder, options, err_handler);
             reader.read_next();
             reader.check_done();
-            if (!decoder.is_valid())
+            if (JSONCONS_UNLIKELY(!decoder.is_valid()))
             {
                 JSONCONS_THROW(ser_error(json_errc::source_error, "Failed to parse json stream"));
             }
@@ -2060,7 +2060,7 @@ namespace jsoncons {
             basic_json_reader<char_type,iterator_source<InputIt>> reader(iterator_source<InputIt>(std::forward<InputIt>(first),std::forward<InputIt>(last)), decoder, options, err_handler);
             reader.read_next();
             reader.check_done();
-            if (!decoder.is_valid())
+            if (JSONCONS_UNLIKELY(!decoder.is_valid()))
             {
                 JSONCONS_THROW(ser_error(json_errc::source_error, "Failed to parse json from iterator pair"));
             }
@@ -2087,7 +2087,7 @@ namespace jsoncons {
             parser.parse_some(decoder);
             parser.finish_parse(decoder);
             parser.check_done();
-            if (!decoder.is_valid())
+            if (JSONCONS_UNLIKELY(!decoder.is_valid()))
             {
                 JSONCONS_THROW(ser_error(json_errc::source_error, "Failed to parse json string"));
             }
@@ -2347,14 +2347,14 @@ namespace jsoncons {
         template <typename T,
                   class = typename std::enable_if<!ext_traits::is_basic_json<T>::value>::type>
         basic_json(const T& val)
-            : basic_json(json_type_traits<basic_json,T>::to_json(val))
+            : basic_json(reflect::json_conv_traits<basic_json,T>::to_json(val))
         {
         }
 
         template <typename T,
                   class = typename std::enable_if<!ext_traits::is_basic_json<T>::value>::type>
         basic_json(const T& val, const Allocator& alloc)
-            : basic_json(json_type_traits<basic_json,T>::to_json(val,alloc))
+            : basic_json(reflect::json_conv_traits<basic_json,T>::to_json(val,alloc))
         {
         }
 
@@ -2558,7 +2558,7 @@ namespace jsoncons {
         template <typename T>
         basic_json& operator=(const T& val)
         {
-            *this = json_type_traits<basic_json,T>::to_json(val);
+            *this = reflect::json_conv_traits<basic_json,T>::to_json(val);
             return *this;
         }
 
@@ -2972,7 +2972,7 @@ namespace jsoncons {
         template <typename T,typename... Args>
         bool is(Args&&... args) const noexcept
         {
-            return json_type_traits<basic_json,T>::is(*this,std::forward<Args>(args)...);
+            return reflect::json_conv_traits<basic_json,T>::is(*this,std::forward<Args>(args)...);
         }
 
         bool is_string() const noexcept

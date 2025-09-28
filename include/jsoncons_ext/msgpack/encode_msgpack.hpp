@@ -15,7 +15,7 @@
 #include <jsoncons/utility/more_type_traits.hpp>
 #include <jsoncons/allocator_set.hpp>
 #include <jsoncons/basic_json.hpp>
-#include <jsoncons/encode_traits.hpp>
+#include <jsoncons/reflect/encode_traits.hpp>
 #include <jsoncons/json_exception.hpp>
 #include <jsoncons/json_visitor.hpp>
 #include <jsoncons/sink.hpp>
@@ -48,7 +48,7 @@ namespace msgpack {
     {
         basic_msgpack_encoder<jsoncons::bytes_sink<ByteContainer>> encoder(cont, options);
         std::error_code ec;
-        encode_traits<T,char>::encode(val, encoder, json(), ec);
+        reflect::encode_traits<T,char>::encode(val, encoder, json(), ec);
         if (JSONCONS_UNLIKELY(ec))
         {
             JSONCONS_THROW(ser_error(ec));
@@ -75,7 +75,7 @@ namespace msgpack {
     {
         msgpack_stream_encoder encoder(os, options);
         std::error_code ec;
-        encode_traits<T,char>::encode(val, encoder, json(), ec);
+        reflect::encode_traits<T,char>::encode(val, encoder, json(), ec);
         if (JSONCONS_UNLIKELY(ec))
         {
             JSONCONS_THROW(ser_error(ec));
@@ -106,7 +106,7 @@ namespace msgpack {
     {
         basic_msgpack_encoder<jsoncons::bytes_sink<ByteContainer>,TempAllocator> encoder(cont, options, alloc_set.get_temp_allocator());
         std::error_code ec;
-        encode_traits<T,char>::encode(val, encoder, json(), ec);
+        reflect::encode_traits<T,char>::encode(val, encoder, json(), ec);
         if (JSONCONS_UNLIKELY(ec))
         {
             JSONCONS_THROW(ser_error(ec));
@@ -135,7 +135,7 @@ namespace msgpack {
     {
         basic_msgpack_encoder<jsoncons::binary_stream_sink,TempAllocator> encoder(os, options, alloc_set.get_temp_allocator());
         std::error_code ec;
-        encode_traits<T,char>::encode(val, encoder, json(), ec);
+        reflect::encode_traits<T,char>::encode(val, encoder, json(), ec);
         if (JSONCONS_UNLIKELY(ec))
         {
             JSONCONS_THROW(ser_error(ec));
