@@ -50,6 +50,8 @@ struct default_json_parsing
     }
 };
 
+#if !defined(JSONCONS_NO_DEPRECATED)
+
 struct strict_json_parsing
 {
     bool operator()(json_errc, const ser_context&) noexcept
@@ -65,6 +67,8 @@ struct allow_trailing_commas
         return ec == json_errc::illegal_comment || ec == jsoncons::json_errc::extra_comma;
     }
 };
+
+#endif
 
 template <typename CharT>
 class basic_json_options;
@@ -297,11 +301,12 @@ public:
         return allow_trailing_comma_;
     }
 
+#if !defined(JSONCONS_NO_DEPRECATED)
     const std::function<bool(json_errc,const ser_context&)>& err_handler() const 
     {
         return err_handler_;
     }
-
+#endif
 };
 
 template <typename CharT>
@@ -334,6 +339,7 @@ private:
     uint8_t indent_size_{indent_size_default};
     std::size_t line_length_limit_{line_length_limit_default};
     string_type new_line_chars_;
+    char_type indent_char_;
 public:
     basic_json_encode_options()
         : escape_all_non_ascii_(false),
@@ -349,7 +355,8 @@ public:
           array_array_line_splits_(line_split_kind{}),
           array_object_line_splits_(line_split_kind{}),
           spaces_around_colon_(spaces_option::space_after),
-          spaces_around_comma_(spaces_option::space_after)
+          spaces_around_comma_(spaces_option::space_after),
+          indent_char_(' ')
     {
         new_line_chars_.push_back('\n');
     }
@@ -375,7 +382,8 @@ public:
           precision_(other.precision_),
           indent_size_(other.indent_size_),
           line_length_limit_(other.line_length_limit_),
-          new_line_chars_(std::move(other.new_line_chars_))
+          new_line_chars_(std::move(other.new_line_chars_)),
+          indent_char_(other.indent_char_)
     {
     }
     
@@ -417,6 +425,11 @@ public:
     spaces_option spaces_around_comma() const 
     {
         return spaces_around_comma_;
+    }
+
+    char_type indent_char() const 
+    {
+        return indent_char_;
     }
 
     bool pad_inside_object_braces() const 
@@ -485,8 +498,9 @@ public:
     using basic_json_decode_options<CharT>::lossless_bignum;
     using basic_json_decode_options<CharT>::allow_comments;
     using basic_json_decode_options<CharT>::allow_trailing_comma;
+#if !defined(JSONCONS_NO_DEPRECATED)
     using basic_json_decode_options<CharT>::err_handler;
-
+#endif
     using basic_json_encode_options<CharT>::byte_string_format;
     using basic_json_encode_options<CharT>::bignum_format;
     using basic_json_encode_options<CharT>::line_splits;
@@ -604,6 +618,12 @@ public:
         return *this;
     }
 
+    basic_json_options& indent_char(char_type value)
+    {
+        this->indent_char_ = value;
+        return *this;
+    }
+
     basic_json_options& pad_inside_object_braces(bool value)
     {
         this->pad_inside_object_braces_ = value;
@@ -646,12 +666,13 @@ public:
         return *this;
     }
 
+#if !defined(JSONCONS_NO_DEPRECATED)
     basic_json_options& err_handler(const std::function<bool(json_errc,const ser_context&)>& value) 
     {
         this->err_handler_ = value;
         return *this;
     }
-
+#endif
     basic_json_options& line_length_limit(std::size_t value)
     {
         this->line_length_limit_ = value;

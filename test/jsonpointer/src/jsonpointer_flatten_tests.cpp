@@ -356,5 +356,37 @@ TEST_CASE("jsonpointer unflatten tests 3")
         auto unflattened = jsoncons::jsonpointer::unflatten(flattened);
         CHECK(original == unflattened);    
     }
+    SECTION("unflatten empty object")
+    {
+        jsoncons::json original{};
+        REQUIRE_THROWS(jsoncons::jsonpointer::unflatten(original));
+    }
+    SECTION("unflatten array")
+    {
+        jsoncons::json flattened{jsoncons::json_array_arg};
+        REQUIRE_THROWS(jsoncons::jsonpointer::unflatten(flattened));
+    }
+    SECTION("unflatten flattened merged with flattened empty object")
+    {
+        auto flattened =jsoncons::json::parse(R"(
+{"":{},"/r1":"v1","/r2":"v2"}
+        )");
+        auto expected = jsoncons::json::parse(R"(
+{"r1":"v1","r2":"v2"}
+        )");
+
+        CHECK(expected == jsoncons::jsonpointer::unflatten(flattened));
+    }
+    SECTION("unflatten flattened merged with flattened null value")
+    {
+        auto flattened = jsoncons::json::parse(R"(
+{"":null,"/r1":"v1","/r2":"v2"}
+        )");
+        auto expected = jsoncons::json::parse(R"(
+{"r1":"v1","r2":"v2"}
+        )");
+
+        CHECK(expected == jsoncons::jsonpointer::unflatten(flattened));
+    }
 }
 

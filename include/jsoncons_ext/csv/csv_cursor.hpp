@@ -56,7 +56,37 @@ public:
     template <typename Sourceable>
     basic_csv_cursor(Sourceable&& source, 
         const basic_csv_decode_options<CharT>& options = basic_csv_decode_options<CharT>(),
-        std::function<bool(csv_errc,const ser_context&)> err_handler = default_csv_parsing(),
+        const Allocator& alloc = Allocator(),
+        typename std::enable_if<!std::is_constructible<jsoncons::basic_string_view<CharT>,Sourceable>::value>::type* = 0)
+       : source_(std::forward<Sourceable>(source)),
+         parser_(options, alloc)
+    {
+        parser_.cursor_mode(true);
+        if (!read_done())
+        {
+            read_next();
+        }
+    }
+
+    template <typename Sourceable>
+    basic_csv_cursor(Sourceable&& source, 
+        const basic_csv_decode_options<CharT>& options = basic_csv_decode_options<CharT>(),
+        const Allocator& alloc = Allocator(),
+        typename std::enable_if<std::is_constructible<jsoncons::basic_string_view<CharT>,Sourceable>::value>::type* = 0)
+       : source_(),
+         parser_(options,alloc)
+    {
+        parser_.cursor_mode(true);
+        jsoncons::basic_string_view<CharT> sv(std::forward<Sourceable>(source));
+        initialize_with_string_view(sv);
+    }
+
+#if !defined(JSONCONS_NO_DEPRECATED)
+
+    template <typename Sourceable>
+    basic_csv_cursor(Sourceable&& source, 
+        const basic_csv_decode_options<CharT>& options,
+        std::function<bool(csv_errc,const ser_context&)> err_handler,
         const Allocator& alloc = Allocator(),
         typename std::enable_if<!std::is_constructible<jsoncons::basic_string_view<CharT>,Sourceable>::value>::type* = 0)
        : source_(std::forward<Sourceable>(source)),
@@ -71,8 +101,8 @@ public:
 
     template <typename Sourceable>
     basic_csv_cursor(Sourceable&& source, 
-        const basic_csv_decode_options<CharT>& options = basic_csv_decode_options<CharT>(),
-        std::function<bool(csv_errc,const ser_context&)> err_handler = default_csv_parsing(),
+        const basic_csv_decode_options<CharT>& options,
+        std::function<bool(csv_errc,const ser_context&)> err_handler,
         const Allocator& alloc = Allocator(),
         typename std::enable_if<std::is_constructible<jsoncons::basic_string_view<CharT>,Sourceable>::value>::type* = 0)
        : source_(),
@@ -82,7 +112,7 @@ public:
         jsoncons::basic_string_view<CharT> sv(std::forward<Sourceable>(source));
         initialize_with_string_view(sv);
     }
-
+#endif
 
     // Constructors that set parse error codes
     template <typename Sourceable>
@@ -90,7 +120,6 @@ public:
         : basic_csv_cursor(std::allocator_arg, Allocator(),
               std::forward<Sourceable>(source),
               basic_csv_decode_options<CharT>(),
-              default_csv_parsing(),
               ec)
     {
     }
@@ -102,10 +131,41 @@ public:
         : basic_csv_cursor(std::allocator_arg, Allocator(),
               std::forward<Sourceable>(source),
               options,
-              default_csv_parsing(),
               ec)
     {
     }
+
+    template <typename Sourceable>
+    basic_csv_cursor(std::allocator_arg_t, const Allocator& alloc, 
+        Sourceable&& source, 
+        const basic_csv_decode_options<CharT>& options,
+        std::error_code& ec,
+        typename std::enable_if<!std::is_constructible<jsoncons::basic_string_view<CharT>,Sourceable>::value>::type* = 0)
+       : source_(std::forward<Sourceable>(source)),
+         parser_(options,alloc)
+    {
+        parser_.cursor_mode(true);
+        if (!read_done())
+        {
+            read_next(ec);
+        }
+    }
+
+    template <typename Sourceable>
+    basic_csv_cursor(std::allocator_arg_t, const Allocator& alloc, 
+        Sourceable&& source, 
+        const basic_csv_decode_options<CharT>& options,
+        std::error_code& ec,
+        typename std::enable_if<std::is_constructible<jsoncons::basic_string_view<CharT>,Sourceable>::value>::type* = 0)
+       : source_(),
+         parser_(options,alloc)
+    {
+        parser_.cursor_mode(true);
+        jsoncons::basic_string_view<CharT> sv(std::forward<Sourceable>(source));
+        initialize_with_string_view(sv, ec);
+    }
+
+#if !defined(JSONCONS_NO_DEPRECATED)
 
     template <typename Sourceable>
     basic_csv_cursor(Sourceable&& source, 
@@ -141,36 +201,6 @@ public:
     basic_csv_cursor(std::allocator_arg_t, const Allocator& alloc, 
         Sourceable&& source, 
         const basic_csv_decode_options<CharT>& options,
-        std::error_code& ec,
-        typename std::enable_if<!std::is_constructible<jsoncons::basic_string_view<CharT>,Sourceable>::value>::type* = 0)
-       : source_(std::forward<Sourceable>(source)),
-         parser_(options,alloc)
-    {
-        parser_.cursor_mode(true);
-        if (!read_done())
-        {
-            read_next(ec);
-        }
-    }
-
-    template <typename Sourceable>
-    basic_csv_cursor(std::allocator_arg_t, const Allocator& alloc, 
-        Sourceable&& source, 
-        const basic_csv_decode_options<CharT>& options,
-        std::error_code& ec,
-        typename std::enable_if<std::is_constructible<jsoncons::basic_string_view<CharT>,Sourceable>::value>::type* = 0)
-       : source_(),
-         parser_(options,alloc)
-    {
-        parser_.cursor_mode(true);
-        jsoncons::basic_string_view<CharT> sv(std::forward<Sourceable>(source));
-        initialize_with_string_view(sv, ec);
-    }
-
-    template <typename Sourceable>
-    basic_csv_cursor(std::allocator_arg_t, const Allocator& alloc, 
-        Sourceable&& source, 
-        const basic_csv_decode_options<CharT>& options,
         std::function<bool(csv_errc,const ser_context&)> err_handler,
         std::error_code& ec,
         typename std::enable_if<std::is_constructible<jsoncons::basic_string_view<CharT>,Sourceable>::value>::type* = 0)
@@ -181,7 +211,7 @@ public:
         jsoncons::basic_string_view<CharT> sv(std::forward<Sourceable>(source));
         initialize_with_string_view(sv, ec);
     }
-    
+#endif    
     ~basic_csv_cursor() = default;
 
     basic_csv_cursor& operator=(const basic_csv_cursor&) = delete;

@@ -1,9 +1,40 @@
 master
 ------
 
+- Changes
+
+    - `jsonpointer::unflatten` now throws an exception if passed an empty object
+
+    - The `err_handler` property of `basic_json_options` has been deprecated and will
+      be removed in a future release. Use the `allow_trailing_comma` and `allow_comments`
+      options instead.
+
+    - Constructor overloads for `basic_json_cursor`, `basic_json_parser`, `basic_json_reader`, 
+      `basic_csv_parser` and `basic_csv_reader` that take an `err_handler` argument have been deprecated
+      and will be removed in a future release. Use the `allow_trailing_comma` and `allow_comments`
+      options instead.
+    - The functors `strict_json_parsing` and `allow_trailing_commas have been deprecated and 
+      will be removed in a future release. Use the `allow_trailing_comma` and `allow_comments` 
+      options instead.
+
+- Enhancements
+
+    - Git Discussion #594: Supports `boost::optional` with built-in reflection traits
+
+    - Git Discussion #651: Improve `decode_json` error messages 
+
+    - Git PR #647: Allow user configuration of **JSONCONS_HAS_STD_FROM_CHARS**
+
+    - Added an `indent_char` property to `basic_json_options` that supports tab indents
+
 - Fixed bug:
 
     - Git Issue #644: flatten/unflatten does not preserve arrays with more than 10 elements
+
+    - Git Issue #652: Fixed issue with JSON Schema **AdditionalProperties** validator
+
+    - Git Issue #653: Fixed issue with non existing default values being added in JSON Schema patch
+
 
 1.4.3
 -----
@@ -3086,7 +3117,7 @@ Changes
 - If a fractional number is read in in fixed format, serialization now preserves
   that fixed format, e.g. if 0.000071 is read in, serialization gives 0.000071
   and not 7.1e-05. In previous versions, the floating point format, whether
-  fixed or scientific, was determined by the behavior of snprintf using the g
+  fixed or scientific, was determined by the behavior of sprintf using the g
   conversion specifier.
 
 Bug fix:
@@ -4121,7 +4152,7 @@ For consistency the json::make_array notation is now favored in the documentatio
 0.70
 -------------
 
-- Since 0.50, jsoncons has used snprintf for default serialization of double values to string values. This can result in invalid json output when running on a locale like German or Spanish. The period character (Ã¢â¬Ë.Ã¢â¬â¢) is now always used as the decimal point, non English locales are ignored.
+- Since 0.50, jsoncons has used sprintf for default serialization of double values to string values. This can result in invalid json output when running on a locale like German or Spanish. The period character (Ã¢â¬Ë.Ã¢â¬â¢) is now always used as the decimal point, non English locales are ignored.
 
 - The output_format methods that support alternative floating point formatting, e.g. fixed, have been deprecated.
 

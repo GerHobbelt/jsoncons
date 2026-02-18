@@ -5,10 +5,12 @@
 #include "windows.h"
 #endif
 #include <jsoncons/utility/bigint.hpp>
-#include <jsoncons/json.hpp>
+#include <jsoncons/config/jsoncons_config.hpp>
+#include <jsoncons/utility/more_type_traits.hpp>
 #include <sstream>
 #include <vector>
 #include <utility>
+#include <jsoncons/json.hpp>
 #include <ctime>
 #include <catch/catch.hpp>
 
@@ -129,7 +131,7 @@ TEST_CASE("test_negative_bignum")
 
 TEST_CASE("test_longlong")
 {
-    long long n = (std::numeric_limits<long long>::max)();
+    constexpr auto n = (std::numeric_limits<long long>::max)();
 
     bigint val(n);
 
@@ -420,7 +422,6 @@ TEST_CASE("bigint operations")
         CHECK(expected == b);
     }
 }
-
 TEST_CASE("https://github.com/rgroshanrg/bigint SampleTest.cpp")
 {
     bigint a = bigint::parse("56654250564056135415631554531554513813"); 
@@ -575,9 +576,42 @@ TEST_CASE("https://github.com/rgroshanrg/bigint SampleTest.cpp")
         CHECK((a != b));
         CHECK_FALSE((a == b));
     }
-    SECTION("abs")
+    SECTION("babs")
     {
-        bigint c = abs(b);
+        bigint c = jsoncons::babs(b);
         CHECK(bigint::parse("60820564691661355463515465564664568") == c);
     }
+    SECTION("bpow")
+    {
+        bigint c = jsoncons::bpow(a, 2u);
+        CHECK(bigint::parse("3209704106974854937901411896655926267350648828646359016173511958974807798969") == c);
+    }
+    SECTION("bsqrt")
+    {
+        bigint c = jsoncons::bsqrt(a);
+        CHECK(bigint::parse("7526901790514881921") == c);
+    }
 }
+
+#if defined(JSONCONS_HAS_STATEFUL_ALLOCATOR) && JSONCONS_HAS_STATEFUL_ALLOCATOR == 1
+
+#include <common/mock_stateful_allocator.hpp>
+#include <scoped_allocator>
+
+using cust_bigint = jsoncons::basic_bigint<mock_stateful_allocator<char>>;
+
+TEST_CASE("bigint with stateful allocator")
+{
+    SECTION("test1")
+    {
+        //mock_stateful_allocator<char> alloc(1);
+        //cust_bigint a(alloc);
+        //cust_bigint b(10, alloc);
+        
+        //std::cout << "a: " << a << "\n";
+        //std::cout << "b: " << b << "\n";
+        //cust_bigint a("56654250564056135415631554531554513813", alloc); 
+    }
+}
+
+#endif

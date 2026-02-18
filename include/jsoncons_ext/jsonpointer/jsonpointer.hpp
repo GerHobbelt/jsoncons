@@ -1355,47 +1355,52 @@ namespace jsonpointer {
     {
         Json jo{json_object_arg};
 
+        std::size_t length = std::distance(first, last);
+
         auto it = first;
         while (it != last)
         {
-            if (it->first.tokens().size() == offset && !it->second->is_object())
+            if (it->first.tokens().size() == offset && length == 1)
             {
                 return *(it->second);
             }
             if (it->first.tokens().size() == offset)
             {
-                return jsoncons::optional<Json>{Json{}};
+                ++it;
             }
             else if (it->first.tokens().size() < offset)
             {
                 return jsoncons::optional<Json>{};
             }
-            auto jt = it->first.tokens().begin() + offset;
-            if (offset + 1 == it->first.tokens().size())
+            else
             {
-                jo.try_emplace(*jt, *(it->second));
-                ++it;
-            }
-            else 
-            {
-                auto inner_last = find_inner_last(it, last, offset, *jt);
-                if (options == unflatten_options{})
+                auto jt = it->first.tokens().begin() + offset;
+                if (offset + 1 == it->first.tokens().size())
                 {
-                    auto res = try_unflatten_array<Json,Iterator>(it, inner_last, offset+1);
-                    if (!res)
+                    jo.try_emplace(*jt, *(it->second));
+                    ++it;
+                }
+                else 
+                {
+                    auto inner_last = find_inner_last(it, last, offset, *jt);
+                    if (options == unflatten_options{})
                     {
-                        jo.try_emplace(*jt, unflatten_object<Json,Iterator>(it, inner_last, offset+1, options));
+                        auto res = try_unflatten_array<Json,Iterator>(it, inner_last, offset+1);
+                        if (!res)
+                        {
+                            jo.try_emplace(*jt, unflatten_object<Json,Iterator>(it, inner_last, offset+1, options));
+                        }
+                        else
+                        {
+                            jo.try_emplace(*jt, std::move(*res));
+                        }
                     }
                     else
                     {
-                        jo.try_emplace(*jt, std::move(*res));
+                        jo.try_emplace(*jt, unflatten_object<Json,Iterator>(it, inner_last, offset+1, options));
                     }
+                    it = inner_last;
                 }
-                else
-                {
-                    jo.try_emplace(*jt, unflatten_object<Json,Iterator>(it, inner_last, offset+1, options));
-                }
-                it = inner_last;
             }
         }
         return jsoncons::optional<Json>{std::move(jo)};
@@ -1471,9 +1476,9 @@ namespace jsonpointer {
         using char_type = typename Json::char_type;
         using map_type = std::map<basic_json_pointer<char_type>, const Json*>;
 
-        if (JSONCONS_UNLIKELY(!value.is_object()))
+        if (JSONCONS_UNLIKELY(!value.is_object() || value.empty()))
         {
-            JSONCONS_THROW(jsonpointer_error(jsonpointer_errc::argument_to_unflatten_invalid));
+            JSONCONS_THROW(jsonpointer_error(jsonpointer_errc::invalid_argument_to_unflatten));
         }
 
         map_type jptrs;

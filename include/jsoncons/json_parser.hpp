@@ -162,26 +162,61 @@ private:
     basic_json_parser& operator=(const basic_json_parser&) = delete;
 
 public:
-    basic_json_parser(const TempAlloc& temp_alloc = TempAlloc())
-        : basic_json_parser(basic_json_decode_options<char_type>(), default_json_parsing(), temp_alloc)
+
+    basic_json_parser()
+        : basic_json_parser(basic_json_decode_options<char_type>())
     {
     }
 
-    basic_json_parser(std::function<bool(json_errc,const ser_context&)> err_handler, 
-                      const TempAlloc& temp_alloc = TempAlloc())
-        : basic_json_parser(basic_json_decode_options<char_type>(), err_handler, temp_alloc)
-    {
-    }
-
-    basic_json_parser(const basic_json_decode_options<char_type>& options, 
-                      const TempAlloc& temp_alloc = TempAlloc())
-        : basic_json_parser(options, options.err_handler(), temp_alloc)
+    explicit basic_json_parser(const TempAlloc& temp_alloc)
+        : basic_json_parser(basic_json_decode_options<char_type>(), temp_alloc)
     {
     }
 
     basic_json_parser(const basic_json_decode_options<char_type>& options,
-                      std::function<bool(json_errc,const ser_context&)> err_handler, 
-                      const TempAlloc& temp_alloc = TempAlloc())
+        const TempAlloc& temp_alloc = TempAlloc())
+       : max_nesting_depth_(options.max_nesting_depth()),
+         allow_trailing_comma_(options.allow_trailing_comma()),
+         allow_comments_(options.allow_comments()),
+         lossless_number_(options.lossless_number()),
+         lossless_bignum_(options.lossless_bignum()),
+#if !defined(JSONCONS_NO_DEPRECATED)
+         err_handler_(options.err_handler()),
+#else
+         err_handler_(default_json_parsing()),
+#endif
+         buffer_(temp_alloc),
+         state_stack_(temp_alloc)
+    {
+        buffer_.reserve(initial_buffer_capacity);
+
+        std::size_t initial_stack_capacity = options.max_nesting_depth() <= (default_initial_stack_capacity-2) ? (options.max_nesting_depth()+2) : default_initial_stack_capacity;
+        state_stack_.reserve(initial_stack_capacity );
+        push_state(parse_state::root);
+
+        if (options.enable_str_to_nan())
+        {
+            string_double_map_.emplace_back(options.nan_to_str(),std::nan(""));
+        }
+        if (options.enable_str_to_inf())
+        {
+            string_double_map_.emplace_back(options.inf_to_str(),std::numeric_limits<double>::infinity());
+        }
+        if (options.enable_str_to_neginf())
+        {
+            string_double_map_.emplace_back(options.neginf_to_str(),-std::numeric_limits<double>::infinity());
+        }
+    }
+#if !defined(JSONCONS_NO_DEPRECATED)
+
+    basic_json_parser(std::function<bool(json_errc,const ser_context&)> err_handler, 
+        const TempAlloc& temp_alloc = TempAlloc())
+        : basic_json_parser(basic_json_decode_options<char_type>(), err_handler, temp_alloc)
+    {
+    }
+    basic_json_parser(const basic_json_decode_options<char_type>& options,
+        std::function<bool(json_errc,const ser_context&)> err_handler, 
+        const TempAlloc& temp_alloc = TempAlloc())
        : max_nesting_depth_(options.max_nesting_depth()),
          allow_trailing_comma_(options.allow_trailing_comma()),
          allow_comments_(options.allow_comments()),
@@ -210,6 +245,7 @@ public:
             string_double_map_.emplace_back(options.neginf_to_str(),-std::numeric_limits<double>::infinity());
         }
     }
+#endif
     
     void cursor_mode(bool value)
     {

@@ -264,7 +264,7 @@ template <typename T,typename CharT>
 typename std::enable_if<ext_traits::integer_limits<T>::is_specialized && !ext_traits::integer_limits<T>::is_signed,to_number_result<CharT>>::type
 dec_to_integer(const CharT* s, std::size_t length, T& value)
 {
-    if (length == 0)
+    if (JSONCONS_UNLIKELY(length == 0))
     {
         return to_number_result<CharT>(s, std::errc::invalid_argument);
     }
@@ -749,12 +749,22 @@ hex_to_integer(const CharT* s, std::size_t length, T& n)
 
     inline to_number_result<char> decstr_to_double(const char* s, std::size_t length, double& val) 
     {
-        const char* cur = s+length;
-        const auto res = std::from_chars(s, cur, val);
-        if (JSONCONS_UNLIKELY(res.ptr != cur))
+        const char* last = s+length;
+        const auto res = std::from_chars(s, last, val);
+        if (JSONCONS_LIKELY(res.ec == std::errc()))
+        {
+            return to_number_result<char>{res.ptr,res.ec};
+        }
+        if (JSONCONS_UNLIKELY(res.ptr != last))
         {
             return to_number_result<char>{res.ptr,std::errc::invalid_argument};
         }
+        if (res.ec == std::errc::result_out_of_range)
+        {
+            bool negative = (s < last && *s == '-') ? true : false;
+            val = negative ? -HUGE_VAL : HUGE_VAL;
+        }
+
         return to_number_result<char>{res.ptr,res.ec};
     }
 
