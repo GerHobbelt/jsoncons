@@ -1,4 +1,3 @@
-
 #
 # jsoncons examples CMake file
 #
@@ -8,7 +7,6 @@ cmake_minimum_required(VERSION 3.5...3.14)
 # load global config
 include (../../build/cmake/Config.cmake)
 
-
 project (Examples CXX)
 
 # load per-platform configuration
@@ -16,7 +14,7 @@ include (../../build/cmake/${CMAKE_SYSTEM_NAME}.cmake)
 
 include_directories (../../include
                      ../../../include)
-
+ 
 file(GLOB_RECURSE Example_sources ../../src/*.cpp)
 
 # Loop through each example file and create an executable for each
