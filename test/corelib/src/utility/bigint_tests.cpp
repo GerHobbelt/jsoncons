@@ -14,6 +14,42 @@
 
 using namespace jsoncons;
 
+TEST_CASE("basic_bigint tests")
+{
+    SECTION("0")
+    {
+        bigint a{0};
+        bigint b{};
+        CHECK(0 == a.get_storage_view().size());
+        CHECK(a.get_storage_view().size() == b.get_storage_view().size());
+        CHECK(a == b);
+        CHECK(0 == a);
+    }
+    SECTION("0 denom")
+    {
+        bigint denom{0};
+        bigint num{1000};
+        REQUIRE_THROWS(num / denom);
+    }
+    SECTION("0 num")
+    {
+        bigint denom{1000};
+        bigint num{0};
+        auto quot = num / denom;
+        CHECK(0 == quot);
+    }
+    SECTION("Dividend less than divisor")
+    {
+        bigint num{10};
+        bigint denom{1000};
+        bigint quot{};
+        bigint rem{};
+        num.divide(denom, quot, rem, true);
+        CHECK(0 == quot);
+        CHECK(num == rem);
+    }
+}
+
 TEST_CASE("test_positive_bignum")
 {
     std::string expected = "18446744073709551616";
@@ -284,7 +320,7 @@ TEST_CASE("times 10")
 
 TEST_CASE("bigint div")
 {
-#if defined(_MSC_VER) && _MSC_VER >= 1910
+#if (defined(_MSC_VER) && _MSC_VER >= 1910) || !defined(_MSC_VER) 
     SECTION("bigint")
     {
         bigint big_pos = bigint::parse("18364494661702398480");
@@ -385,3 +421,163 @@ TEST_CASE("bigint operations")
     }
 }
 
+TEST_CASE("https://github.com/rgroshanrg/bigint SampleTest.cpp")
+{
+    bigint a = bigint::parse("56654250564056135415631554531554513813"); 
+    bigint b = bigint::parse("60820564691661355463515465564664568");
+    //bigint d(956486133);
+
+    SECTION("Addition")
+    {
+        bigint c = a + b;
+        bigint expected = bigint::parse("56715071128747796771095069997119178381");
+        CHECK(expected == c);
+
+        c = a + 56242;
+        expected = bigint::parse("56654250564056135415631554531554570055");
+        CHECK(expected == c);
+
+        c = 52 + 98;
+        expected = 150;
+        CHECK(expected == c);
+
+        c = c + a + b;
+        expected = bigint::parse("56715071128747796771095069997119178531");
+        CHECK(expected == c);
+    }
+
+    SECTION("Subtraction")
+    {
+        bigint c = a - b;
+        bigint expected = bigint::parse("56593429999364474060168039065989849245");
+        CHECK(expected == c);
+
+        c = a - 56242;
+        expected = bigint::parse("56654250564056135415631554531554457571");
+        CHECK(expected == c);
+
+        c = 52 - 98;
+        expected = -46;
+        CHECK(expected == c);
+
+        c = c - a - b; 
+        expected = bigint::parse("-56715071128747796771095069997119178427");
+        CHECK(expected == c);
+    }
+
+    SECTION("Multiplication")
+    {
+        bigint c = a * b;
+        bigint expected = bigint::parse("3445743511488768021543787806860750328299778111849236444610289955667677784");
+        CHECK(expected == c);
+
+        c = a * 56242;
+        expected = bigint::parse("3186348360223645168045949889963688965870746");
+        CHECK(expected == c);
+
+        c = 52 * 98;
+        expected = 5096;
+        CHECK(expected == c);
+
+        c = c * a * b; 
+        expected = bigint::parse("17559508934546761837787142663762383673015669257983708921734037614082485987264");
+        CHECK(expected == c);
+    }
+
+    SECTION("Division")
+    {
+        bigint c = a / b;
+        bigint expected = 931;
+        CHECK(expected == c);
+
+        c = a / 56242;
+        expected = bigint::parse("1007329941397107773827949833426167");
+        CHECK(expected == c);
+
+        c = 98 / 56;
+        expected = 1;
+        CHECK(expected == c);
+
+        c = a / b /c; 
+        expected = 931;
+        CHECK(expected == c);
+    }
+
+    SECTION("divide with remainder")
+    {
+        bigint c;
+        bigint r;
+
+        a.divide(b, c, r, true);
+
+        bigint c_expected = 931;
+        bigint r_expected = bigint::parse("30304836119413479098656090851801005");
+        //std::cout << expected << "\n";
+        //std::cout << r << "\n";
+        CHECK(c_expected == c);
+        CHECK(r_expected == r);
+    }
+
+    SECTION("bigint % bigint")
+    {
+        bigint c = a % b;
+
+        bigint expected = bigint::parse("30304836119413479098656090851801005");
+        CHECK(expected == c);
+        //std::cout << expected << "\n";
+        //std::cout << c << "\n";
+    }
+
+    SECTION("bigint % integer")
+    {
+        bigint c = a % 56242;
+
+        bigint expected(29399);
+        CHECK(expected == c);
+    }
+
+    SECTION("integer % integer")
+    {
+        bigint c = 98 % 56;
+
+        bigint expected(42);
+        CHECK(expected == c);
+    }
+
+    SECTION("a % b % c")
+    {
+        bigint c = 98 % 56;
+        bigint d = a % b % c;
+
+        bigint expected(41);
+        CHECK(expected == d);
+    }
+
+    SECTION("modulus with second_done")
+    {
+        b = bigint::parse("4253529586511730793019062996110615940069384017080242667520");
+        bigint c = a % b;
+
+        CHECK(a == c);
+        //std::cout << expected << "\n";
+        //std::cout << c << "\n";
+    }
+    SECTION("compare")
+    {
+        CHECK((a > b));
+        CHECK_FALSE((b > a));
+        CHECK((a >= b));
+        CHECK_FALSE((b >= a));
+        CHECK((b < a));
+        CHECK_FALSE((a < b));
+        CHECK((b <= a));
+        CHECK_FALSE((a <= b));
+        CHECK((a != b));
+        CHECK_FALSE((a == b));
+    }
+    SECTION("abs")
+    {
+        bigint c = abs(b);
+        CHECK(bigint::parse("60820564691661355463515465564664568") == c);
+    }
+}
