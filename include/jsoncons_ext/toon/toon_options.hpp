@@ -1,4 +1,4 @@
-// Copyright 2013-2025 Daniel Parker
+// Copyright 2013-2026 Daniel Parker
 // Distributed under the Boost license, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
@@ -32,7 +32,7 @@ private:
 
     int indent_{2};
     char delimiter_{','};
-    char length_marker_{'#'};
+    jsoncons::optional<char> length_marker_;
     int max_nesting_depth_{1024};
 
 protected:
@@ -57,7 +57,7 @@ public:
         return delimiter_;
     }
 
-    char length_marker() const
+    jsoncons::optional<char> length_marker() const
     {
         return length_marker_;
     }
@@ -149,7 +149,7 @@ public:
         return *this;
     }
 
-    toon_options& length_marker(char value)
+    toon_options& length_marker(jsoncons::optional<char> value)
     {
         this->length_marker_ = value;
         return *this;
