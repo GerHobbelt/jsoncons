@@ -27,13 +27,428 @@
 
 namespace jsoncons {
 
+namespace detail {
+
+template <typename Allocator>
+class bigint_storage : private std::allocator_traits<Allocator>:: template rebind_alloc<uint64_t>
+{
+public:
+    using uint64_allocator_type = typename std::allocator_traits<Allocator>:: template rebind_alloc<uint64_t>;
+    using size_type = typename std::allocator_traits<uint64_allocator_type>::size_type;
+    static constexpr uint64_t max_basic_type = (std::numeric_limits<uint64_t>::max)();
+    static constexpr uint64_t basic_type_bits = sizeof(uint64_t) * 8;  // Number of bits
+    static constexpr uint64_t basic_type_halfBits = basic_type_bits/2;
+    static constexpr uint16_t word_length = 4; // Use multiples of word_length words
+    static constexpr uint64_t max_short_storage_size = 2;
+public:
+
+    struct common_storage
+    {
+        uint8_t is_dynamic_ : 1;
+        uint8_t is_negative_ : 1;
+        size_type length_;
+    };
+
+    struct inlined_storage
+    {
+        uint8_t is_dynamic_ : 1;
+        uint8_t is_negative_ : 1;
+        size_type length_;
+        uint64_t values_[max_short_storage_size];
+
+        inlined_storage()
+            : is_dynamic_(false),
+            is_negative_(false),
+            length_(0),
+            values_{0, 0}
+        {
+        }
+
+        template <typename T>
+        inlined_storage(T n,
+            typename std::enable_if<std::is_integral<T>::value &&
+            sizeof(T) <= sizeof(int64_t) &&
+            std::is_signed<T>::value>::type* = 0)
+            : is_dynamic_(false),
+            is_negative_(n < 0),
+            length_(n == 0 ? 0 : 1)
+        {
+            values_[0] = n < 0 ? (uint64_t(0) - static_cast<uint64_t>(n)) : static_cast<uint64_t>(n);
+            values_[1] = 0;
+        }
+
+        template <typename T>
+        inlined_storage(T n,
+            typename std::enable_if<std::is_integral<T>::value &&
+            sizeof(T) <= sizeof(int64_t) &&
+            !std::is_signed<T>::value>::type* = 0)
+            : is_dynamic_(false),
+            is_negative_(false),
+            length_(n == 0 ? 0 : 1)
+        {
+            values_[0] = n;
+            values_[1] = 0;
+        }
+
+        template <typename T>
+        inlined_storage(T n,
+            typename std::enable_if < std::is_integral<T>::value &&
+            sizeof(int64_t) < sizeof(T) &&
+            std::is_signed<T>::value > ::type* = 0)
+            : is_dynamic_(false),
+            is_negative_(n < 0),
+            length_(n == 0 ? 0 : max_short_storage_size)
+        {
+            using unsigned_type = typename std::make_unsigned<T>::type;
+
+            auto u = n < 0 ? (unsigned_type(0) - static_cast<unsigned_type>(n)) : static_cast<unsigned_type>(n);
+            values_[0] = uint64_t(u & max_basic_type);;
+            u >>= basic_type_bits;
+            values_[1] = uint64_t(u & max_basic_type);;
+        }
+
+        template <typename T>
+        inlined_storage(T n,
+            typename std::enable_if < std::is_integral<T>::value &&
+            sizeof(int64_t) < sizeof(T) &&
+            !std::is_signed<T>::value > ::type* = 0)
+            : is_dynamic_(false),
+            is_negative_(false),
+            length_(n == 0 ? 0 : max_short_storage_size)
+        {
+            values_[0] = uint64_t(n & max_basic_type);;
+            n >>= basic_type_bits;
+            values_[1] = uint64_t(n & max_basic_type);;
+        }
+
+        inlined_storage(const inlined_storage& stor)
+            : is_dynamic_(false),
+            is_negative_(stor.is_negative_),
+            length_(stor.length_)
+        {
+            values_[0] = stor.values_[0];
+            values_[1] = stor.values_[1];
+        }
+
+        inlined_storage& operator=(const inlined_storage& stor) = delete;
+        inlined_storage& operator=(inlined_storage&& stor) = delete;
+    };
+
+    struct allocated_storage
+    {
+        using real_allocator_type = typename std::allocator_traits<Allocator>:: template rebind_alloc<uint64_t>;
+        using pointer = typename std::allocator_traits<real_allocator_type>::pointer;
+
+        uint8_t is_dynamic_ : 1;
+        uint8_t is_negative_ : 1;
+        size_type length_{0};
+        size_type capacity_{0};
+        pointer data_{nullptr};
+
+        allocated_storage()
+            : is_dynamic_(true),
+            is_negative_(false)
+        {
+        }
+
+        allocated_storage(const allocated_storage& stor, real_allocator_type alloc)
+            : is_dynamic_(true),
+            is_negative_(stor.is_negative_),
+            length_(stor.length_),
+            capacity_(round_up(stor.length_))
+        {
+            data_ = std::allocator_traits<real_allocator_type>::allocate(alloc, capacity_);
+            JSONCONS_TRY
+            {
+                std::allocator_traits<real_allocator_type>::construct(alloc, ext_traits::to_plain_pointer(data_));
+            }
+                JSONCONS_CATCH(...)
+            {
+                std::allocator_traits<real_allocator_type>::deallocate(alloc, data_, capacity_);
+                JSONCONS_RETHROW;
+            }
+            JSONCONS_ASSERT(stor.data_ != nullptr);
+            std::memcpy(data_, stor.data_, size_type(stor.length_ * sizeof(uint64_t)));
+        }
+
+        allocated_storage(allocated_storage&& stor) noexcept
+            : is_dynamic_(true),
+            is_negative_(stor.is_negative_),
+            length_(stor.length_),
+            capacity_(stor.capacity_),
+            data_(stor.data_)
+        {
+            stor.length_ = 0;
+            stor.capacity_ = 0;
+            stor.data_ = nullptr;
+        }
+
+        void destroy(const real_allocator_type& a) noexcept
+        {
+            if (data_ != nullptr)
+            {
+                real_allocator_type alloc(a);
+
+                std::allocator_traits<real_allocator_type>::destroy(alloc, ext_traits::to_plain_pointer(data_));
+                std::allocator_traits<real_allocator_type>::deallocate(alloc, data_, capacity_);
+            }
+        }
+
+        void reserve(size_type n, const real_allocator_type& a)
+        {
+            real_allocator_type alloc(a);
+
+            size_type capacity_new = round_up(n);
+            uint64_t* data_old = data_;
+            data_ = std::allocator_traits<real_allocator_type>::allocate(alloc, capacity_new);
+            if (length_ > 0)
+            {
+                std::memcpy(data_, data_old, size_type(length_ * sizeof(uint64_t)));
+            }
+            if (capacity_ > 0 && data_ != nullptr)
+            {
+                std::allocator_traits<real_allocator_type>::deallocate(alloc, data_old, capacity_);
+            }
+            capacity_ = capacity_new;
+        }
+
+        // Find suitable new block size
+        constexpr size_type round_up(size_type i) const noexcept
+        {
+            return (i / word_length + 1) * word_length;
+        }
+    };
+
+    union
+    {
+        common_storage common_;
+        inlined_storage inlined_;
+        allocated_storage allocated_;
+    };
+
+    explicit bigint_storage(const Allocator& alloc = Allocator{})
+        : uint64_allocator_type(alloc)
+    {
+        ::new (&inlined_) inlined_storage();
+    }
+
+    bigint_storage(const bigint_storage& other)
+        : uint64_allocator_type(other.get_allocator())
+    {
+        if (!other.is_dynamic())
+        {
+            ::new (&inlined_) inlined_storage(other.inlined_);
+        }
+        else
+        {
+            ::new (&allocated_) allocated_storage(other.allocated_, get_allocator());
+        }
+    }
+
+    bigint_storage(bigint_storage&& other)
+        : uint64_allocator_type(other.get_allocator())
+    {
+        if (!other.is_dynamic())
+        {
+            ::new (&inlined_) inlined_storage(other.inlined_);
+        }
+        else
+        {
+            ::new (&allocated_) allocated_storage(std::move(other.allocated_));
+        }
+    }
+
+    template <typename Integer>
+    bigint_storage(Integer n, 
+        typename std::enable_if<std::is_integral<Integer>::value>::type* = 0)
+    {
+        ::new (&inlined_) inlined_storage(n);
+    }
+
+    bigint_storage& operator=( const bigint_storage& y )
+    {
+        if ( this != &y )
+        {
+            resize( y.length());
+            common_.is_negative_ = y.common_.is_negative_;
+            if ( y.length() > 0 )
+            {
+                std::memcpy( data(), y.data(), size_type(y.length()*sizeof(uint64_t)) );
+            }
+        }
+        return *this;
+    }
+
+    bigint_storage& operator&=( const bigint_storage& a )
+    {
+        size_type old_length = length();
+
+        resize( (std::min)( length(), a.length()) );
+
+        const uint64_t* pBegin = begin();
+        uint64_t* p = end() - 1;
+        const uint64_t* q = a.begin() + length() - 1;
+
+        while ( p >= pBegin )
+        {
+            *p-- &= *q--;
+        }
+
+        const size_type new_length = length();
+        if ( old_length > new_length )
+        {
+            if (is_dynamic())
+            {
+                std::memset( allocated_.data_ + new_length, 0, size_type(old_length - new_length*sizeof(uint64_t)) );
+            }
+            else
+            {
+                JSONCONS_ASSERT(new_length <= max_short_storage_size);
+                for (size_type i = new_length; i < max_short_storage_size; ++i)
+                {
+                    inlined_.values_[i] = 0;
+                }
+            }
+        }
+
+        reduce();
+
+        return *this;
+    }
+
+    void reduce()
+    {
+        uint64_t* p = end() - 1;
+        uint64_t* pBegin = begin();
+        while ( p >= pBegin )
+        {
+            if ( *p )
+            {
+                break;
+            }
+            --common_.length_;
+            --p;
+        }
+        if ( common_.length_ == 0 )
+        {
+            common_.is_negative_ = false;
+        }
+    }
+
+    void reserve(size_type n)
+    {
+       if (capacity() < n)
+       {
+           if (!is_dynamic())
+           {
+               size_type size = inlined_.length_;
+               size_type is_neg = inlined_.is_negative_;
+               uint64_t values[max_short_storage_size] = {inlined_.values_[0], inlined_.values_[1]};
+
+               ::new (&allocated_) allocated_storage();
+               allocated_.reserve(n, get_allocator());
+               allocated_.length_ = size;
+               allocated_.is_negative_ = is_neg;
+               allocated_.data_[0] = values[0];
+               allocated_.data_[1] = values[1];
+           }
+           else
+           {
+               allocated_.reserve(n, get_allocator());
+           }
+       }
+    }
+
+    const uint64_allocator_type& get_allocator() const
+    {
+        return static_cast<const uint64_allocator_type&>(*this);
+    }
+
+    void destroy() noexcept
+    {
+        if (is_dynamic())
+        {
+            allocated_.destroy(get_allocator());
+        }
+    }
+
+    constexpr bool is_dynamic() const
+    {
+        return common_.is_dynamic_;
+    }
+
+    constexpr size_type length() const
+    {
+        return common_.length_;
+    }
+
+    constexpr size_type capacity() const
+    {
+        return is_dynamic() ? allocated_.capacity_ : max_short_storage_size;
+    }
+
+    bool is_negative() const
+    {
+        return common_.is_negative_;
+    }
+
+    void is_negative(bool value) 
+    {
+        common_.is_negative_ = value;
+    }
+
+    const uint64_t* data() const
+    {
+        const uint64_t* p = is_dynamic() ? allocated_.data_ : inlined_.values_;
+        JSONCONS_ASSERT(p != nullptr);
+        return p;
+    }
+
+    uint64_t* data() 
+    {
+        uint64_t* p = is_dynamic() ? allocated_.data_ : inlined_.values_;
+        JSONCONS_ASSERT(p != nullptr);
+        return p;
+    }
+
+    uint64_t* begin() { return is_dynamic() ? allocated_.data_ : inlined_.values_; }
+    const uint64_t* begin() const { return is_dynamic() ? allocated_.data_ : inlined_.values_; }
+    uint64_t* end() { return begin() + length(); }
+    const uint64_t* end() const { return begin() + length(); }
+
+    void resize(size_type new_length)
+    {
+        size_type old_length = common_.length_;
+        reserve(new_length);
+        common_.length_ = new_length;
+
+        if (old_length < new_length)
+        {
+            if (is_dynamic())
+            {
+                std::memset(allocated_.data_+old_length, 0, size_type((new_length-old_length)*sizeof(uint64_t)));
+            }
+            else
+            {
+                JSONCONS_ASSERT(new_length <= max_short_storage_size);
+                for (size_type i = old_length; i < max_short_storage_size; ++i)
+                {
+                    inlined_.values_[i] = 0;
+                }
+            }
+        }
+    }
+};
+
+} // namespace detail
+
 template <typename CharT>
 struct to_bigint_result
 {
     const CharT* ptr;
     std::errc ec;
     constexpr to_bigint_result(const CharT* ptr_)
-        : ptr(ptr_), ec(std::errc())
+        : ptr(ptr_), ec(std::errc{})
     {
     }
     constexpr to_bigint_result(const CharT* ptr_, std::errc ec_)
@@ -47,7 +462,7 @@ struct to_bigint_result
 
     constexpr explicit operator bool() const noexcept
     {
-        return ec == std::errc();
+        return ec == std::errc{};
     }
     std::error_code error_code() const
     {
@@ -62,54 +477,21 @@ Chichester: John Wiley.
 
 */
 
-namespace detail {
-
-    template <typename Allocator>
-    class basic_bigint_base
-    {
-    public:
-        using allocator_type = Allocator;
-        using basic_type_allocator_type = typename std::allocator_traits<allocator_type>:: template rebind_alloc<uint64_t>;
-
-    private:
-        basic_type_allocator_type alloc_;
-    public:
-       using allocator_traits_type = std::allocator_traits<basic_type_allocator_type>;
-       using stored_allocator_type = allocator_type;
-       using pointer = typename allocator_traits_type::pointer;
-       using value_type = typename allocator_traits_type::value_type;
-       using size_type = std::size_t;
-       using pointer_traits = std::pointer_traits<pointer>;
-
-        basic_bigint_base()
-            : alloc_()
-        {
-        }
-        explicit basic_bigint_base(const allocator_type& alloc)
-            : alloc_(basic_type_allocator_type(alloc))
-        {
-        }
-
-        basic_type_allocator_type get_allocator() const
-        {
-            return alloc_;
-        }
-    };
-
-} // namespace detail
-
 template <typename Allocator = std::allocator<uint64_t>>
-class basic_bigint : protected detail::basic_bigint_base<Allocator>
+class basic_bigint 
 {
-    using base_t = detail::basic_bigint_base<Allocator>;
-
     static constexpr uint64_t max_short_storage_size = 2;
+
+    detail::bigint_storage<Allocator> storage_; 
 public:
 
-    using size_type = typename base_t::size_type;
-    using value_type = typename base_t::value_type;
-    using base_t::get_allocator;
-    using bigint_type = basic_bigint<Allocator>;
+    using allocator_type = Allocator;
+    using uint64_allocator_type = typename detail::bigint_storage<Allocator>::uint64_allocator_type;
+    using allocator_traits_type = std::allocator_traits<uint64_allocator_type>;
+    using stored_allocator_type = allocator_type;
+    using pointer = typename allocator_traits_type::pointer;
+    using value_type = typename allocator_traits_type::value_type;
+    using size_type = typename detail::bigint_storage<Allocator>::size_type;
 
     static constexpr uint64_t max_basic_type = (std::numeric_limits<uint64_t>::max)();
     static constexpr uint64_t basic_type_bits = sizeof(uint64_t) * 8;  // Number of bits
@@ -122,280 +504,71 @@ public:
     static constexpr uint64_t max_uint64_div_10 = (std::numeric_limits<uint64_t>::max)()/10u ;
     static constexpr uint64_t max_uint64_div_16 = (std::numeric_limits<uint64_t>::max)()/16u ;
 
-private:
-
-    struct common_storage
-    {
-        uint8_t is_dynamic_:1; 
-        uint8_t is_negative_:1; 
-        size_type length_;
-    };
-
-    struct short_storage
-    {
-        uint8_t is_dynamic_:1; 
-        uint8_t is_negative_:1; 
-        size_type length_;
-        uint64_t values_[max_short_storage_size];
-
-        short_storage()
-            : is_dynamic_(false), 
-              is_negative_(false),
-              length_(0),
-              values_{0,0}
-        {
-        }
-
-        template <typename T>
-        short_storage(T n, 
-                      typename std::enable_if<std::is_integral<T>::value &&
-                                              sizeof(T) <= sizeof(int64_t) &&
-                                              std::is_signed<T>::value>::type* = 0)
-            : is_dynamic_(false), 
-              is_negative_(n < 0),
-              length_(n == 0 ? 0 : 1)
-        {
-            values_[0] = n < 0 ? (uint64_t(0)-static_cast<uint64_t>(n)) : static_cast<uint64_t>(n);
-            values_[1] = 0;
-        }
-
-        template <typename T>
-        short_storage(T n, 
-                      typename std::enable_if<std::is_integral<T>::value &&
-                                              sizeof(T) <= sizeof(int64_t) &&
-                                              !std::is_signed<T>::value>::type* = 0)
-            : is_dynamic_(false), 
-              is_negative_(false),
-              length_(n == 0 ? 0 : 1)
-        {
-            values_[0] = n;
-            values_[1] = 0;
-        }
-
-        template <typename T>
-        short_storage(T n, 
-                      typename std::enable_if<std::is_integral<T>::value &&
-                                              sizeof(int64_t) < sizeof(T) &&
-                                              std::is_signed<T>::value>::type* = 0)
-            : is_dynamic_(false), 
-              is_negative_(n < 0),
-              length_(n == 0 ? 0 : max_short_storage_size)
-        {
-            using unsigned_type = typename std::make_unsigned<T>::type;
-
-            auto u = n < 0 ? (unsigned_type(0)-static_cast<unsigned_type>(n)) : static_cast<unsigned_type>(n);
-            values_[0] = uint64_t(u & max_basic_type);;
-            u >>= basic_type_bits;
-            values_[1] = uint64_t(u & max_basic_type);;
-        }
-
-        template <typename T>
-        short_storage(T n, 
-                      typename std::enable_if<std::is_integral<T>::value &&
-                                              sizeof(int64_t) < sizeof(T) &&
-                                              !std::is_signed<T>::value>::type* = 0)
-            : is_dynamic_(false), 
-              is_negative_(false),
-              length_(n == 0 ? 0 : max_short_storage_size)
-        {
-            values_[0] = uint64_t(n & max_basic_type);;
-            n >>= basic_type_bits;
-            values_[1] = uint64_t(n & max_basic_type);;
-        }
-
-        short_storage(const short_storage& stor)
-            : is_dynamic_(false), 
-              is_negative_(stor.is_negative_),
-              length_(stor.length_)
-        {
-            values_[0] = stor.values_[0];
-            values_[1] = stor.values_[1];
-        }
-
-        short_storage& operator=(const short_storage& stor) = delete;
-        short_storage& operator=(short_storage&& stor) = delete;
-    };
-
-    struct dynamic_storage
-    {
-        using real_allocator_type = typename std::allocator_traits<Allocator>:: template rebind_alloc<uint64_t>;
-        using pointer = typename std::allocator_traits<real_allocator_type>::pointer;
-
-        uint8_t is_dynamic_:1; 
-        uint8_t is_negative_:1; 
-        size_type length_{0};
-        size_type capacity_{0};
-        pointer data_{nullptr};
-
-        dynamic_storage()
-            : is_dynamic_(true), 
-              is_negative_(false)
-        {
-        }
-
-        dynamic_storage(const dynamic_storage& stor, real_allocator_type alloc)
-            : is_dynamic_(true), 
-              is_negative_(stor.is_negative_),
-              length_(stor.length_),
-              capacity_(round_up(stor.length_))
-        {
-            data_ = std::allocator_traits<real_allocator_type>::allocate(alloc, capacity_);
-            JSONCONS_TRY
-            {
-                std::allocator_traits<real_allocator_type>::construct(alloc, ext_traits::to_plain_pointer(data_));
-            }
-            JSONCONS_CATCH(...)
-            {
-                std::allocator_traits<real_allocator_type>::deallocate(alloc, data_, capacity_);
-                JSONCONS_RETHROW;
-            }
-            JSONCONS_ASSERT(stor.data_ != nullptr);
-            std::memcpy(data_, stor.data_, size_type(stor.length_*sizeof(uint64_t)));
-        }
-
-        dynamic_storage(dynamic_storage&& stor) noexcept
-            : is_dynamic_(true), 
-              is_negative_(stor.is_negative_),
-              length_(stor.length_),
-              capacity_(stor.capacity_),
-              data_(stor.data_)
-        {
-            stor.length_ = 0;
-            stor.capacity_ = 0;
-            stor.data_ = nullptr;
-        }
-
-        void destroy(const real_allocator_type& a) noexcept
-        {
-            if (data_ != nullptr)
-            {
-                real_allocator_type alloc(a);
-
-                std::allocator_traits<real_allocator_type>::destroy(alloc, ext_traits::to_plain_pointer(data_));
-                std::allocator_traits<real_allocator_type>::deallocate(alloc, data_,capacity_);
-            }
-        }
-
-        void reserve(size_type n, const real_allocator_type& a)
-        {
-            real_allocator_type alloc(a);
-
-            size_type capacity_new = round_up(n);
-            uint64_t* data_old = data_;
-            data_ = std::allocator_traits<real_allocator_type>::allocate(alloc, capacity_new);
-            if (length_ > 0)
-            {
-                std::memcpy( data_, data_old, size_type(length_*sizeof(uint64_t)));
-            }
-            if (capacity_ > 0 && data_ != nullptr)
-            {
-                std::allocator_traits<real_allocator_type>::deallocate(alloc, data_old, capacity_);
-            }
-            capacity_ = capacity_new;
-        }
-
-        // Find suitable new block size
-        constexpr size_type round_up(size_type i) const noexcept 
-        {
-            return (i/word_length + 1) * word_length;
-        }
-    };
-
-    union
-    {
-        common_storage common_stor_;
-        short_storage short_stor_;
-        dynamic_storage dynamic_stor_;
-    };
-
 public:
     basic_bigint()
     {
-        ::new (&short_stor_) short_storage();
     }
 
     explicit basic_bigint(const Allocator& alloc)
-        : base_t(alloc)
+        : storage_(alloc)
     {
-        ::new (&short_stor_) short_storage();
     }
 
-
-    basic_bigint(const basic_bigint<Allocator>& n)
-        : base_t(n.get_allocator())
+    basic_bigint(const basic_bigint& n)
+        : storage_(n.storage_)
     {
-        if (!n.is_dynamic())
-        {
-            ::new (&short_stor_) short_storage(n.short_stor_);
-        }
-        else
-        {
-            ::new (&dynamic_stor_) dynamic_storage(n.dynamic_stor_, get_allocator());
-        }
     }
 
-    basic_bigint(basic_bigint<Allocator>&& other) noexcept
-        : base_t(other.get_allocator())
+    basic_bigint(basic_bigint&& other) noexcept
+        : storage_(std::move(other.storage_))
     {
-        if (!other.is_dynamic())
-        {
-            ::new (&short_stor_) short_storage(other.short_stor_);
-        }
-        else
-        {
-            ::new (&dynamic_stor_) dynamic_storage(std::move(other.dynamic_stor_));
-        }
     }
 
     template <typename Integer>
     basic_bigint(Integer n, 
                  typename std::enable_if<std::is_integral<Integer>::value>::type* = 0)
+        : storage_(n)
     {
-        ::new (&short_stor_) short_storage(n);
     }
 
     ~basic_bigint() noexcept
     {
-        destroy();
+        storage_.destroy();
     }
 
-    constexpr bool is_dynamic() const
+    uint64_allocator_type get_allocator() const
     {
-        return common_stor_.is_dynamic_;
+        return storage_.get_allocator();
     }
 
     constexpr size_type length() const
     {
-        return common_stor_.length_;
+        return storage_.length();
     }
 
     constexpr size_type capacity() const
     {
-        return is_dynamic() ? dynamic_stor_.capacity_ : max_short_storage_size;
+        return storage_.capacity();
     }
 
     bool is_negative() const
     {
-        return common_stor_.is_negative_;
+        return storage_.is_negative();
     }
 
     void is_negative(bool value) 
     {
-        common_stor_.is_negative_ = value;
+        storage_.is_negative() = value;
     }
 
     const uint64_t* data() const
     {
-        const uint64_t* p = is_dynamic() ? dynamic_stor_.data_ : short_stor_.values_;
-        JSONCONS_ASSERT(p != nullptr);
-        return p;
+        return storage_.data();
     }
 
     uint64_t* data() 
     {
-        uint64_t* p = is_dynamic() ? dynamic_stor_.data_ : short_stor_.values_;
-        JSONCONS_ASSERT(p != nullptr);
-        return p;
+        return storage_.data();
     }
 
     template <typename CharT>
@@ -447,7 +620,7 @@ public:
 
         if (neg)
         {
-            v.common_stor_.is_negative_ = true;
+            v.storage_.is_negative(true);
         }
 
         return v;
@@ -486,7 +659,7 @@ public:
 
         if (neg)
         {
-            v.common_stor_.is_negative_ = true;
+            v.storage_.is_negative(true);
         }
 
         return v;
@@ -540,12 +713,12 @@ public:
 
         if ( neg )
         {
-            v.common_stor_.is_negative_ = true;
+            v.storage_.is_negative(true);
         }
         return v;
     }
 
-    static basic_bigint from_bytes_be(int signum, const uint8_t* str, std::size_t n)
+    static basic_bigint from_bytes_be(int signum, const uint8_t* str, size_type n)
     {
         static const double radix_log2 = std::log2(next_power_of_two(256));
         // Estimate how big the result will be, so we can pre-allocate it.
@@ -553,12 +726,12 @@ public:
         double big_digits = std::ceil(bits / 64.0);
         //std::cout << "ESTIMATED: " << big_digits << "\n";
 
-        bigint_type v = 0;
-        v.reserve(static_cast<std::size_t>(big_digits));
+        basic_bigint<Allocator> v = 0;
+        v.reserve(static_cast<size_type>(big_digits));
 
         if (n > 0)
         {
-            for (std::size_t i = 0; i < n; i++)
+            for (size_type i = 0; i < n; i++)
             {
                 v = (v * 256) + (uint64_t)(str[i]);
             }
@@ -567,62 +740,25 @@ public:
 
         if (signum < 0)
         {
-            v.common_stor_.is_negative_ = true;
+            v.storage_.is_negative(true);
         }
 
         return v;
     }
 
-    uint64_t* begin() { return is_dynamic() ? dynamic_stor_.data_ : short_stor_.values_; }
-    const uint64_t* begin() const { return is_dynamic() ? dynamic_stor_.data_ : short_stor_.values_; }
-    uint64_t* end() { return begin() + length(); }
-    const uint64_t* end() const { return begin() + length(); }
+    uint64_t* begin() { return storage_.begin(); }
+    const uint64_t* begin() const { return storage_.begin(); }
+    uint64_t* end() { return storage_.end(); }
+    const uint64_t* end() const { return storage_.end(); }
 
     void resize(size_type new_length)
     {
-        size_type old_length = common_stor_.length_;
-        reserve(new_length);
-        common_stor_.length_ = new_length;
-
-        if (old_length < new_length)
-        {
-            if (is_dynamic())
-            {
-                std::memset(dynamic_stor_.data_+old_length, 0, size_type((new_length-old_length)*sizeof(uint64_t)));
-            }
-            else
-            {
-                JSONCONS_ASSERT(new_length <= max_short_storage_size);
-                for (size_type i = old_length; i < max_short_storage_size; ++i)
-                {
-                    short_stor_.values_[i] = 0;
-                }
-            }
-        }
+        storage_.resize(new_length);
     }
 
     void reserve(size_type n)
     {
-       if (capacity() < n)
-       {
-           if (!is_dynamic())
-           {
-               size_type size = short_stor_.length_;
-               size_type is_neg = short_stor_.is_negative_;
-               uint64_t values[max_short_storage_size] = {short_stor_.values_[0], short_stor_.values_[1]};
-
-               ::new (&dynamic_stor_) dynamic_storage();
-               dynamic_stor_.reserve(n, get_allocator());
-               dynamic_stor_.length_ = size;
-               dynamic_stor_.is_negative_ = is_neg;
-               dynamic_stor_.data_[0] = values[0];
-               dynamic_stor_.data_[1] = values[1];
-           }
-           else
-           {
-               dynamic_stor_.reserve(n, get_allocator());
-           }
-       }
+        storage_.reserve(n);
     }
 
     // operators
@@ -635,25 +771,17 @@ public:
     basic_bigint operator-() const
     {
         basic_bigint<Allocator> v(*this);
-        v.common_stor_.is_negative_ = !v.is_negative();
+        v.storage_.is_negative(!v.is_negative());
         return v;
     }
 
-    basic_bigint& operator=( const basic_bigint<Allocator>& y )
+    basic_bigint& operator=( const basic_bigint& y )
     {
-        if ( this != &y )
-        {
-            resize( y.length());
-            common_stor_.is_negative_ = y.is_negative();
-            if ( y.length() > 0 )
-            {
-                std::memcpy( data(), y.data(), size_type(y.length()*sizeof(uint64_t)) );
-            }
-        }
+        storage_ = y.storage_;
         return *this;
     }
 
-    basic_bigint& operator+=( const basic_bigint<Allocator>& y )
+    basic_bigint& operator+=( const basic_bigint& y )
     {
         const uint64_t* y_data = y.data();
         
@@ -684,7 +812,7 @@ public:
         return *this;
     }
 
-    basic_bigint& operator-=( const basic_bigint<Allocator>& y )
+    basic_bigint& operator-=( const basic_bigint& y )
     {
         const uint64_t* y_data = y.data();
 
@@ -717,7 +845,7 @@ public:
     {
         *this *= uint64_t(y < 0 ? -y : y);
         if ( y < 0 )
-            common_stor_.is_negative_ = !is_negative();
+            storage_.is_negative(!is_negative());
         return *this;
     }
 
@@ -745,7 +873,7 @@ public:
         return *this;
     }
 
-    basic_bigint& operator*=(const basic_bigint<Allocator>& y)
+    basic_bigint& operator*=(const basic_bigint& y) // review
     {
         const uint64_t* y_data = y.data();
 
@@ -761,7 +889,7 @@ public:
                 resize( max_short_storage_size );
                 DDproduct( a, b, data()[1], data()[0] );
             }
-            common_stor_.is_negative_ = difSigns;
+            storage_.is_negative(difSigns);
             return *this;
         }
         if ( length() == 1 )  //  && y.length() > 1
@@ -772,11 +900,13 @@ public:
         }
         else
         {
-            if ( y.length() == 1 )
+            if (y.length() == 1)
+            {
                 *this *= y_data[0];
+            }
             else
             {
-                size_type lenProd = length() + y.length(), jA, jB;
+                size_type lenProd = length() + y.length();
                 uint64_t sumHi = 0, sumLo, hi, lo,
                 sumLo_old, sumHi_old, carry=0;
                 basic_bigint<Allocator> x = *this;
@@ -789,19 +919,22 @@ public:
                     sumLo = sumHi;
                     sumHi = carry;
                     carry = 0;
-                    for ( jA=0; jA < x.length(); jA++ )
+                    for (size_type jA=0; jA < x.length(); jA++)
                     {
-                        jB = i - jA;
-                        if ( jB >= 0 && jB < y.length())
+                        if (JSONCONS_LIKELY(i >= jA))
                         {
-                            DDproduct( x_data[jA], y_data[jB], hi, lo );
-                            sumLo_old = sumLo;
-                            sumHi_old = sumHi;
-                            sumLo += lo;
-                            if ( sumLo < sumLo_old )
-                                sumHi++;
-                            sumHi += hi;
-                            carry += (sumHi < sumHi_old);
+                            size_type jB = i - jA;
+                            if (jB < y.length())
+                            {
+                                DDproduct( x_data[jA], y_data[jB], hi, lo );
+                                sumLo_old = sumLo;
+                                sumHi_old = sumHi;
+                                sumLo += lo;
+                                if ( sumLo < sumLo_old )
+                                    sumHi++;
+                                sumHi += hi;
+                                carry += (sumHi < sumHi_old);
+                            }
                         }
                     }
                     this_data[i] = sumLo;
@@ -809,18 +942,18 @@ public:
             }
         }
        reduce();
-       common_stor_.is_negative_ = difSigns;
+       storage_.is_negative(difSigns);
        return *this;
     }
 
-    basic_bigint& operator/=( const basic_bigint<Allocator>& divisor )
+    basic_bigint& operator/=( const basic_bigint& divisor )
     {
         basic_bigint<Allocator> r;
         divide( divisor, *this, r, false );
         return *this;
     }
 
-    basic_bigint& operator%=( const basic_bigint<Allocator>& divisor )
+    basic_bigint& operator%=( const basic_bigint& divisor )
     {
         basic_bigint<Allocator> q;
         divide( divisor, q, *this, true );
@@ -830,7 +963,7 @@ public:
     basic_bigint& operator<<=( uint64_t k )
     {
         size_type q = size_type(k / basic_type_bits);
-        if ( q ) // Increase common_stor_.length_ by q:
+        if ( q ) // Increase storage_.length() by q:
         {
             resize(length() + q);
             uint64_t* this_data = data();
@@ -902,7 +1035,7 @@ public:
         return old;
     }
 
-    basic_bigint<Allocator>& operator--()
+    basic_bigint& operator--()
     {
         *this -= 1;
         return *this;
@@ -915,7 +1048,7 @@ public:
         return old;
     }
 
-    basic_bigint& operator|=( const basic_bigint<Allocator>& a )
+    basic_bigint& operator|=( const basic_bigint& a )
     {
         if ( length() < a.length())
         {
@@ -936,7 +1069,7 @@ public:
         return *this;
     }
 
-    basic_bigint& operator^=( const basic_bigint<Allocator>& a )
+    basic_bigint& operator^=( const basic_bigint& a )
     {
         if ( length() < a.length())
         {
@@ -957,39 +1090,9 @@ public:
         return *this;
     }
 
-    basic_bigint& operator&=( const basic_bigint<Allocator>& a )
+    basic_bigint& operator&=( const basic_bigint& a )
     {
-        size_type old_length = length();
-
-        resize( (std::min)( length(), a.length()) );
-
-        const uint64_t* pBegin = begin();
-        uint64_t* p = end() - 1;
-        const uint64_t* q = a.begin() + length() - 1;
-
-        while ( p >= pBegin )
-        {
-            *p-- &= *q--;
-        }
-
-        const size_type new_length = length();
-        if ( old_length > new_length )
-        {
-            if (is_dynamic())
-            {
-                std::memset( dynamic_stor_.data_ + new_length, 0, size_type(old_length - new_length*sizeof(uint64_t)) );
-            }
-            else
-            {
-                JSONCONS_ASSERT(new_length <= max_short_storage_size);
-                for (size_type i = new_length; i < max_short_storage_size; ++i)
-                {
-                    short_stor_.values_[i] = 0;
-                }
-            }
-        }
-
-        reduce();
+        storage_ &= a.storage_;
 
         return *this;
     }
@@ -1092,7 +1195,7 @@ public:
     {
         basic_bigint<Allocator> v(*this);
 
-        std::size_t len = (v.length() * basic_type_bits / 3) + 2;
+        size_type len = (v.length() * basic_type_bits / 3) + 2;
         data.reserve(len);
 
         static uint64_t p10 = 1;
@@ -1150,7 +1253,7 @@ public:
     {
         basic_bigint<Allocator> v(*this);
 
-        std::size_t len = (v.length() * basic_bigint<Allocator>::basic_type_bits / 3) + 2;
+        size_type len = (v.length() * basic_bigint<Allocator>::basic_type_bits / 3) + 2;
         data.reserve(len);
         // 1/3 > ln(2)/ln(10)
         static uint64_t p10 = 1;
@@ -1198,67 +1301,67 @@ public:
 
 //  Global Operators
 
-    friend bool operator==( const basic_bigint<Allocator>& x, const basic_bigint<Allocator>& y ) noexcept
+    friend bool operator==( const basic_bigint& x, const basic_bigint& y ) noexcept
     {
         return x.compare(y) == 0 ? true : false;
     }
 
-    friend bool operator==( const basic_bigint<Allocator>& x, int y ) noexcept
+    friend bool operator==( const basic_bigint& x, int y ) noexcept
     {
         return x.compare(y) == 0 ? true : false;
     }
 
-    friend bool operator!=( const basic_bigint<Allocator>& x, const basic_bigint<Allocator>& y ) noexcept
+    friend bool operator!=( const basic_bigint& x, const basic_bigint& y ) noexcept
     {
         return x.compare(y) != 0 ? true : false;
     }
 
-    friend bool operator!=( const basic_bigint<Allocator>& x, int y ) noexcept
+    friend bool operator!=( const basic_bigint& x, int y ) noexcept
     {
         return x.compare(basic_bigint<Allocator>(y)) != 0 ? true : false;
     }
 
-    friend bool operator<( const basic_bigint<Allocator>& x, const basic_bigint<Allocator>& y ) noexcept
+    friend bool operator<( const basic_bigint& x, const basic_bigint& y ) noexcept
     {
        return x.compare(y) < 0 ? true : false;
     }
 
-    friend bool operator<( const basic_bigint<Allocator>& x, int64_t y ) noexcept
+    friend bool operator<( const basic_bigint& x, int64_t y ) noexcept
     {
        return x.compare(y) < 0 ? true : false;
     }
 
-    friend bool operator>( const basic_bigint<Allocator>& x, const basic_bigint<Allocator>& y ) noexcept
+    friend bool operator>( const basic_bigint& x, const basic_bigint& y ) noexcept
     {
         return x.compare(y) > 0 ? true : false;
     }
 
-    friend bool operator>( const basic_bigint<Allocator>& x, int y ) noexcept
+    friend bool operator>( const basic_bigint& x, int y ) noexcept
     {
         return x.compare(basic_bigint<Allocator>(y)) > 0 ? true : false;
     }
 
-    friend bool operator<=( const basic_bigint<Allocator>& x, const basic_bigint<Allocator>& y ) noexcept
+    friend bool operator<=( const basic_bigint& x, const basic_bigint& y ) noexcept
     {
         return x.compare(y) <= 0 ? true : false;
     }
 
-    friend bool operator<=( const basic_bigint<Allocator>& x, int y ) noexcept
+    friend bool operator<=( const basic_bigint& x, int y ) noexcept
     {
         return x.compare(y) <= 0 ? true : false;
     }
 
-    friend bool operator>=( const basic_bigint<Allocator>& x, const basic_bigint<Allocator>& y ) noexcept
+    friend bool operator>=( const basic_bigint& x, const basic_bigint& y ) noexcept
     {
         return x.compare(y) >= 0 ? true : false;
     }
 
-    friend bool operator>=( const basic_bigint<Allocator>& x, int y ) noexcept
+    friend bool operator>=( const basic_bigint& x, int y ) noexcept
     {
         return x.compare(y) >= 0 ? true : false;
     }
 
-    friend basic_bigint<Allocator> operator+( basic_bigint<Allocator> x, const basic_bigint<Allocator>& y )
+    friend basic_bigint<Allocator> operator+( basic_bigint<Allocator> x, const basic_bigint& y )
     {
         return x += y;
     }
@@ -1268,7 +1371,7 @@ public:
         return x += y;
     }
 
-    friend basic_bigint<Allocator> operator-( basic_bigint<Allocator> x, const basic_bigint<Allocator>& y )
+    friend basic_bigint<Allocator> operator-( basic_bigint<Allocator> x, const basic_bigint& y )
     {
         return x -= y;
     }
@@ -1278,12 +1381,12 @@ public:
         return x -= y;
     }
 
-    friend basic_bigint<Allocator> operator*( int64_t x, const basic_bigint<Allocator>& y )
+    friend basic_bigint<Allocator> operator*( int64_t x, const basic_bigint& y )
     {
         return basic_bigint<Allocator>(y) *= x;
     }
 
-    friend basic_bigint<Allocator> operator*( basic_bigint<Allocator> x, const basic_bigint<Allocator>& y )
+    friend basic_bigint<Allocator> operator*( basic_bigint<Allocator> x, const basic_bigint& y )
     {
         return x *= y;
     }
@@ -1293,7 +1396,7 @@ public:
         return x *= y;
     }
 
-    friend basic_bigint<Allocator> operator/( basic_bigint<Allocator> x, const basic_bigint<Allocator>& y )
+    friend basic_bigint<Allocator> operator/( basic_bigint<Allocator> x, const basic_bigint& y )
     {
         return x /= y;
     }
@@ -1303,7 +1406,7 @@ public:
         return x /= y;
     }
 
-    friend basic_bigint<Allocator> operator%( basic_bigint<Allocator> x, const basic_bigint<Allocator>& y )
+    friend basic_bigint<Allocator> operator%( basic_bigint<Allocator> x, const basic_bigint& y )
     {
         return x %= y;
     }
@@ -1328,7 +1431,7 @@ public:
         return u >>= k;
     }
 
-    friend basic_bigint<Allocator> operator|( basic_bigint<Allocator> x, const basic_bigint<Allocator>& y )
+    friend basic_bigint<Allocator> operator|( basic_bigint<Allocator> x, const basic_bigint& y )
     {
         return x |= y;
     }
@@ -1343,7 +1446,7 @@ public:
         return x |= y;
     }
 
-    friend basic_bigint<Allocator> operator^( basic_bigint<Allocator> x, const basic_bigint<Allocator>& y )
+    friend basic_bigint<Allocator> operator^( basic_bigint<Allocator> x, const basic_bigint& y )
     {
         return x ^= y;
     }
@@ -1358,7 +1461,7 @@ public:
         return x ^= y;
     }
 
-    friend basic_bigint<Allocator> operator&( basic_bigint<Allocator> x, const basic_bigint<Allocator>& y )
+    friend basic_bigint<Allocator> operator&( basic_bigint<Allocator> x, const basic_bigint& y )
     {
         return x &= y;
     }
@@ -1373,7 +1476,7 @@ public:
         return x &= y;
     }
 
-    friend basic_bigint<Allocator> abs( const basic_bigint<Allocator>& a )
+    friend basic_bigint<Allocator> abs( const basic_bigint& a )
     {
         if ( a.is_negative())
         {
@@ -1399,7 +1502,7 @@ public:
         return y;
     }
 
-    friend basic_bigint<Allocator> sqrt( const basic_bigint<Allocator>& a )
+    friend basic_bigint<Allocator> sqrt( const basic_bigint& a )
     {
         basic_bigint<Allocator> x = a;
         basic_bigint<Allocator> b = a;
@@ -1419,7 +1522,7 @@ public:
     }
 
     template <typename CharT>
-    friend std::basic_ostream<CharT>& operator<<(std::basic_ostream<CharT>& os, const basic_bigint<Allocator>& v)
+    friend std::basic_ostream<CharT>& operator<<(std::basic_ostream<CharT>& os, const basic_bigint& v)
     {
         std::basic_string<CharT> s;
         v.write_string(s); 
@@ -1428,7 +1531,7 @@ public:
         return os;
     }
 
-    int compare( const basic_bigint<Allocator>& y ) const noexcept
+    int compare( const basic_bigint& y ) const noexcept
     {
         const uint64_t* y_data = y.data();
 
@@ -1460,7 +1563,7 @@ public:
         return is_negative() ? -code : code;
     }
 
-    void divide( basic_bigint<Allocator> denom, basic_bigint<Allocator>& quot, basic_bigint<Allocator>& rem, bool remDesired ) const
+    void divide( basic_bigint<Allocator> denom, basic_bigint& quot, basic_bigint& rem, bool remDesired ) const
     {
         if ( denom.length() == 0 )
         {
@@ -1470,20 +1573,21 @@ public:
         bool rem_neg = is_negative();
         int x = 0;
         basic_bigint<Allocator> num = *this;
-        num.common_stor_.is_negative_ = denom.common_stor_.is_negative_ = false;
+        num.storage_.is_negative(false);
+        denom.storage_.is_negative(false);
         if ( num < denom )
         {
             quot = uint64_t(0);
             rem = num;
-            rem.common_stor_.is_negative_ = rem_neg;
+            rem.storage_.is_negative(rem_neg);
             return;
         }
         if ( denom.length() == 1 && num.length() == 1 )
         {
             quot = uint64_t( num.data()[0]/denom.data()[0] );
             rem = uint64_t( num.data()[0]%denom.data()[0] );
-            quot.common_stor_.is_negative_ = quot_neg;
-            rem.common_stor_.is_negative_ = rem_neg;
+            quot.storage_.is_negative(quot_neg);
+            rem.storage_.is_negative(rem_neg);
             return;
         }
         else if (denom.length() == 1 && (denom.data()[0] & l_mask) == 0 )
@@ -1504,8 +1608,8 @@ public:
             }
             quot.reduce();
             rem = dHi;
-            quot.common_stor_.is_negative_ = quot_neg;
-            rem.common_stor_.is_negative_ = rem_neg;
+            quot.storage_.is_negative(quot_neg);
+            rem.storage_.is_negative(rem_neg);
             return;
         }
         basic_bigint<Allocator> num0 = num, denom0 = denom;
@@ -1530,20 +1634,17 @@ public:
             quot.data()[k - l - 1] = q;
         }
         quot.reduce();
-        quot.common_stor_.is_negative_ = quot_neg;
+        quot.storage_.is_negative(quot_neg);
         if ( remDesired )
         {
             unnormalize(rem, x, second_done);
-            rem.common_stor_.is_negative_ = rem_neg;
+            rem.storage_.is_negative(rem_neg);
         }
     }
 private:
     void destroy() noexcept
     {
-        if (is_dynamic())
-        {
-            dynamic_stor_.destroy(get_allocator());
-        }
+        storage_.destroy();
     }
     void DDproduct( uint64_t A, uint64_t B,
                     uint64_t& hi, uint64_t& lo ) const
@@ -1639,7 +1740,7 @@ private:
         }
     }
 
-    int normalize( basic_bigint<Allocator>& denom, basic_bigint<Allocator>& num, int& x ) const
+    int normalize( basic_bigint& denom, basic_bigint& num, int& x ) const
     {
         size_type r = denom.length() - 1;
         uint64_t y = denom.data()[r];
@@ -1655,13 +1756,13 @@ private:
         if ( r > 0 && denom.data()[r] < denom.data()[r-1] )
         {
             denom *= max_basic_type;
-                    num *= max_basic_type;
+            num *= max_basic_type;
             return 1;
         }
         return 0;
     }
 
-    void unnormalize( basic_bigint<Allocator>& rem, int x, int secondDone ) const
+    void unnormalize( basic_bigint& rem, int x, int secondDone ) const
     {
         if ( secondDone )
         {
@@ -1684,21 +1785,7 @@ private:
 
     void reduce()
     {
-        uint64_t* p = end() - 1;
-        uint64_t* pBegin = begin();
-        while ( p >= pBegin )
-        {
-            if ( *p )
-            {
-                break;
-            }
-            --common_stor_.length_;
-            --p;
-        }
-        if ( length() == 0 )
-        {
-            common_stor_.is_negative_ = false;
-        }
+        storage_.reduce();
     }
  
     static uint64_t next_power_of_two(uint64_t n) {
@@ -1768,7 +1855,7 @@ private:
 
         if ( neg )
         {
-            val.common_stor_.is_negative_ = true;
+            val.storage_.is_negative(true);
         }
         return to_bigint_result<CharT>(cur, std::errc{});
     }

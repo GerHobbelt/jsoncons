@@ -31,12 +31,14 @@ include (CTest)
 
 # -fsanitize=undefined clang issue
 if (JSONCONS_SANITIZE)
-    if(NOT MSVC)
+    if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+        set(CMAKE_XCODE_SCHEME_ADDRESS_SANITIZER ON)
+        message(STATUS "MACOS SANITIZE ON")
+    elseif(NOT MSVC)
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -fsanitize=address -fno-omit-frame-pointer")
-        message(STATUS "SANITIZE ON")
+        message(STATUS "NOT MSVC SANITIZE ON")
     endif()
 endif()
-
 if(MSVC)
     set(CMAKE_EXE_LINKER_FLAGS /MANIFEST:NO)
 endif()
@@ -221,7 +223,7 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_
     message(STATUS Version " ${CMAKE_CXX_COMPILER_VERSION}")
     # older GCC versions don't support 
    target_compile_options(unit_tests PRIVATE
-       $<$<CXX_COMPILER_ID:GNU>:-Werror=maybe-uninitialized -Wnon-virtual-dtor -Werror=stringop-overflow -Werror -Wall -Wextra -Wcast-align -Wcast-qual -Wimplicit-fallthrough -Wsign-compare -pedantic -Wnonnull -Wnull-dereference -Werror=nonnull>
+       $<$<CXX_COMPILER_ID:GNU>:-Werror=maybe-uninitialized -Wnon-virtual-dtor -Werror=free-nonheap-object -Werror=stringop-overflow -Werror -Wall -Wextra -Wcast-align -Wcast-qual -Wimplicit-fallthrough -Wsign-compare -pedantic -Wnonnull -Wnull-dereference -Werror=nonnull>
    )
 endif()
 

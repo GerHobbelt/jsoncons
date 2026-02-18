@@ -1,3 +1,19 @@
+master
+------
+
+- Fixed bug:
+
+    - Git Issue #644: flatten/unflatten does not preserve arrays with more than 10 elements
+
+1.4.3
+-----
+
+- Fixed bug:
+
+    - Git PR #640: jsonschema patch includes defaults for unmatch oneOf cases
+
+    - Git PR #639: Regression: jsoncons fails to compile conversion from std::shared_ptr
+
 1.4.2
 -----
 

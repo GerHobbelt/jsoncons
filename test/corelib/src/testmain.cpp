@@ -1,12 +1,16 @@
 #define CATCH_CONFIG_MAIN
 
-#include <jsoncons/config/jsoncons_config.hpp>
+#include <jsoncons/config/compiler_support.hpp>
 #include <catch/catch.hpp>
 
 #include <iostream>
 
 TEST_CASE("configuration")
 {
+    //memory leak test
+    //char* p = new char [10];
+    //p[0] = 0;
+
     #if defined(__clang__) 
         std::cout << "clang" << "\n";
     #elif defined(__GNUC__)
