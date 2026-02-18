@@ -1142,7 +1142,7 @@ namespace detail {
 
             switch (arg0.type())
             {
-                case json_type::array_value:
+                case json_type::array:
                     for (auto& j : arg0.array_range())
                     {
                         if (j == arg1)
@@ -1151,7 +1151,7 @@ namespace detail {
                         }
                     }
                     return value_type(false, semantic_tag::none);
-                case json_type::string_value:
+                case json_type::string:
                 {
                     if (!arg1.is_string())
                     {
@@ -1455,12 +1455,12 @@ namespace detail {
             auto arg0= args[0].value();
             switch (arg0.type())
             {
-                case json_type::uint64_value:
-                case json_type::int64_value:
+                case json_type::uint64:
+                case json_type::int64:
                 {
                     return value_type(arg0.template as<double>(), semantic_tag::none);
                 }
-                case json_type::double_value:
+                case json_type::float64:
                 {
                     return value_type(std::ceil(arg0.template as<double>()), semantic_tag::none);
                 }
@@ -1507,12 +1507,12 @@ namespace detail {
             auto arg0= args[0].value();
             switch (arg0.type())
             {
-                case json_type::uint64_value:
-                case json_type::int64_value:
+                case json_type::uint64:
+                case json_type::int64:
                 {
                     return value_type(arg0.template as<double>(), semantic_tag::none);
                 }
-                case json_type::double_value:
+                case json_type::float64:
                 {
                     return value_type(std::floor(arg0.template as<double>()), semantic_tag::none);
                 }
@@ -1559,28 +1559,28 @@ namespace detail {
             auto arg0= args[0].value();
             switch (arg0.type())
             {
-                case json_type::int64_value:
-                case json_type::uint64_value:
-                case json_type::double_value:
+                case json_type::int64:
+                case json_type::uint64:
+                case json_type::float64:
                     return arg0;
-                case json_type::string_value:
+                case json_type::string:
                 {
                     auto sv = arg0.as_string_view();
                     uint64_t un{0};
-                    auto result1 = jsoncons::utility::to_integer(sv.data(), sv.length(), un);
+                    auto result1 = jsoncons::to_integer(sv.data(), sv.length(), un);
                     if (result1)
                     {
                         return value_type(un, semantic_tag::none);
                     }
                     int64_t sn{0};
-                    auto result2 = jsoncons::utility::to_integer(sv.data(), sv.length(), sn);
+                    auto result2 = jsoncons::to_integer(sv.data(), sv.length(), sn);
                     if (result2)
                     {
                         return value_type(sn, semantic_tag::none);
                     }
                     auto s = arg0.as_string();
                     double d;
-                    auto result = jsoncons::utility::decstr_to_double(s.c_str(), s.length(), d);
+                    auto result = jsoncons::decstr_to_double(s.c_str(), s.length(), d);
                     if (result.ec == std::errc::invalid_argument)
                     {
                         return value_type::null();
@@ -1884,13 +1884,13 @@ namespace detail {
             auto arg0= args[0].value();
             switch (arg0.type())
             {
-                case json_type::uint64_value:
+                case json_type::uint64:
                     return arg0;
-                case json_type::int64_value:
+                case json_type::int64:
                 {
                     return arg0.template as<int64_t>() >= 0 ? arg0 : value_type(std::abs(arg0.template as<int64_t>()), semantic_tag::none);
                 }
-                case json_type::double_value:
+                case json_type::float64:
                 {
                     return arg0.template as<double>() >= 0 ? arg0 : value_type(std::abs(arg0.template as<double>()), semantic_tag::none);
                 }
@@ -1942,11 +1942,11 @@ namespace detail {
 
             switch (arg0.type())
             {
-                case json_type::object_value:
-                case json_type::array_value:
+                case json_type::object:
+                case json_type::array:
                     //std::cout << "LENGTH ARG: " << arg0 << "\n";
                     return value_type(arg0.size(), semantic_tag::none);
-                case json_type::string_value:
+                case json_type::string:
                 {
                     auto sv0 = arg0.template as<string_view_type>();
                     auto length = unicode_traits::count_codepoints(sv0.data(), sv0.size());

@@ -99,16 +99,16 @@ TEST_CASE("json_options allow_comments test")
 
 TEST_CASE("test_default_nan_replacement")
 {
-    json obj;
-    obj["field1"] = std::sqrt(-1.0);
-    obj["field2"] = 1.79e308 * 1000;
-    obj["field3"] = -1.79e308 * 1000;
+    json j;
+    j["field1"] = std::sqrt(-1.0);
+    j["field2"] = 1.79e308 * 1000;
+    j["field3"] = -1.79e308 * 1000;
 
-    std::ostringstream os;
-    os << print(obj);
+    std::string buffer;
+    j.dump(buffer);
     std::string expected = R"({"field1":null,"field2":null,"field3":null})";
 
-    CHECK(expected == os.str());
+    CHECK(expected == buffer);
 }
 
 TEST_CASE("test inf_to_num")
@@ -123,11 +123,11 @@ TEST_CASE("test inf_to_num")
         auto options = json_options{}
             .inf_to_num("1e9999");
 
-        std::ostringstream os;
-        os << print(j, options);
+        std::string buffer;
+        j.dump(buffer, options);
         std::string expected = R"({"field1":null,"field2":1e9999,"field3":-1e9999})";
 
-        CHECK(expected == os.str());
+        CHECK(expected == buffer);
     }
 }
 
@@ -144,14 +144,14 @@ TEST_CASE("object: nan_to_str, inf_to_str, neginf_to_str test")
             .nan_to_str("NaN")
             .inf_to_str("Inf")
             .neginf_to_str("NegInf")
-            .line_splits(line_split_kind::same_line);
+            .root_line_splits(line_split_kind::same_line);
 
-        std::ostringstream os;
-        os << pretty_print(j, options);
+        std::string buffer;
+        j.dump_pretty(buffer, options);
 
-        //std::cout << os.str() << "\n";
+        //std::cout << buffer << "\n";
         std::string expected = R"({"field1": "NaN", "field2": "Inf", "field3": "NegInf"})";
-        CHECK(expected == os.str());
+        CHECK(expected == buffer);
     }
 
     SECTION("print nan_to_str, inf_to_str, neginf_to_str")
@@ -161,12 +161,12 @@ TEST_CASE("object: nan_to_str, inf_to_str, neginf_to_str test")
             .inf_to_str("Inf")
             .inf_to_str("NegInf");
 
-        std::ostringstream os;
-        os << print(j, options);
+        std::string buffer;
+        j.dump(buffer, options);
 
-        //std::cout << os.str() << "\n";
+        //std::cout << buffer << "\n";
         std::string expected = R"({"field1":"NaN","field2":"NegInf","field3":"-NegInf"})";
-        CHECK(expected == os.str());
+        CHECK(expected == buffer);
     }
 }
 
@@ -183,15 +183,15 @@ TEST_CASE("array: nan_to_str, inf_to_str, neginf_to_str test")
             .nan_to_str("NaN")
             .inf_to_str("Inf")
             .neginf_to_str("NegInf")
-            .line_splits(line_split_kind::same_line);
+            .root_line_splits(line_split_kind::same_line);
 
-        std::ostringstream os;
-        os << pretty_print(j, options);
+        std::string buffer;
+        j.dump_pretty(buffer, options);
 
-        //std::cout << os.str() << "\n";
+        //std::cout << buffer << "\n";
         std::string expected = R"(["NaN", "Inf", "NegInf"])";
 
-        CHECK(expected == os.str());
+        CHECK(expected == buffer);
     }
 
     SECTION("print nan_to_str, inf_to_str, neginf_to_str")
@@ -201,13 +201,13 @@ TEST_CASE("array: nan_to_str, inf_to_str, neginf_to_str test")
             .inf_to_str("Inf")
             .inf_to_str("NegInf");
 
-        std::ostringstream os;
-        os << print(j, options);
+        std::string buffer;
+        j.dump(buffer, options);
 
-        //std::cout << os.str() << "\n";
+        //std::cout << buffer << "\n";
         std::string expected = R"(["NaN","NegInf","-NegInf"])";
 
-        CHECK(expected == os.str());
+        CHECK(expected == buffer);
     }
 }
 
@@ -222,11 +222,11 @@ TEST_CASE("test_read_write_read_nan_replacement")
         .nan_to_str("MyNaN")
         .inf_to_str("MyInf");
 
-    std::ostringstream os;
-    os << pretty_print(j, options);
+    std::string buffer;
+    j.dump_pretty(buffer, options);
 
-    //std::cout << os.str() << "\n\n";
-    json j2 = json::parse(os.str(),options);
+    //std::cout << buffer << "\n\n";
+    json j2 = json::parse(buffer,options);
 
     json expected;
     expected["field1"] = std::nan("");
@@ -257,13 +257,13 @@ TEST_CASE("object_array empty array")
         auto options = json_options{}
             .object_array_line_splits(line_split_kind::same_line);
 
-        std::ostringstream os;
-        os << pretty_print(j, options);
+        std::string buffer;
+        j.dump_pretty(buffer, options);
 
         std::string expected = R"({
     "foo": []
 })";
-        CHECK(expected == os.str());
+        CHECK(expected == buffer);
     }
 
     SECTION("new_line")
@@ -273,13 +273,13 @@ TEST_CASE("object_array empty array")
         auto options = json_options{}
             .object_array_line_splits(line_split_kind::new_line);
 
-        std::ostringstream os;
-        os << pretty_print(j, options);
+        std::string buffer;
+        j.dump_pretty(buffer, options);
 
         std::string expected = R"({
     "foo": []
 })";
-        CHECK(expected == os.str());
+        CHECK(expected == buffer);
     }
 
     SECTION("multi_line")
@@ -289,13 +289,13 @@ TEST_CASE("object_array empty array")
         auto options = json_options{}
             .object_array_line_splits(line_split_kind::multi_line);
 
-        std::ostringstream os;
-        os << pretty_print(j, options);
+        std::string buffer;
+        j.dump_pretty(buffer, options);
 
         std::string expected = R"({
     "foo": []
 })";
-        CHECK(expected == os.str());
+        CHECK(expected == buffer);
     }
 
 }
@@ -312,9 +312,7 @@ TEST_CASE("object_array with/without line_length_limit")
     SECTION("same_line")
     {
     std::string expected = R"({
-    "foo": ["bar","baz",
-        [1,2,3]
-    ],
+    "foo": ["bar","baz",[1,2,3]],
     "qux": [1,2,3,null,123,45.3,342334,234]
 })";
 
@@ -326,10 +324,10 @@ TEST_CASE("object_array with/without line_length_limit")
             .object_array_line_splits(line_split_kind::same_line)
             .array_array_line_splits(line_split_kind::new_line);
 
-        std::ostringstream os;
-        os << pretty_print(j, options);
+        std::string buffer;
+        j.dump_pretty(buffer, options);
 
-        CHECK(expected == os.str());
+        CHECK(expected == buffer);
     }
 
     SECTION("new_line")
@@ -337,7 +335,9 @@ TEST_CASE("object_array with/without line_length_limit")
     std::string expected = R"({
     "foo": [
         "bar","baz",
-        [1,2,3]
+        [
+            1,2,3
+        ]
     ],
     "qux": [
         1,2,3,null,123,45.3,342334,234
@@ -352,11 +352,11 @@ TEST_CASE("object_array with/without line_length_limit")
             .array_array_line_splits(line_split_kind::new_line)
             .object_array_line_splits(line_split_kind::new_line);
 
-        std::ostringstream os;
-        os << pretty_print(j, options);
+        std::string buffer;
+        j.dump_pretty(buffer, options);
 
         //std::cout << pretty_print(j, options) << "\n";
-        CHECK(expected == os.str());
+        CHECK(expected == buffer);
     }
 
     SECTION("multi_line")
@@ -385,19 +385,19 @@ TEST_CASE("object_array with/without line_length_limit")
             .spaces_around_comma(spaces_option::no_spaces)
             .array_array_line_splits(line_split_kind::same_line);
 
-        std::ostringstream os;
-        os << pretty_print(j, options);
+        std::string buffer;
+        j.dump_pretty(buffer, options);
 
         //std::cout << pretty_print(j, options) << "\n";
-        CHECK(expected == os.str());
+        CHECK(expected == buffer);
     }
 
     SECTION("same_line with line length limit")
     {
     std::string expected = R"({
-    "foo": ["bar","baz",
-        [1,2,3]
-    ],
+    "foo": ["bar","baz",[
+            1,2,3
+        ]],
     "qux": [1,2,3,null,
         123,45.3,342334,
         234
@@ -412,11 +412,11 @@ TEST_CASE("object_array with/without line_length_limit")
             .object_array_line_splits(line_split_kind::same_line)
             .array_array_line_splits(line_split_kind::new_line);
 
-        std::ostringstream os;
-        os << pretty_print(j, options);
+        std::string buffer;
+        j.dump_pretty(buffer, options);
 
         //std::cout << pretty_print(j, options) << "\n";
-        CHECK(expected == os.str());
+        CHECK(expected == buffer);
     }
 
     SECTION("new_line with line length limit") // Revisit 234
@@ -424,7 +424,9 @@ TEST_CASE("object_array with/without line_length_limit")
     std::string expected = R"({
     "foo": [
         "bar","baz",
-        [1,2,3]
+        [
+            1,2,3
+        ]
     ],
     "qux": [
         1,2,3,null,123,
@@ -440,11 +442,11 @@ TEST_CASE("object_array with/without line_length_limit")
             .object_array_line_splits(line_split_kind::new_line)
             .array_array_line_splits(line_split_kind::new_line);
 
-        std::ostringstream os;
-        os << pretty_print(j, options);
+        std::string buffer;
+        j.dump_pretty(buffer, options);
 
         //std::cout << pretty_print(j, options) << "\n";
-        CHECK(expected == os.str());
+        CHECK(expected == buffer);
     }
 }
 
@@ -456,7 +458,7 @@ TEST_CASE("json_options line_indent")
         jsoncons::json j_arr = jsoncons::json::parse(j_str);
         auto options = json_options{}
             .spaces_around_comma(jsoncons::spaces_option::space_after)
-            .line_splits(jsoncons::line_split_kind::same_line);
+            .root_line_splits(jsoncons::line_split_kind::same_line);
         std::string buffer;
         jsoncons::encode_json_pretty(j_arr, buffer, options);
 
@@ -468,7 +470,7 @@ TEST_CASE("json_options line_indent")
         jsoncons::json j_arr = jsoncons::json::parse(j_str);
         auto options = json_options{}
             .spaces_around_comma(jsoncons::spaces_option::space_after)
-            .line_splits(jsoncons::line_split_kind::same_line);
+            .root_line_splits(jsoncons::line_split_kind::same_line);
         std::string buffer;
         jsoncons::encode_json_pretty(j_arr, buffer, options);
 
@@ -527,11 +529,11 @@ TEST_CASE("array_object with/without line_length_limit")
             .spaces_around_comma(spaces_option::no_spaces)
             .array_object_line_splits(line_split_kind::same_line);
 
-        std::ostringstream os;
-        os << pretty_print(j, options);
+        std::string buffer;
+        j.dump_pretty(buffer, options);
 
         //std::cout << pretty_print(j, options) << "\n";
-        CHECK(expected == os.str());
+        CHECK(expected == buffer);
     }
 
     SECTION("new_line")
@@ -549,11 +551,11 @@ TEST_CASE("array_object with/without line_length_limit")
             .spaces_around_comma(spaces_option::no_spaces)
             .array_object_line_splits(line_split_kind::new_line);
 
-        std::ostringstream os;
-        os << pretty_print(j, options);
+        std::string buffer;
+        j.dump_pretty(buffer, options);
 
         //std::cout << pretty_print(j, options) << "\n";
-        CHECK(expected == os.str());
+        CHECK(expected == buffer);
     }
 
     SECTION("multi_line (default)")
@@ -578,11 +580,11 @@ TEST_CASE("array_object with/without line_length_limit")
         auto options = json_options{}
             .spaces_around_comma(spaces_option::no_spaces);
 
-        std::ostringstream os;
-        os << pretty_print(j, options);
+        std::string buffer;
+        j.dump_pretty(buffer, options);
 
         //std::cout << pretty_print(j, options) << "\n";
-        CHECK(expected == os.str());
+        CHECK(expected == buffer);
     }
     SECTION("same_line with line length limit")
     {
@@ -602,11 +604,11 @@ TEST_CASE("array_object with/without line_length_limit")
             .spaces_around_comma(spaces_option::no_spaces)
             .array_object_line_splits(line_split_kind::same_line);
 
-        std::ostringstream os;
-        os << pretty_print(j, options);
+        std::string buffer;
+        j.dump_pretty(buffer, options);
 
         //std::cout << pretty_print(j, options) << "\n";
-        CHECK(expected == os.str());
+        CHECK(expected == buffer);
     }
     SECTION("new_line with line length limit")
     {
@@ -625,9 +627,9 @@ TEST_CASE("array_object with/without line_length_limit")
             .spaces_around_comma(spaces_option::no_spaces)
             .array_object_line_splits(line_split_kind::new_line);
 
-        std::ostringstream os;
-        os << pretty_print(j, options);
-        CHECK(expected == os.str());
+        std::string buffer;
+        j.dump_pretty(buffer, options);
+        CHECK(expected == buffer);
 
         //std::cout << pretty_print(j, options) << "\n";
     }
@@ -647,9 +649,9 @@ TEST_CASE("json_options tests")
             .pad_inside_array_brackets(true)
             .object_array_line_splits(line_split_kind::same_line);
 
-        std::ostringstream os;
-        j.dump_pretty(os, options);
-        CHECK(os.str() == s);
+        std::string buffer;
+        j.dump_pretty(buffer, options);
+        CHECK(s == buffer);
     }
     SECTION("pad_inside_object_braces")
     {
@@ -663,9 +665,9 @@ TEST_CASE("json_options tests")
             .pad_inside_object_braces(true)
             .array_object_line_splits(line_split_kind::same_line);
 
-        std::ostringstream os;
-        j.dump_pretty(os, options);
-        CHECK(os.str() == s);
+        std::string buffer;
+        j.dump_pretty(buffer, options);
+        CHECK(buffer == s);
     }
     SECTION("indent with tabs")
     {

@@ -101,8 +101,8 @@ Or, download the latest code on [main](https://github.com/danielaparker/jsoncons
 - [Ask questions and suggest ideas for new features](https://github.com/danielaparker/jsoncons/discussions)
 
 The library requires a C++ Compiler with C++11 support. In addition the library defines `jsoncons::endian`,
-`jsoncons::basic_string_view`, `jsoncons::optional`, and `jsoncons::span`, which will be typedefed to
-their standard library equivalents if detected. Otherwise they will be typedefed to internal, C++11 compatible, implementations.
+`jsoncons::basic_string_view`, `jsoncons::optional`, and `jsoncons::span`, which will be typedef-ed to
+their standard library equivalents if detected. Otherwise they will be typedef-ed to internal, C++11 compatible, implementations.
 
 The library uses exceptions and in some cases [std::error_code](https://en.cppreference.com/w/cpp/error/error_code)'s to report errors. Apart from `jsoncons::assertion_error`,
 all jsoncons exception classes implement the [jsoncons::json_error](doc/ref/corelib/json_error.md) interface.
@@ -352,7 +352,7 @@ See [examples](doc/Examples.md#G0) for other ways of specializing reflection tra
 
 A typical pull parsing application will repeatedly process the `current()` 
 event and call `next()` to advance to the next event, until `done()` 
-returns `true`.
+returns **true**.
 
 ```cpp
 int main()
@@ -614,7 +614,7 @@ that the variant like data structure preserved with a tag, so serializing back t
 
 A typical pull parsing application will repeatedly process the `current()` 
 event and call `next()` to advance to the next event, until `done()` 
-returns `true`.
+returns **true**.
 
 ```cpp
 int main()

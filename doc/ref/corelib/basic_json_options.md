@@ -24,18 +24,17 @@ inf_to_num| |Sets a number replacement for `Infinity` when writing JSON|Unenable
 neginf_to_num| |Sets a number replacement for `Negative Infinity` when writing JSON|Unenabled|
 max_nesting_depth|Maximum nesting depth allowed when parsing JSON|Maximum nesting depth allowed when serializing JSON|**1024**|
 lossless_bignum|When parsing floating point values, and value is out-of-range, produces a string with tag `semantic_tag::bigdec` if **true**, otherwise produces +- infinity.| |**true**|(since 1.4.0)</br>(until 1.5.0)
-lossless_bignum|When parsing an integer value, and value is out-of-range, produces a string with tag `semantic_tag::bigint` if **true**, otherwise parses as double. When parsing floating point values, and value is out-of-range, produces a string with tag `semantic_tag::bigdec` if **true**, otherwise produces `+- infinity`.| |**true**|(since 1.5.0)
+ |When parsing an integer value, and value is out-of-range, produces a string with tag `semantic_tag::bigint` if **true**, otherwise parses as double. When parsing floating point values, and value is out-of-range, produces a string with tag `semantic_tag::bigdec` if **true**, otherwise produces `+- infinity`.| |**true**|(since 1.5.0)
 lossless_number|If **true**, reads numbers with exponents and fractional parts as strings with tag `semantic_tag::bigdec`.| |**false**|
 allow_comments|If 'true', allow (and ignore) comments when parsing JSON| |**true**|(since 1.3.0)
 allow_trailing_comma|If 'true', an extra comma at the end of a list of JSON values in an object or array is allowed (and ignored)| |**false**|(since 1.3.0)
 err_handler|Defines an [error handler](err_handler.md) for parsing JSON.| |`default_json_parsing`|(since 0.171.0, deprecated in 1.5.0)
-indent_size| |The indent size|4|
-indent_char| |The indent character, e.g. '\t'|' '| (since 1.5)
+indent_size| |The indent size|**4**|
+indent_char| |The indent character, e.g. '\t'|**' '**| (since 1.5)
 spaces_around_colon| |Indicates [space option](spaces_option.md) for name separator (`:`).|space after|
 spaces_around_comma| |Indicates [space option](spaces_option.md) for array value and object name/value pair separators (`,`).|space after|
 pad_inside_object_braces| |Pad inside object braces|**false**|
 pad_inside_array_brackets| |Pad inside array brackets|**false**|
-bigint_format| |Specifies which [bigint format](bigint_chars_format.md) to use when serializing json.|`bignum_format_kind::raw`| (since 1.0.0)
 bignum_format| |Specifies which [bignum format](bignum_format_kind.md) to use when serializing json. |`bignum_format_kind::raw`|
 byte_string_format| |Overrides [byte string format](byte_string_chars_format.md) when serializing json. |[byte_string_chars_format::base64url](byte_string_chars_format.md)|
 float_format| |Overrides [floating point format](float_chars_format.md) when serializing to JSON. |[float_chars_format::general](float_chars_format.md)|
@@ -44,13 +43,14 @@ escape_all_non_ascii| |Escape all non-ascii characters. |**false**|
 escape_solidus| |Escape the solidus ('/') character. |**false**|
 new_line_chars| |New line characters|"\n"|
 line_length_limit| |Line length limit|120|
+root_line_splits| |Sets whether the root of a JSON value is split on a new line, or if its members are split on multiple lines. |[line_split_kind::multi_line](line_split_kind.md)|
 object_object_line_splits| |For an object whose parent is an object, set whether that object is split on a new line, or if its members are split on multiple lines. |[line_split_kind::multi_line](line_split_kind.md)|
 array_object_line_splits| |For an object whose parent is an array, set whether that object is split on a new line, or if its members are split on multiple lines. |[line_split_kind::multi_line](line_split_kind.md)|
-object_array_line_splits| |For an array whose parent is an object, set whether that array is split on a new line, or if its elements are split on multiple lines. |[line_split_kind::same_line](line_split_kind.md)|
-array_array_line_splits| |For an array whose parent is an array, set whether that array is split on a new line, or if its elements are split on multiple lines. |[line_split_kind::new_line](line_split_kind.md)|
+object_array_line_splits| |For an array whose parent is an object, set whether that array is split on a new line, or if its elements are split on multiple lines. |[line_split_kind::multi_line](line_split_kind.md)|
+array_array_line_splits| |For an array whose parent is an array, set whether that array is split on a new line, or if its elements are split on multiple lines. |[line_split_kind::multi_line](line_split_kind.md)|
 
 The default floating point format is [float_chars_format::general](float_chars_format.md).
-The default precision is shortest representation, e.g. 1.1 read will remain `1.1` when written, and not become `1.1000000000000001` (an equivalent but longer representation.)
+The default precision is shortest representation, e.g. **1.1** read will remain **1.1** when written, and not become `1.1000000000000001` (an equivalent but longer representation.)
 Trailing zeros are removed, except one immediately following the decimal point. The period character (‘.’) is always used as the decimal point, non English locales are ignored.
 
 Aliases for common character types are provided:
@@ -76,7 +76,7 @@ Member type                         |Definition
 #### Constructors
 
     basic_json_options()
-Constructs a `basic_json_options` with default values. 
+Default constructor. 
 
     basic_json_options(const basic_json_options& other)
 Copy constructor. 
@@ -84,106 +84,51 @@ Copy constructor.
     basic_json_options(basic_json_options&& other)
 Move constructor. 
 
-#### Modifiers
+#### Setters
 
-    void max_nesting_depth(int depth)
-The maximum nesting depth allowed when decoding and encoding JSON. 
-Default is 1024. Parsing can have an arbitrarily large depth
-limited only by available memory. Serializing a [basic_json](basic_json.md) to
-JSON is limited by stack size.
-
+    basic_json_options& max_nesting_depth(int depth)
     basic_json_options& decode_escaped_unicode(bool value); 
-Indicates whether to interpret escaped unicode in JSON strings. Defaults to true. 
-
     basic_json_options& nan_to_str(const string_type& value, bool enable_inverse = true); 
-Sets a string replacement for `NaN` when writing JSON, and indicate whether it is also
-to be used when reading JSON.
-
     basic_json_options& inf_to_str(const string_type& value, bool enable_inverse = true); 
-Sets a string replacement for infinity when writing JSON, and indicate whether it is also
-to be used when reading JSON.
-
     basic_json_options& neginf_to_str(const string_type& value, bool enable_inverse = true); 
-Sets a string replacement for negative infinity when writing JSON, and indicate whether it is also
-to be used when reading JSON.
-
     basic_json_options& nan_to_num(const string_type& value); 
-Sets a number replacement for `NaN` when writing JSON
-
     basic_json_options& inf_to_num(const string_type& value); 
-Sets a number replacement for `Infinity` when writing JSON
-
     basic_json_options& neginf_to_num(const string_type& value); 
-Sets a number replacement for `Negative Infinity` when writing JSON
-
     basic_json_options& lossless_number(bool value); 
-If set to **true**, parse numbers with exponents and fractional parts as strings with semantic tagging `semantic_tag::bigdec`.
-Defaults to **false**.
-
     basic_json_options& allow_comments(bool value); 
-If set to **true**, an extra comma at the end of a list of JSON values in an object or array is allowed (and ignored).
-Defaults to **true**.
-
     basic_json_options& allow_trailing_comma(bool value); 
-If set to **true**, an extra comma at the end of a list of JSON values in an object or array is allowed (and ignored).
-Defaults to **false**.
-
     basic_json_options& indent_size(uint8_t value)
-The indent size, the default is 4.
-
     basic_json_options& spaces_around_colon(spaces_option value)
-Indicates [space option](spaces_option.md) for name separator (`:`). Default
-is space after.
-
     basic_json_options& spaces_around_comma(spaces_option value)
-Indicates [space option](spaces_option.md) for array value and object name/value pair separators (`,`). Default
-is space after.
-
     basic_json_options& pad_inside_object_braces(bool value)
-Default is **false**
-
     basic_json_options& pad_inside_array_brackets(bool value)
-Default is **false**
-
     basic_json_options& bignum_format(bignum_format_kind value)
-Overrides [bignum format](bignum_format_kind.md) when serializing json.
-The default is [bignum_format_kind::base10](bignum_format_kind.md). 
-
     basic_json_options& byte_string_format(byte_string_chars_format value)
-Overrides [byte string format](byte_string_chars_format.md) when serializing json.
-The default is [byte_string_chars_format::base64url](byte_string_chars_format.md). 
-
     basic_json_options& float_format(float_chars_format value);
-Overrides [floating point format](float_chars_format.md) when serializing to JSON. The default is [float_chars_format::general](float_chars_format.md).
-
     basic_json_options& precision(int8_t value)
-Overrides floating point precision when serializing json. 
-The default is shortest representation.
-
     basic_json_options& escape_all_non_ascii(bool value)
-Escape all non-ascii characters. The default is **false**.
-
     basic_json_options& escape_solidus(bool value)
-Escape the solidus ('/') character. The default is **false**.
-
     basic_json_options& new_line_chars(const string_type& value)
-Defaults to "\n"
-
     basic_json_options& line_length_limit(std::size_t value)
-
+    basic_json_options& root_line_splits(line_split_kind value)
     basic_json_options& object_object_line_splits(line_split_kind value)
-For an object whose parent is an object, set whether that object is split on a new line, or if its members are split on multiple lines. The default is [line_split_kind::multi_line](line_split_kind.md).
-
     basic_json_options& array_object_line_splits(line_split_kind value)
-For an object whose parent is an array, set whether that object is split on a new line, or if its members are split on multiple lines. The default is [line_split_kind::multi_line](line_split_kind.md).
-
     basic_json_options& object_array_line_splits(line_split_kind value)
-For an array whose parent is an object, set whether that array is split on a new line, or if its elements are split on multiple lines. The default is [line_split_kind::same_line](line_split_kind.md).
-
     basic_json_options& array_array_line_splits(line_split_kind value)
-For an array whose parent is an array, set whether that array is split on a new line, or if its elements are split on multiple lines. The default is [line_split_kind::new_line](line_split_kind.md).
 
 ### Examples
+
+[Default NaN and inf replacement](#E1)  
+[User specified `Nan` and `Inf` replacement](#E2)  
+[Parcing decimal numbers](#E3)  
+[Parse integer with lossless_bignum](#E4)  
+[Root line splits](#E5)  
+[Object-array line splits](#E6)  
+[Array-array line splits](#E7)  
+[Indent with tabs](#E8)  
+[Allow trailing commas](#E9)  
+
+<div id="E1"/> 
 
 #### Default NaN and inf replacement
 ```cpp
@@ -197,6 +142,9 @@ Output:
 ```json
 {"field1":null,"field2":null,"field3":null}
 ```
+
+<div id="E2"/> 
+
 #### User specified `Nan` and `Inf` replacement
 
 ```cpp
@@ -221,281 +169,92 @@ Output:
     }
 ```
 
-#### Decimal precision
+<div id="E3"/> 
 
-By default, jsoncons parses a number with an exponent or fractional part
-into a double precision floating point number. If you wish, you can
-keep the number as a string with semantic tagging `bigdec`, 
-using the `lossless_number` option. You can then put it into a `float`, 
-`double`, a boost multiprecision number, or whatever type you want. 
+#### Parcing decimal numbers
+
+By default, if a parsed value with an exponent or decimal part 
+outside the range representable by a `double`, e.g. **1.5e999**, 
+the number is kept as a string and tagged with semantic tag `bigdec`, 
+otherwise it is parsed into a `double`. If you don't want this
+behavior, if you want values with an exponent or decimal part 
+outside the range representable by a `double` parsed as
+`inf` or `+inf`, you can set the option `lossless_bignum` to
+**false**.
+
+If the parsed value has a large number of decimal places but is within 
+the range representable by a double, it will be parsed as a double 
+and may loose precision. If you wish, you can keep all numbers as 
+strings with semantic tagging `bigint` or `bigdec`, by setting the 
+`lossless_number` option to **true**. You can then convert them into a 
+`float`, `double`, boost multiprecision  number, or whatever type you 
+wish. 
 
 ```cpp
+#include <jsoncons/json.hpp>
+#include <iostream>
+
+using namespace jsoncons;
+
 int main()
 {
     std::string s = R"(
     {
         "a" : 12.00,
-        "b" : 1.23456789012345678901234567890
+        "b" : 1.23456789012345678901234567890,
+        "c" : 1.5e999
     }
     )";
-
-    // Default
-    json j = json::parse(s);
 
     std::cout.precision(15);
 
-    // Access as string
-    std::cout << "(1) a: " << j["a"].as<std::string>() << ", b: " << j["b"].as<std::string>() << "\n"; 
-    // Access as double
-    std::cout << "(2) a: " << j["a"].as<double>() << ", b: " << j["b"].as<double>() << "\n\n"; 
+    std::cout << "default:\n";
+    json j1 = json::parse(s);
+    std::cout << "(1) " << j1["a"].as<std::string>() << ", " << j1["a"].as<double>() << "\n";
+    std::cout << "(2) " << j1["b"].as<std::string>() << ", " << j1["b"].as<double>() << "\n";
+    std::cout << "(3) " << j1["c"].as<std::string>() << ", " << j1["c"].as<double>() << "\n\n";
 
-    // Using lossless_number option
-    auto options = json_options{}
-        .lossless_number(true);
-
-    json j2 = json::parse(s, options);
-    // Access as string
-    std::cout << "(3) a: " << j2["a"].as<std::string>() << ", b: " << j2["b"].as<std::string>() << "\n";
-    // Access as double
-    std::cout << "(4) a: " << j2["a"].as<double>() << ", b: " << j2["b"].as<double>() << "\n\n"; 
-}
-```
-Output:
-```
-(1) a: 12.0, b: 1.2345678901234567
-(2) a: 12, b: 1.23456789012346
-
-(3) a: 12.00, b: 1.23456789012345678901234567890
-(4) a: 12, b: 1.23456789012346
-```
-
-#### Object-array block formatting
-
-```cpp
-json j;
-
-j["verts"] = json(json_array_arg, {1, 2, 3});
-j["normals"] = json(json_array_arg, {1, 0, 1});
-j["uvs"] = json(json_array_arg, {0, 0, 1, 1});
-
-std::cout << "Default (same line)" << '\n';
-std::cout << pretty_print(j) << '\n';
-
-std::cout << "New line" << '\n';
-auto options1 = json_options{}
-    .object_array_line_splits(line_split_kind::new_line);
-std::cout << pretty_print(j,options1) << '\n';
-
-std::cout << "Multi line" << '\n';
-auto options2 = json_options{}
-    .object_array_line_splits(line_split_kind::multi_line);
-std::cout << pretty_print(j,options2) << '\n';
-```
-
-Output:
-
-Default (same line)
-
-```json
-{
-    "normals": [1,0,1],
-    "uvs": [0,0,1,1],
-    "verts": [1,2,3]
-}
-```
-
-New line
-
-```json
-{
-    "normals": [
-        1,0,1
-    ],
-    "uvs": [
-        0,0,1,1
-    ],
-    "verts": [
-        1,2,3
-    ]
-}
-```
-Multi line
-```json
-{
-    "normals": [
-        1,
-        0,
-        1
-    ],
-    "uvs": [
-        0,
-        0,
-        1,
-        1
-    ],
-    "verts": [
-        1,
-        2,
-        3
-    ]
-}
-```
-
-#### Array-array block formatting
-
-```cpp
-    json j;
-    j["data"]["id"] = json(json_array_arg, {0,1,2,3,4,5,6,7});
-    j["data"]["item"] = json(json_array_arg, {json(json_array_arg, {2}),
-                                      json(json_array_arg, {4,5,2,3}),
-                                      json(json_array_arg, {4}),
-                                      json(json_array_arg, {4,5,2,3}),
-                                      json(json_array_arg, {2}),
-                                      json(json_array_arg, {4,5,3}),
-                                      json(json_array_arg, {2}),
-                                      json(json_array_arg, {4,3})});
-
-    std::cout << "Default (new line)" << '\n';
-    std::cout << pretty_print(j) << '\n';
-
-    std::cout << "Same line" << '\n';
-    auto options1 = json_options{}
-        .array_array_line_splits(line_split_kind::same_line);
-    std::cout << pretty_print(j, options1) << '\n';
-
-    std::cout << "Multi line" << '\n';
+    std::cout << "lossless_bignum is false:\n";
     auto options2 = json_options{}
-        .array_array_line_splits(line_split_kind::multi_line);
-    std::cout << pretty_print(j, options2) << '\n';
-```
+        .lossless_bignum(false);
+    json j2 = json::parse(s, options2);
+    std::cout << "(1) " << j2["a"].as<std::string>() << ", " << j2["a"].as<double>() << "\n";
+    std::cout << "(2) " << j2["b"].as<std::string>() << ", " << j2["b"].as<double>() << "\n";
+    std::cout << "(3) " << j2["c"].as<std::string>() << ", " << j2["c"].as<double>() << "\n\n";
 
-Output:
-
-Default (new line)
-
-```json
-{
-    "data": {
-        "id": [0,1,2,3,4,5,6,7],
-        "item": [
-            [2],
-            [4,5,2,3],
-            [4],
-            [4,5,2,3],
-            [2],
-            [4,5,3],
-            [2],
-            [4,3]
-        ]
-    }
-}
-```
-Same line
-
-```json
-{
-    "data": {
-        "id": [0,1,2,3,4,5,6,7],
-        "item": [[2],[4,5,2,3],[4],[4,5,2,3],[2],[4,5,3],[2],[4,3]]
-    }
-}
-```
-
-Multi line
-
-```json
-{
-    "data": {
-        "id": [
-            0,1,2,3,4,5,6,7
-        ],
-        "item": [
-            [
-                2
-            ],
-            [
-                4,
-                5,
-                2,
-                3
-            ],
-            [
-                4
-            ],
-            [
-                4,
-                5,
-                2,
-                3
-            ],
-            [
-                2
-            ],
-            [
-                4,
-                5,
-                3
-            ],
-            [
-                2
-            ],
-            [
-                4,
-                3
-            ]
-        ]
-    }
-}
-```
-
-#### Allow trailing commas
-
-```cpp
-int main()
-{
-    std::string s = R"(
-    {
-        "first" : 1,
-        "second" : 2,
-    }
-    )";
-
-    // Default
-    try
-    {
-        auto j = json::parse(s);
-    }
-    catch (const ser_error& e)
-    {
-        std::cout << "(1) " << e.what() << "\n\n";
-    }
-
-    // Allow trailing commas
-
-    // until 0.170.0
-    // auto j = json::parse(s, allow_trailing_commas());
-
-    // since 0.171.0
-    // auto options = json_options{}
-    //     .err_handler(allow_trailing_commas());
-    // auto j = json::parse(s, options);
-
-    // since 1.3.0
-    auto options = json_options{}
-        .allow_trailing_comma(true));
-    auto j = json::parse(s, options);
-
-    std::cout << "(2)" << j << "\n\n";
+    std::cout << "lossless_number is true:\n";
+    auto options3 = json_options{}
+        .lossless_number(true);
+    json j3 = json::parse(s, options3);
+    std::cout << "(1) " << j3["a"].as<std::string>() << ", " << j3["a"].as<double>() << "\n";
+    std::cout << "(2) " << j3["b"].as<std::string>() << ", " << j3["b"].as<double>() << "\n";
+    std::cout << "(3) " << j3["c"].as<std::string>() << ", " << j3["c"].as<double>() << "\n\n";
 }
 ```
 Output:
 ```
-(1) Extra comma at line 5 and column 5
+default:
+(1) 12.0, 12
+(2) 1.2345678901234567, 1.23456789012346
+(3) 1.5e999, inf
 
-(2) {"first":1,"second":2}
+lossless_bignum is false:
+(1) 12.0, 12
+(2) 1.2345678901234567, 1.23456789012346
+(3) null, inf
+
+lossless_number is true:
+(1) 12.00, 12
+(2) 1.23456789012345678901234567890, 1.23456789012346
+(3) 1.5e999, inf
 ```
 
-### Parse integer with lossless_bignum 
+Note that `as<std::string>()` on an **inf** or **nan** value represented by a
+double will by default return **null**.
+
+<div id="E4"/> 
+
+#### Parse integer with lossless_bignum 
 
 ```cpp
 #include <jsoncons/json.hpp>
@@ -534,44 +293,251 @@ Output:
 (2) {"a":1.2345678901234568e+29}
 ```
 
-### Parse floating point with lossless_bignum 
+<div id="E5"/> 
+
+#### Root line splits
 
 ```cpp
 #include <jsoncons/json.hpp>
 #include <iostream>
 
+using namespace jsoncons;
+
 int main()
 {
-    try
-    {
-        std::string str = R"({"a":1.5e999})";
+    auto j = json::parse(R"(
+        [[1,2,3,4]]
+    )");
 
-        auto options = jsoncons::json_options{}
-            .lossless_bignum(true);  // default
+    jsoncons::json_options options;
+    options.spaces_around_comma(jsoncons::spaces_option::space_after) // default when using pretty printing 
+        .root_line_splits(jsoncons::line_split_kind::same_line);      // default is multi_line 
+    
+    std::cout << "(1)\n" << pretty_print(j) << "\n\n";
+    std::cout << "(2)\n" << pretty_print(j, options) << "\n\n";
+}
+```
+Output:
+```
+(1)
+[
+    [
+        1,
+        2,
+        3,
+        4
+    ]
+]
 
-        auto j1 = jsoncons::json::parse(str, options);
-        std::string buffer1;
-        j1.dump(buffer1);
-        std::cout << "(1) " << buffer1 << "\n";
+(2)
+[[1, 2, 3, 4]]
+```
 
-        options.lossless_bignum(false);
-        auto j2 = jsoncons::json::parse(str, options);
-        std::cout << "(2) " << j2.at("a").as<double>() << "\n";
-        std::string buffer2;
-        j2.dump(buffer2);
-        // By default, an inf value is serialzed to null
-        std::cout << "(3) " << buffer2 << "\n"; 
-    }
-    catch (const std::exception& e)
-    {
-        std::cout << e.what() << "\n";
-    }
+<div id="E6"/> 
+
+#### Object-array line splits
+
+```cpp
+#include <jsoncons/json.hpp>
+#include <iostream>
+
+using namespace jsoncons;
+
+int main()
+{
+    json j = json::parse(R"(
+{
+    "normals": [1, 0, 1],
+    "uvs": [0, 0, 1, 1],
+    "verts": [1, 2, 3]
+}
+    )");
+
+    std::cout << "multi_line: (default)" << '\n';
+    auto options1 = json_options{}
+        .object_array_line_splits(line_split_kind::multi_line);
+    std::cout << pretty_print(j, options1) << "\n\n";
+
+    std::cout << "new_iine:" << '\n';
+    auto options3 = json_options{}
+        .object_array_line_splits(line_split_kind::new_line);
+    std::cout << pretty_print(j, options3) << "\n\n";
+
+    std::cout << "same_line: " << '\n';
+    auto options2 = json_options{}
+        .object_array_line_splits(line_split_kind::same_line);
+    std::cout << pretty_print(j, options2) << "\n\n";
 }
 ```
 
 Output:
 ```
-(1) {"a":1.5e999}
-(2) inf
-(3) {"a":null}
+multi_line: (default)
+{
+    "normals": [
+        1,
+        0,
+        1
+    ],
+    "uvs": [
+        0,
+        0,
+        1,
+        1
+    ],
+    "verts": [
+        1,
+        2,
+        3
+    ]
+}
+
+same_line:
+{
+    "normals": [1, 0, 1],
+    "uvs": [0, 0, 1, 1],
+    "verts": [1, 2, 3]
+}
+
+new_ine:
+{
+    "normals": [
+        1, 0, 1
+    ],
+    "uvs": [
+        0, 0, 1, 1
+    ],
+    "verts": [
+        1, 2, 3
+    ]
+}
 ```
+
+<div id="E7"/> 
+
+#### Array-array line splits
+
+```cpp
+#include <jsoncons/json.hpp>
+#include <iostream>
+
+using namespace jsoncons;
+
+int main()
+{
+    auto j = json::parse(R"(
+        [[0,1]]
+    )");
+
+    std::cout << "multi_line (default):" << "\n";
+    auto options1 = json_options{}
+        .array_array_line_splits(line_split_kind::multi_line);
+    std::cout << pretty_print(j, options1) << "\n\n";
+
+    std::cout << "new_line:" << "\n";
+    auto options2 = json_options{}
+        .array_array_line_splits(line_split_kind::new_line);
+    std::cout << pretty_print(j, options2) << "\n\n";
+    
+    std::cout << "same_line:" << "\n";
+    auto options3 = json_options{}
+        .array_array_line_splits(line_split_kind::same_line);
+    std::string buffer;
+    j.dump_pretty(buffer, options3);
+    std::cout << buffer << "\n";
+}
+```
+
+Output:
+```
+multi_line (default):
+[
+    [
+        0,
+        1
+    ]
+]
+
+new_line:
+[
+    [
+        0, 1
+    ]
+]
+
+same_line:
+[
+    [0, 1]
+]
+```
+
+<div id="E8"/> 
+
+#### Indent with tabs
+
+```cpp
+#include <jsoncons/json.hpp>
+#include <cassert>
+
+int main()
+{
+    jsoncons::json j{jsoncons::json_array_arg};
+    j.push_back(jsoncons::json{jsoncons::json_object_arg});
+    j[0]["foo"] = 1;
+
+    auto options = jsoncons::json_options{}
+        .indent_char('\t')
+        .indent_size(1);
+
+    std::string buffer;
+    j.dump_pretty(buffer, options);
+
+    std::string expected = "[\n\t{\n\t\t\"foo\": 1\n\t}\n]";
+    assert(expected == buffer);
+}
+```
+
+<div id="E9"/> 
+
+#### Allow trailing commas
+
+```cpp
+int main()
+{
+    std::string s = R"(
+    {
+        "first" : 1,
+        "second" : 2,
+    }
+    )";
+
+    // Default
+    try
+    {
+        auto j = json::parse(s);
+    }
+    catch (const ser_error& e)
+    {
+        std::cout << "(1) " << e.what() << "\n\n";
+    }
+
+    // Allow trailing commas
+
+    // until 0.170.0
+    // auto j = json::parse(s, allow_trailing_commas());
+
+    // since 1.3.0
+    auto options = json_options{}
+        .allow_trailing_comma(true));
+    auto j = json::parse(s, options);
+
+    std::cout << "(2)" << j << "\n\n";
+}
+```
+Output:
+```
+(1) Extra comma at line 5 and column 5
+
+(2) {"first":1,"second":2}
+```
+

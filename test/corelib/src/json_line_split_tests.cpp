@@ -59,9 +59,7 @@ TEST_CASE("json_encoder line split tests")
 std::string expected = R"({
     "data": {
         "id": [1,2,3],
-        "item": [
-            [1,2,3]
-        ],
+        "item": [[1,2,3]],
         "tags": []
     },
     "header": {
@@ -72,9 +70,9 @@ std::string expected = R"({
             .spaces_around_comma(spaces_option::no_spaces)
             .object_array_line_splits(line_split_kind::same_line)
             .array_array_line_splits(line_split_kind::new_line);
-        std::ostringstream os;
-        os << pretty_print(val, options);
-        CHECK(expected == os.str());
+        std::string buffer;
+        val.dump_pretty(buffer, options);
+        CHECK(expected == buffer);
     }
 
     SECTION("array_array same_line")
@@ -93,11 +91,11 @@ std::string expected = R"({
         "properties": {}
     }
 })";
-        std::ostringstream os;
-        os << pretty_print(val,options);
+        std::string buffer;
+        val.dump_pretty(buffer, options);
 
-        //std::cout << os.str() << "\n";
-        CHECK(expected == os.str());
+        //std::cout << buffer << "\n";
+        CHECK(expected == buffer);
     }
 
     SECTION("array_array new_line")
@@ -109,20 +107,18 @@ std::string expected = R"({
     std::string expected = R"({
     "data": {
         "id": [1,2,3],
-        "item": [
-            [1,2,3]
-        ],
+        "item": [[1,2,3]],
         "tags": []
     },
     "header": {
         "properties": {}
     }
 })";
-        std::ostringstream os;
-        os << pretty_print(val,options);
+        std::string buffer;
+        val.dump_pretty(buffer, options);
 
-        //std::cout << os.str() << "\n";
-        CHECK(expected == os.str());
+        //std::cout << buffer << "\n";
+        CHECK(expected == buffer);
     }
 
     SECTION("array_array multi_line")
@@ -134,23 +130,17 @@ std::string expected = R"({
     std::string expected = R"({
     "data": {
         "id": [1,2,3],
-        "item": [
-            [
-                1,
-                2,
-                3
-            ]
-        ],
+        "item": [[1,2,3]],
         "tags": []
     },
     "header": {
         "properties": {}
     }
 })";
-        std::ostringstream os;
-        os << pretty_print(val,options);
-        //std::cout << os.str() << "\n";
-        CHECK(expected == os.str());
+        std::string buffer;
+        val.dump_pretty(buffer, options);
+        //std::cout << buffer << "\n";
+        CHECK(expected == buffer);
     }
 
     SECTION("object_array same_line")
@@ -162,19 +152,17 @@ std::string expected = R"({
     std::string expected = R"({
     "data": {
         "id": [1,2,3],
-        "item": [
-            [1,2,3]
-        ],
+        "item": [[1,2,3]],
         "tags": []
     },
     "header": {
         "properties": {}
     }
 })";
-        std::ostringstream os;
-        os << pretty_print(val,options);
-        //std::cout << os.str() << "\n";
-        CHECK(expected == os.str());
+        std::string buffer;
+        val.dump_pretty(buffer, options);
+        //std::cout << buffer << "\n";
+        CHECK(expected == buffer);
     }
 
     SECTION("object_array new_line")
@@ -189,7 +177,9 @@ std::string expected = R"({
             1,2,3
         ],
         "item": [
-            [1,2,3]
+            [
+                1,2,3
+            ]
         ],
         "tags": []
     },
@@ -197,10 +187,10 @@ std::string expected = R"({
         "properties": {}
     }
 })";
-        std::ostringstream os;
-        os << pretty_print(val,options);
-        //std::cout << os.str() << "\n";
-        CHECK(expected == os.str());
+        std::string buffer;
+        val.dump_pretty(buffer, options);
+        //std::cout << buffer << "\n";
+        CHECK(expected == buffer);
     }
 
     SECTION("")
@@ -225,10 +215,10 @@ std::string expected = R"({
         "properties": {}
     }
 })";
-        std::ostringstream os;
-        os << pretty_print(val,options);
-        //std::cout << os.str() << "\n";
-        CHECK(expected == os.str());
+        std::string buffer;
+        val.dump_pretty(buffer, options);
+        //std::cout << buffer << "\n";
+        CHECK(expected == buffer);
     }
 }
 

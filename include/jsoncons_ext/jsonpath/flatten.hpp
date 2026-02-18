@@ -33,7 +33,7 @@ namespace jsonpath {
 
         switch (parent_value.type())
         {
-            case json_type::array_value:
+            case json_type::array:
             {
                 if (parent_value.empty())
                 {
@@ -45,7 +45,7 @@ namespace jsonpath {
                     {
                         string_type key(parent_key);
                         key.push_back('[');
-                        jsoncons::utility::from_integer(i,key);
+                        jsoncons::from_integer(i,key);
                         key.push_back(']');
                         flatten_(key, parent_value.at(i), result);
                     }
@@ -53,7 +53,7 @@ namespace jsonpath {
                 break;
             }
 
-            case json_type::object_value:
+            case json_type::object:
             {
                 if (parent_value.empty())
                 {
@@ -315,7 +315,7 @@ namespace jsonpath {
                             case ']':
                             {
                                 std::size_t n{0};
-                                auto r = jsoncons::utility::to_integer(buffer.data(), buffer.size(), n);
+                                auto r = jsoncons::to_integer(buffer.data(), buffer.size(), n);
                                 if (r)
                                 {
                                     if (!part->is_array())

@@ -1,6 +1,27 @@
 1.5.0
 -----
 
+- Fixed bugs:
+
+    - Git Issue #644: flatten/unflatten does not preserve arrays with more than 10 elements
+
+    - Git Issue #652: Fixed issue with JSON Schema **AdditionalProperties** validator
+
+    - Git Issue #653: Fixed issue with non existing default values being added in JSON Schema patch
+
+    - Git Issue #659: Fixed jsonschema validation message 
+
+    - Git Issue #664: Fixed issue with detection of CBOR typed arrays that manifested itself on i386
+
+    - Fixed issue with JSON encode option `array_array_split_lines` value `line_split_kind::new_line` 
+      not creating a new line
+
+    - Fixed issue of JSON encode line split options applied to inner JSON structures 
+      conflicting with line split options applied to outer JSON structures, e.g. when
+      root line splits are **same_line** and array within array line splits are **multi_line**. 
+      With the new behaviour the inner structure will remain **same_line** if the outer 
+      structure is **same_line**. 
+
 - Changes
 
     - `jsonpointer::unflatten` now throws an exception if passed an empty object
@@ -14,7 +35,7 @@
       argument have been deprecated and will be removed in a future release. Use the 
       `allow_trailing_comma` and `allow_comments` options instead.
 
-    - The functors `strict_json_parsing` and `allow_trailing_commas have been deprecated and 
+    - The functors `strict_json_parsing` and `allow_trailing_commas` have been deprecated and 
       will be removed in a future release. Use the `allow_trailing_comma` and `allow_comments` 
       options instead.
 
@@ -24,6 +45,20 @@
     - `basic_json::is_bignum` function has been changed to return `true` if the value 
       is any string value tagged as `bigint`, `bigdec`, `float128`, or `bigfloat`
       (previously only `bigint`.)
+
+    - `basic_json` has a function `type()` that returns a `json_type` enumeration,
+      and the names of its enumerators have been changed. `null_value`, `bool_value`, 
+      `int64_value`, `uint64_value`, `half_value`, `double_value`, `string_value`, 
+      `byte_string_value`, `array_value` and `object_value` have been changed to 
+      `null`, `boolean`, `int64`, `uint64`, `float16`, `float64`, `string`, 
+      `byte_string`, `array` and `object` respectively. It's unlikely that we have
+      many users of `json_type`, it isn't used in any of our examples, but for 
+      backwards compatibility  the old names, now deprecated, have been typedef-ed to 
+      the new names. 
+
+    - The `json_options` member name `line_splits` has been renamed to `root_line_spits`.
+      For backwards compatibility, the old name, now deprecated, behaves the same as the
+      new name.
 
 - Enhancements
 
@@ -36,17 +71,6 @@
     - Git Discussions #654: Added an `indent_char` property to `basic_json_options` that supports tab indents
 
     - Git Discussions #660: Added reflection traits for read/write of enum values as integers.
-
-- Fixed bug:
-
-    - Git Issue #644: flatten/unflatten does not preserve arrays with more than 10 elements
-
-    - Git Issue #652: Fixed issue with JSON Schema **AdditionalProperties** validator
-
-    - Git Issue #653: Fixed issue with non existing default values being added in JSON Schema patch
-
-    - Git Issue #659: Fixed jsonschema validation message 
-
 
 1.4.3
 -----
@@ -1080,7 +1104,7 @@ the same node paths) to be excluded from results, and for results to be sorted i
 Changes to `json_query`
 
 - The parameter `result_type` has been replaced by a bitmask type `result_options`.
-For backwards compatability, `result_type` has been typedefed to `result_options`,
+For backwards compatability, `result_type` has been typedef-ed to `result_options`,
 and the `value` and `path` enumerators are still there. In addition, `result_options`
 provides options for excluding duplicates from results, and for results to be sorted in
 path order.
@@ -1228,7 +1252,7 @@ Change reverted:
 
 - The name change `ser_error` to `codec_error` introduced in
 0.157.0 has been reverted back to `ser_error`. Just in case
-anybody used it, the name `codec_error` has been typedefed 
+anybody used it, the name `codec_error` has been typedef-ed 
 to `ser_error`.
 
 0.157.0 
@@ -3810,7 +3834,7 @@ Changes to extensions:
 
 - Reversion of 0.96 change:
 
-The virtual methods `do_float_value`, `do_integer_value`, and `do_unsigned_value` of `json_input_handler` and `json_output_handler` have been restored to `do_double_value`, `do_longlong_value` and `do_ulonglong_value`, and their typedefed parameter types `float_type`, `integer_type`, and `unsigned_type` have been restored to `double`, `long long`, and `unsigned long long`.
+The virtual methods `do_float_value`, `do_integer_value`, and `do_unsigned_value` of `json_input_handler` and `json_output_handler` have been restored to `do_double_value`, `do_longlong_value` and `do_ulonglong_value`, and their typedef-ed parameter types `float_type`, `integer_type`, and `unsigned_type` have been restored to `double`, `long long`, and `unsigned long long`.
 
 The rationale for this reversion is that the change doesn't really help to make the software more flexible, and that it's better to leave out the typedefs. There will be future enhancements to support greater numeric precision, but these will not affect the current method signatures.
 
@@ -3975,7 +3999,7 @@ New extensions
 New features
 
 - Supports wide character strings and streams with wjson, wjson_reader etc. Assumes UTF16 encoding if sizeof(wchar_t)=2 and UTF32 encoding if sizeof(wchar_t)=4.
-- The empty class null_type  is added to the jsoncons namespace, it replaces the member type json::null_type (json::null_type is typedefed to jsoncons::null_type for backward compatibility.)
+- The empty class null_type  is added to the jsoncons namespace, it replaces the member type json::null_type (json::null_type is typedef-ed to jsoncons::null_type for backward compatibility.)
 
 Defect fixes:
 
@@ -3996,7 +4020,7 @@ Breaking change (but only if you have subclassed json_input_handler or json_outp
 
 Non breaking changes (previous features are deprecated but still work)
 
-- name_value_pair has been renamed to member_type (typedefed to previous name.)
+- name_value_pair has been renamed to member_type (typedef-ed to previous name.)
 
 - as_string(output_format format) has been deprecated, use the existing to_string(output_format format) instead
 
