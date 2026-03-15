@@ -9,9 +9,102 @@
 #include <vector>
 #include <utility>
 #include <ctime>
-#include <iostream>
+#include <iostream> 
 
 namespace toon = jsoncons::toon;
+
+TEST_CASE("toon_reader parse_number_or_string")
+{
+    SECTION("2.5e0")
+    {
+        jsoncons::string_view str = "2.5e0";
+        jsoncons::json_decoder<jsoncons::ojson> decoder;
+        toon::parse_number_or_string(str, decoder);
+        REQUIRE(decoder.is_valid());
+        CHECK("2.5" == decoder.get_result().as<std::string>());
+        //std::cout << decoder.get_result() << "\n";
+    }
+    SECTION("2.5E1")
+    {
+        jsoncons::string_view str = "2.5E1";
+        jsoncons::json_decoder<jsoncons::ojson> decoder;
+        toon::parse_number_or_string(str, decoder);
+        REQUIRE(decoder.is_valid());
+        CHECK("25" == decoder.get_result().as<std::string>());
+        //std::cout << decoder.get_result() << "\n";
+    }
+    SECTION("2.5e2")
+    {
+        jsoncons::string_view str = "2.5e2";
+        jsoncons::json_decoder<jsoncons::ojson> decoder;
+        toon::parse_number_or_string(str, decoder);
+        REQUIRE(decoder.is_valid());
+        CHECK("250" == decoder.get_result().as<std::string>());
+        //std::cout << decoder.get_result() << "\n";
+    }
+    SECTION("2.5E-0")
+    {
+        jsoncons::string_view str = "2.5E-0";
+        jsoncons::json_decoder<jsoncons::ojson> decoder;
+        toon::parse_number_or_string(str, decoder);
+        REQUIRE(decoder.is_valid());
+        CHECK("2.5" == decoder.get_result().as<std::string>());
+        //std::cout << decoder.get_result() << "\n";
+    }
+    SECTION("2.5E-2")
+    {
+        jsoncons::string_view str = "2.5E-2";
+        jsoncons::json_decoder<jsoncons::ojson> decoder;
+        toon::parse_number_or_string(str, decoder);
+        REQUIRE(decoder.is_valid());
+        CHECK("0.025" == decoder.get_result().as<std::string>());
+        //std::cout << decoder.get_result() << "\n";
+    }
+    SECTION("1.5000")
+    {
+        jsoncons::string_view str = "1.5000";
+        jsoncons::json_decoder<jsoncons::ojson> decoder;
+        toon::parse_number_or_string(str, decoder);
+        REQUIRE(decoder.is_valid());
+        CHECK("1.5" == decoder.get_result().as_string());
+        //std::cout << decoder.get_result() << "\n";
+    }
+    SECTION("test 0e1")
+    {
+        jsoncons::string_view str = "0e1";
+        jsoncons::json_decoder<jsoncons::ojson> decoder;
+        toon::parse_number_or_string(str, decoder);
+        REQUIRE(decoder.is_valid());
+        CHECK("0" == decoder.get_result().as_string());
+        //std::cout << decoder.get_result() << "\n";
+    }
+    SECTION("-0e1")
+    {
+        jsoncons::string_view str = "-0e1";
+        jsoncons::json_decoder<jsoncons::ojson> decoder;
+        toon::parse_number_or_string(str, decoder);
+        REQUIRE(decoder.is_valid());
+        CHECK("0" == decoder.get_result().as_string());
+        //std::cout << decoder.get_result() << "\n";
+    }
+    SECTION("-05")
+    {
+        jsoncons::string_view str = "-05";
+        jsoncons::json_decoder<jsoncons::ojson> decoder;
+        toon::parse_number_or_string(str, decoder);
+        REQUIRE(decoder.is_valid());
+        CHECK(jsoncons::ojson{"-05"} == decoder.get_result());
+        //std::cout << decoder.get_result() << "\n";
+    }
+    SECTION("-0")
+    {
+        jsoncons::string_view str = "-0";
+        jsoncons::json_decoder<jsoncons::ojson> decoder;
+        toon::parse_number_or_string(str, decoder);
+        REQUIRE(decoder.is_valid());
+        CHECK("0" == decoder.get_result().as_string());
+    }
+}
 
 TEST_CASE("toon_reader util tests")
 {
@@ -66,7 +159,6 @@ TEST_CASE("toon_reader util tests")
     }
 }
 
-#if 0
 TEST_CASE("toon_reader read_lines tests")
 {
     /*SECTION("read lines")
@@ -242,11 +334,10 @@ TEST_CASE("toon_reader parse_header tests")
 
     }
 }
-#endif
 
 TEST_CASE("toon_reader tests")
 {
-    /*SECTION("array of primitives")
+    SECTION("array of primitives")
     {
         auto expected = jsoncons::ojson::parse(R"([" foo", "baz" ,"bar ",1,true,false,null])");
         std::vector<toon::parsed_line> lines;
@@ -307,7 +398,7 @@ TEST_CASE("toon_reader tests")
             REQUIRE(decoder.is_valid());
             auto result = decoder.get_result();
             CHECK(expected == result);
-    }*/
+    }
     SECTION("object")
     {
             auto expected = jsoncons::ojson::parse(R"({
@@ -331,7 +422,7 @@ season: spring_2025)";
             CHECK(expected == result);
             //std::cout << pretty_print(result) << "\n";
     }
-    /*
+    
     SECTION("nested objects")
     {
         auto expected = jsoncons::ojson::parse(R"({
@@ -448,7 +539,7 @@ season: spring_2025)";
         auto result = decoder.get_result();
         CHECK(expected == result);
         //std::cout << pretty_print(result) << "\n";
-    }*/
+    }
     SECTION("parses root-level array mixing primitive, object, and array of objects in list format")
     {
         auto expected = jsoncons::ojson::parse(R"(["summary",{"id":1,"name":"Ada"},[{"id":2},{"status":"draft"}]])");
@@ -473,5 +564,47 @@ season: spring_2025)";
         CHECK(expected == result);
         //std::cout << pretty_print(expected) << "\n";
         //std::cout << pretty_print(result) << "\n";
+    }
+    SECTION("parses list items whose first field is a tabular array")
+    {
+        auto expected = jsoncons::ojson::parse(R"({
+    "items": [
+        {
+            "users": [
+                {
+                    "id": 1,
+                    "name": "Ada"
+                },
+                {
+                    "id": 2,
+                    "name": "Bob"
+                }
+            ]
+        }
+    ]
+})");
+        std::vector<toon::parsed_line> lines;
+        std::vector<toon::blank_line_info> blank_lines;
+
+        std::string data = R"(items[1]:
+  - users[2]{id,name}:
+      1,Ada
+      2,Bob)";
+        try
+        {
+            jsoncons::json_decoder<jsoncons::ojson> decoder;
+            auto options = toon::toon_options{}.strict(true);
+            toon::toon_string_reader reader(data, decoder, options);
+            reader.read();
+            REQUIRE(decoder.is_valid());
+            auto result = decoder.get_result();
+            CHECK(expected == result);
+            //std::cout << pretty_print(expected) << "\n";
+            //std::cout << pretty_print(result) << "\n";
+        }
+        catch (const std::exception& e)
+        {
+            std::cout << "Error: "  << e.what() << "\n";
+        }
     }
 }

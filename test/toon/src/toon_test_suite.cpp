@@ -46,7 +46,7 @@ void toon_encode_tests(const std::string& fpath)
                 auto sv = opts["delimiter"].as_string_view();
                 options.delimiter(sv.front());
             }
-            else if (opts.contains("indent"))
+            if (opts.contains("indent"))
             {
                 auto value = opts["indent"].as<int>();
                 options.indent(value);
@@ -81,6 +81,7 @@ void toon_decode_tests(const std::string& fpath)
     for (const auto& test : tests.array_range())
     {
         toon::toon_options options{};
+        bool should_error = false;
         if (test.contains("options"))
         {
             const auto& opts = test["options"]; 
@@ -89,26 +90,47 @@ void toon_decode_tests(const std::string& fpath)
                 auto sv = opts["delimiter"].as_string_view();
                 options.delimiter(sv.front());
             }
-            else if (opts.contains("indent"))
+            if (opts.contains("indent"))
             {
                 auto value = opts["indent"].as<int>();
                 options.indent(value);
             }
+            if (opts.contains("strict"))
+            {
+                auto value = opts["strict"].as<bool>();
+                options.strict(value);
+            }
         }
         auto input = test["input"].as_string_view();
         const auto& expected = test["expected"];
+        if (test.contains("shouldError"))
+        {
+            should_error = test["shouldError"].as<bool>();
+        }
 
         try
         {
             jsoncons::json_decoder<jsoncons::ojson> decoder;
-            toon::toon_string_reader reader(input, decoder);
+            toon::toon_string_reader reader(input, decoder, options);
             reader.read();
+            if (should_error)
+            {
+                std::cout << test.at("name").as_string() << "\n";
+                std::cout << input << "\n";
+                REQUIRE(!should_error);
+            }
+            if (!decoder.is_valid())
+            {
+                std::cout << test.at("name").as_string() << "\n";
+                std::cout << input << "\n";
+            }
             REQUIRE(decoder.is_valid());
             auto result = decoder.get_result();
             CHECK(expected == result);
 
             if (expected != result)
             {
+                std::cout << "shouldError: " << should_error << "\n";
                 std::cout << test.at("name").as_string() << "\n";
                 std::cout << input << "\n";
                 std::cout << pretty_print(result) << "\n";
@@ -117,15 +139,20 @@ void toon_decode_tests(const std::string& fpath)
         }
         catch (const std::exception&)
         {
-            std::cout << test.at("name").as_string() << "\n";
-            std::cout << input << "\n";
+            if (!should_error)
+            {
+                std::cout << "Except shouldError: " << should_error << "\n";
+                std::cout << test.at("name").as_string() << "\n";
+                std::cout << input << "\n";
+                CHECK(should_error);
+            }
         }
     }
 }
 
 TEST_CASE("toon-tests")
 {
-    /*SECTION("encode")
+    SECTION("encode")
     {
         toon_encode_tests("./toon/input/encode/arrays-nested.json");
         toon_encode_tests("./toon/input/encode/arrays-objects.json");
@@ -136,22 +163,22 @@ TEST_CASE("toon-tests")
         toon_encode_tests("./toon/input/encode/objects.json");
         toon_encode_tests("./toon/input/encode/primitives.json");
         toon_encode_tests("./toon/input/encode/whitespace.json");
-    }*/
+    }
     SECTION("decode")
     {
         toon_decode_tests("./toon/input/decode/arrays-nested.json");
-        //toon_decode_tests("./toon/input/decode/arrays-primitive.json");
-        //toon_decode_tests("./toon/input/decode/arrays-tabular.json");
-        //toon_decode_tests("./toon/input/decode/blank-lines.json");
-        //toon_decode_tests("./toon/input/decode/delimiters.json");
-        //toon_decode_tests("./toon/input/indentation-errors.json");
-        //toon_decode_tests("./toon/input/numbers.json");
-        //toon_decode_tests("./toon/input/objects.json");
-        //toon_decode_tests("./toon/input/path-expansion.json");
-        //toon_decode_tests("./toon/input/primitives.json");
-        //toon_decode_tests("./toon/input/root-form.json");
-        //toon_decode_tests("./toon/input/validation-errors.json");
-        //toon_decode_tests("./toon/input/whitespace.json");
+        toon_decode_tests("./toon/input/decode/arrays-primitive.json");
+        toon_decode_tests("./toon/input/decode/arrays-tabular.json");
+        toon_decode_tests("./toon/input/decode/blank-lines.json");
+        toon_decode_tests("./toon/input/decode/delimiters.json");
+        toon_decode_tests("./toon/input/decode/indentation-errors.json");
+        toon_decode_tests("./toon/input/decode/numbers.json");
+        toon_decode_tests("./toon/input/decode/objects.json");
+        //toon_decode_tests("./toon/input/decode/path-expansion.json");
+        toon_decode_tests("./toon/input/decode/primitives.json");
+        toon_decode_tests("./toon/input/decode/root-form.json");
+        toon_decode_tests("./toon/input/decode/validation-errors.json");
+        toon_decode_tests("./toon/input/decode/whitespace.json");
     }
 }
 

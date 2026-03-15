@@ -28,7 +28,7 @@ JSONCONS_INLINE_CONSTEXPR jsoncons::string_view false_literal{"false", 5};
 
 namespace detail {
 
-enum class format_number_state{value_sign,coefficient,fraction,exponent_sign,exponent_value,err};
+enum class format_number_state{value_sign,digits,fraction,exponent_sign,exponent_value,err};
 
 inline
 std::string exponential_to_decimal_notation(jsoncons::string_view str)
@@ -55,9 +55,9 @@ std::string exponential_to_decimal_notation(jsoncons::string_view str)
                     neg_value = true;
                     ++i;
                 }
-                state = format_number_state::coefficient;
+                state = format_number_state::digits;
                 break;
-            case format_number_state::coefficient:
+            case format_number_state::digits:
                 if ((c >= '0' && c <= '9') || c == '-')
                 {
                     num_str.push_back(c);
@@ -124,9 +124,9 @@ std::string exponential_to_decimal_notation(jsoncons::string_view str)
 
     if (neg_exp) // shift decimal point left
     {
-        for (std::size_t i = n-decimal_places; i <= exponent; ++i)
+        if ((exponent+decimal_places+1) > n)
         {
-            num_str.insert(num_str.begin(), '0');
+            num_str.insert(num_str.begin(), ((exponent+decimal_places+1) - n), '0');
         }
         std::size_t pos = num_str.size()-(decimal_places+exponent);
         auto first_non_zero = num_str.find_first_not_of('0', pos);
@@ -141,9 +141,9 @@ std::string exponential_to_decimal_notation(jsoncons::string_view str)
     }
     else // shift decimal point right
     {
-        for (std::size_t i = decimal_places; i < exponent; ++i)
+        if (exponent > decimal_places)
         {
-            num_str.insert(num_str.begin()+(n-decimal_places), '0');
+            num_str.append(exponent - decimal_places, '0');
         }
         if (decimal_places > exponent)
         {
