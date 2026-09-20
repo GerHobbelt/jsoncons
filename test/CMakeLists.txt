@@ -142,7 +142,6 @@ add_executable(unit_tests
                corelib/src/staj_array_iterator_ec_tests.cpp 
                corelib/src/staj_iterator_tests.cpp
                corelib/src/string_to_double_tests.cpp
-               corelib/src/typed_array_tests.cpp
                corelib/src/try_decode_json_tests.cpp
                corelib/src/try_to_json_tests.cpp
                corelib/src/utility/bigint_tests.cpp
@@ -160,7 +159,7 @@ add_executable(unit_tests
                csv/src/csv_subfield_tests.cpp
                csv/src/csv_tests.cpp
                csv/src/encode_decode_csv_tests.cpp
-               fuzz_regression/src/fuzz_regression_tests.cpp
+               clusterfuzz/src/fuzz_regression_tests.cpp
                jmespath/src/jmespath_custom_function_tests.cpp
                jmespath/src/jmespath_expression_tests.cpp
                jmespath/src/jmespath_let_tests.cpp

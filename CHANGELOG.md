@@ -3,6 +3,8 @@ master
 
 - Fixed bugs:
 
+  - Git PR #716: fix bigdec mantissa and exponent parsing
+
   - Git Issue #714: json_parser does not stop calling the visitor after visit_* signals an error via std::error_code
 
   - Git Issue #712/PR #713: quieten GCC 16 (spurious?) array-out-of-bounds warning
@@ -23,6 +25,8 @@ master
 
   - Git PR #700: Fix bad multiplier when writing some BSON datetimes
 
+  - Fixed issue with `cbor_encoder` encoding of multi-dimensional CBOR typed arrays (with `use_typed_arrays` true.)
+
 - Changes:
 
     - The types `json_pointer_arg_t` and `json_const_pointer_arg_t` have been
@@ -38,8 +42,8 @@ master
     deprecated.
 
     - The (undocumented but sometimes useful) class `basic_json_diagnostics_visitor` has
-    been renamed to `basic_trace_json_visitor`, and its header `diagnostics_visitor.hpp`
-    to `trace_json_visitor.hpp`. Rationale: naming consistency.
+    been renamed to `basic_tracing_json_visitor`, and its header `diagnostics_visitor.hpp`
+    to `tracing_json_visitor.hpp`. Rationale: naming consistency.
 
     - Until 1.8.0, when using the cursor api, it was necessary to supply a custom visitor 
       to read a CBOR typed array, like this,  
@@ -381,12 +385,6 @@ This patch fixes some issues reported with v1.4.0
     - Added a member function `begin_position()` to `ser_context`. `begin_position()` should
       be preferred to `position()` when [using filters to update JSON in place](https://github.com/danielaparker/jsoncons/blob/master/examples/src/update_json_in_place_examples.cpp).
       Currently the two accessors return the same value, but that may change in a future release. 
-
-    - Added macros **JSONCONS_VISITOR_RETURN_TYPE** and **JSONCONS_VISITOR_RETURN** that are
-      #define'd to `bool` and `return true` respectively. For users that have implemented 
-      classes that derive from `basic_json_filter`, and that have overridden `visit_xxx` functions,
-      it is recommended to use these macros for the return type and return value rather than
-      `bool` and `return true`. This is for forward compatibility.      
 
 1.3.0
 -----

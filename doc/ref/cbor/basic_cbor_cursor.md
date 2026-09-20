@@ -94,7 +94,7 @@ E.g., if the current event is `begin_object`, sends the `begin_object`
 event and all inbetween events until the matching `end_object` event.
 If a parsing error is encountered, sets `ec`.
 
-##### Typed Array input
+##### Typed array input
 
     bool is_typed_array() const final;                         (since 1.8.0)
 
@@ -316,7 +316,7 @@ Haruki Murakami
 Graham Greene
 ```
 
-### Typed Array examples (until 1.8.0)
+### Typed array examples (until 1.8.0)
 
 #### Read a typed array
 
@@ -346,7 +346,7 @@ int main()
 {
     std::vector<uint8_t> data = {
         0xd8, // Tag
-        0x56, // Tag 86, float64, little endian, Typed Array
+        0x56, // Tag 86, float64, little endian, typed array
         0x58, 0x20, // Byte string value of length 32
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x24, 0x40,
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x34, 0x40,
@@ -376,7 +376,7 @@ Output:
 40
 ```
 
-#### Navigating typed arrays with cursor - multi-dimensional row major with Typed Array 
+#### Navigating typed arrays with cursor - multi-dimensional row major with typed array 
 
 This example is taken from [CBOR Tags for Typed Arrays](https://tools.ietf.org/html/rfc8746)
 
@@ -391,7 +391,7 @@ int main()
           0x82,   // array(2)
             0x02,    // unsigned(2) 1st Dimension
             0x03,    // unsigned(3) 2nd Dimension
-        0xd8,0x41,     // Tag 65 (uint16 big endian Typed Array)
+        0xd8,0x41,     // Tag 65 (uint16 big endian typed array)
           0x4c,        // byte string(12)
             0x00,0x02, // unsigned(2)
             0x00,0x04, // unsigned(4)
@@ -513,7 +513,7 @@ end_array (n/a)
 end_array (n/a)
 ```
 
-### Typed Array examples (since 1.8.0)
+### Typed array examples (since 1.8.0)
 
 #### Read a typed array
 
@@ -528,8 +528,8 @@ namespace cbor = jsoncons::cbor;
 int main()
 {
     std::vector<uint8_t> data = {
-        0xd8, // Tag
-        0x56, // Tag 86, float64, little endian, Typed Array
+        0xd8,       // Tag
+        0x56,       // Tag 86, float64, little endian, Typed Array
         0x58, 0x20, // Byte string value of length 32
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x24, 0x40,
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x34, 0x40,
@@ -538,31 +538,294 @@ int main()
     };
 
     cbor::cbor_bytes_cursor cursor(data);
-    assert(jsoncons::staj_events::begin_array == cursor.current().event_type()); 
+    assert(jsoncons::staj_events::begin_array == cursor.current().event_type());
     assert(cursor.is_typed_array());
 
     std::vector<double> v;
     cursor.read_typed_array(v);
-    for (auto item : v)
+    assert(jsoncons::staj_events::end_array == cursor.current().event_type());
+
+    std::cout << "[";
+    for (std::size_t i = 0; i < v.size(); ++i)
     {
-        std::cout << item << "\n";
+        if (i > 0) std::cout << ',';
+        std::cout << v[i];
     }
-    std::cout << "\n";
+    std::cout << "]\n\n";
+
+    cursor.next();
+    assert(cursor.done());
 }
 ```
 Output:
 ```
-10
-20
-30
-40
+[10,20,30,40]
+```
+
+#### Read a 3D typed array with row-major storage
+
+```cpp
+#include <jsoncons/json.hpp>
+#include <jsoncons_ext/cbor/cbor.hpp>
+#include <iostream>
+#include <cassert>
+
+namespace cbor = jsoncons::cbor;
+
+int main() 
+{
+    // A 3D typed array 2 x 3 x 2 with row-major storage
+    std::vector<uint8_t> data = {
+        0xD8, 0x28,                         // tag(40) row major storage 
+        0x82,                               // array(2)
+        0x83,                               // shape array(3)
+        0x02, 0x03, 0x02,                   // [2, 3, 2]
+        0xD8, 0x40,                         // tag(64) uint8 typed array
+        0x4C,                               // bytes(12)
+        0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 
+        0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C
+    };
+
+    cbor::cbor_bytes_cursor cursor(data);
+
+    assert(jsoncons::staj_events::begin_array == cursor.current().event_type());
+    assert(true == cursor.is_multi_dim());
+    assert(jsoncons::mdarray_order::row_major == cursor.order());
+    assert(true == cursor.is_typed_array());
+    assert(jsoncons::typed_array_tags::uint8 == cursor.array_tag());
+
+    auto extents = cursor.extents();
+    std::cout << "(1) ";
+    for (std::size_t i = 0; i < extents.size(); ++i)
+    {
+        if (i > 0) std::cout << " x ";
+        std::cout << extents[i];
+    }
+    std::cout << "\n\n";
+
+    std::vector<int> v;
+    cursor.read_typed_array(v);
+    std::cout << "(2) [";
+    for (std::size_t i = 0; i < v.size(); ++i)
+    {
+        if (i > 0) std::cout << ',';
+        std::cout << v[i];
+    }
+    std::cout << "]\n\n";
+
+    assert(jsoncons::staj_events::end_array == cursor.current().event_type());
+    cursor.next();
+    assert(cursor.done());
+}
+```
+
+Output:
+
+```
+(1) 2 x 3 x 2
+
+(2) [1,2,3,4,5,6,7,8,9,10,11,12]
+```
+
+#### Read a 3D typed array with column-major storage
+
+```cpp
+#include <jsoncons/json.hpp>
+#include <jsoncons_ext/cbor/cbor.hpp>
+#include <iostream>
+#include <cassert>
+
+namespace cbor = jsoncons::cbor;
+
+int main() 
+{
+    // A 3D typed array 2 x 3 x 2 with column-major storage
+    std::vector<uint8_t> data = {
+        0xD9, 0x04, 0x10,                   // tag(1040) column-major storage 
+        0x82,                               // array(2)
+        0x83,                               // shape array(3)
+        0x02, 0x03, 0x02,                   // [2, 3, 2]
+        0xD8, 0x40,                         // tag(64) uint8 typed array
+        0x4C,                               // bytes(12)
+        0x01, 0x02, 0x03, 0x04, 0x05, 0x06,
+        0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C
+    };
+
+    cbor::cbor_bytes_cursor cursor(data);
+
+    assert(jsoncons::staj_events::begin_array == cursor.current().event_type());
+    assert(true == cursor.is_multi_dim());
+    assert(jsoncons::mdarray_order::column_major == cursor.order());
+    assert(true == cursor.is_typed_array());
+    assert(jsoncons::typed_array_tags::uint8 == cursor.array_tag());
+
+    auto extents = cursor.extents();
+    std::cout << "(1) ";
+    for (std::size_t i = 0; i < extents.size(); ++i)
+    {
+        if (i > 0) std::cout << " x ";
+        std::cout << extents[i];
+    }
+    std::cout << "\n\n";
+
+    std::vector<int> v;
+    cursor.read_typed_array(v);
+    std::cout << "(2) [";
+    for (std::size_t i = 0; i < v.size(); ++i)
+    {
+        if (i > 0) std::cout << ',';
+        std::cout << v[i];
+    }
+    std::cout << "]\n\n";
+
+    assert(jsoncons::staj_events::end_array == cursor.current().event_type());
+    cursor.next();
+    assert(cursor.done());
+}
+```
+
+Output:
+
+```
+(1) 2 x 3 x 2
+
+(2) [1,2,3,4,5,6,7,8,9,10,11,12]
+```
+
+#### Read a 3D classical array with row-major storage
+
+```cpp
+#include <jsoncons/json.hpp>
+#include <jsoncons_ext/cbor/cbor.hpp>
+#include <iostream>
+#include <cassert>
+
+namespace cbor = jsoncons::cbor;
+
+int main() 
+{
+    // A 3D classical array 2 x 3 x 2 with row-major storage
+    std::vector<uint8_t> data = {
+        0xD8, 0x28,                         // tag(40) row major storage 
+        0x82,                               // array(2)
+        0x83,                               // shape array(3)
+        0x02, 0x03, 0x02,                   // [2, 3, 2]
+        0x8C,                               // data array(12)
+        0x01, 0x02, 0x03, 0x04, 0x05, 0x06,
+        0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C
+    };
+
+    cbor::cbor_bytes_cursor cursor(data);
+
+    assert(jsoncons::staj_events::begin_array == cursor.current().event_type());
+    assert(true == cursor.is_multi_dim());
+    assert(jsoncons::mdarray_order::row_major == cursor.order());
+    assert(false == cursor.is_typed_array());
+
+    auto extents = cursor.extents();
+    std::cout << "(1) ";
+    for (std::size_t i = 0; i < extents.size(); ++i)
+    {
+        if (i > 0) std::cout << " x ";
+        std::cout << extents[i];
+    }
+    std::cout << "\n\n";
+
+    jsoncons::json_decoder<jsoncons::json> sub_decoder;
+    cursor.read_to(sub_decoder);
+    assert(sub_decoder.is_valid());
+    auto jval = sub_decoder.get_result();
+    assert(jval.is_array());
+    std::cout << "(2) [";
+    for (std::size_t i = 0; i < jval.size(); ++i)
+    {
+        if (i > 0) std::cout << ',';
+        std::cout << jval[i];
+    }
+    std::cout << "]\n\n";
+
+    assert(jsoncons::staj_events::end_array == cursor.current().event_type());
+    cursor.next();
+    assert(cursor.done());
+}
+```
+
+Output:
+
+```
+(1) 2 x 3 x 2
+
+(2) [1,2,3,4,5,6,7,8,9,10,11,12]
+```
+
+#### Read a 3D classical array with column-major storage
+
+```cpp
+#include <jsoncons/json.hpp>
+#include <jsoncons_ext/cbor/cbor.hpp>
+#include <iostream>
+#include <cassert>
+
+namespace cbor = jsoncons::cbor;
+
+int main() 
+{
+    // A 3D classical array 2 x 3 x 2 with row-major storage
+    std::vector<uint8_t> data = {
+        0xD9, 0x04, 0x10,                   // tag(1040) column-major storage 
+        0x82,                               // array(2)
+        0x83,                               // shape array(3)
+        0x02, 0x03, 0x02,                   // [2, 3, 2]
+        0x8C,                               // data array(12)
+        0x01, 0x02, 0x03, 0x04, 0x05, 0x06,
+        0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C
+    };
+
+    cbor::cbor_bytes_cursor cursor(data);
+
+    assert(jsoncons::staj_events::begin_array == cursor.current().event_type());
+    assert(true == cursor.is_multi_dim());
+    assert(jsoncons::mdarray_order::column_major == cursor.order());
+    assert(false == cursor.is_typed_array());
+
+    auto extents = cursor.extents();
+    std::cout << "(1) ";
+    for (std::size_t i = 0; i < extents.size(); ++i)
+    {
+        if (i > 0) std::cout << " x ";
+        std::cout << extents[i];
+    }
+    std::cout << "\n\n";
+
+    jsoncons::json_decoder<jsoncons::json> sub_decoder;
+    cursor.read_to(sub_decoder);
+    assert(sub_decoder.is_valid());
+    auto jval = sub_decoder.get_result();
+    assert(jval.is_array());
+    std::cout << "(2) [";
+    for (std::size_t i = 0; i < jval.size(); ++i)
+    {
+        if (i > 0) std::cout << ',';
+        std::cout << jval[i];
+    }
+    std::cout << "]\n\n";
+
+    assert(jsoncons::staj_events::end_array == cursor.current().event_type());
+    cursor.next();
+    assert(cursor.done());
+}
+```
+
+Output:
+
+```
+(1) 2 x 3 x 2
+
+(2) [1,2,3,4,5,6,7,8,9,10,11,12]
 ```
 
 ### See also
 
 [staj_event](../corelib/basic_staj_event.md)  
-
-[staj_array_iterator](../corelib/staj_array_iterator.md)  
-
-[staj_object_iterator](../corelib/staj_object_iterator.md)  
+[staj_events](../corelib/basic_staj_events.md)  
 
