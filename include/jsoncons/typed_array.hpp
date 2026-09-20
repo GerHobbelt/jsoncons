@@ -207,43 +207,7 @@ public:
     }
 };
 
-enum class typed_array_layout_kind {row_major, column_major};
-
-struct row_major_layout
-{
-    std::vector<std::size_t> operator()(jsoncons::span<const std::size_t> extents) const
-    {
-        std::vector<std::size_t> strides(extents.size(), 0);
-
-        std::size_t size = 1;
-        const size_t num_extents = extents.size();
-        for (size_t i = 0; i < num_extents; ++i)
-        {
-            strides[num_extents-i-1] = size;
-            size *= extents[num_extents-i-1];
-        }
-
-        return strides;
-    }
-};
-
-struct column_major_layout
-{
-    std::vector<std::size_t> operator()(jsoncons::span<const std::size_t> extents) const
-    {
-        std::vector<std::size_t> strides(extents.size(), 0);
-
-        std::size_t size = 1;
-        const size_t num_extents = extents.size();
-        for (size_t i = 0; i < num_extents; ++i)
-        {
-            strides[i] = size;
-            size *= extents[i];
-        }
-
-        return strides;
-    }
-};
+enum class mdarray_order {row_major, column_major};
 
 class typed_array_iterator
 {
@@ -281,7 +245,7 @@ protected:
 };
 
 template <typename ValueType, typename Func=jsoncons::identity>
-class typed_array_span_iterator : public typed_array_iterator
+class sequential_typed_array_iterator : public typed_array_iterator
 {
     jsoncons::span<ValueType> data_;
     semantic_tag tag_;
@@ -290,7 +254,7 @@ class typed_array_span_iterator : public typed_array_iterator
     bool done_{false};
     std::size_t index_{0};
 public:
-    typed_array_span_iterator(jsoncons::span<ValueType> data, 
+    sequential_typed_array_iterator(jsoncons::span<ValueType> data, 
         semantic_tag tag = semantic_tag{}, Func func = Func())
         : data_(data), tag_(tag), func_(func)
     {
@@ -321,6 +285,27 @@ public:
     }
 };
 
+inline
+jsoncons::expected<std::size_t,std::errc> calculate_mdarray_size(jsoncons::span<const std::size_t> extents)
+{
+    using result_type = jsoncons::expected<std::size_t,std::errc>;
+
+    if (extents.empty())
+    {
+        return result_type(0);
+    }
+    std::size_t n = extents[0];
+    for (std::size_t i = 1; i < extents.size(); ++i)
+    {
+        if (extents[i] == 0 || JSONCONS_UNLIKELY(n > (std::numeric_limits<std::size_t>::max)()/extents[i]))
+        {
+            return result_type(jsoncons::unexpect, std::errc::value_too_large);
+        }
+        n *= extents[i];
+    }
+    return n;
+}
+
 template <typename ValueType>
 struct mdarray_dimension
 {
@@ -340,12 +325,31 @@ class mdarray_iterator : public typed_array_iterator
     bool first_{true};
     bool done_{false};
 public:
-    template <typename Layout= jsoncons::row_major_layout>
-    mdarray_iterator(jsoncons::span<ValueType> data, const std::vector<std::size_t>& extents,
-        Layout layout = Layout())
+    mdarray_iterator(jsoncons::span<ValueType> data, jsoncons::span<const std::size_t> extents,
+        mdarray_order order = mdarray_order::row_major)
         : data_{data}, dimensions_(extents.size(), mdarray_dimension<ValueType>{})
     {
-        std::vector<std::size_t> strides = layout(extents);
+        std::vector<std::size_t> strides(extents.size(), 0);
+        if (order == mdarray_order::column_major)
+        {
+            std::size_t stride = 1;
+            const size_t num_extents = extents.size();
+            for (size_t i = 0; i < num_extents; ++i)
+            {
+                strides[i] = stride;
+                stride *= extents[i];
+            }
+        }
+        else
+        {
+            std::size_t stride = 1;
+            const size_t num_extents = extents.size();
+            for (size_t i = 0; i < num_extents; ++i)
+            {
+                strides[num_extents-i-1] = stride;
+                stride *= extents[num_extents-i-1];
+            }
+        }
         for (std::size_t i = 0; i < strides.size(); ++i)
         {
             dimensions_[i].extent = extents[i];
