@@ -1,9 +1,11 @@
-1.7.0
------
+Release 1.7.0
+-------------
 
 - Fixed bugs:
 
     - Git Issue #690: JMESPath let expression with operator in variable binding 
+
+    - Git Issue #697: Fixed warning when using wide characters and mapping to integer types narrower than **wchar_t**.
 
 - Changes
 
@@ -12,11 +14,14 @@
 
 - Enhancements:
 
-    - Git Issue #692: Redefined enum `staj_event_type` as a [BitMask Type](https://en.cppreference.com/w/cpp/named_req/BitmaskType.html).
-      This allows us to write e.g.
+    - Git Issue #692: The enum `staj_event_type` has been redefined as a [BitMask Type](https://en.cppreference.com/w/cpp/named_req/BitmaskType.html),
+    which means that the bitwise operators operator&, operator|, operator^, operator~, operator&=, operator|=, and operator^= 
+    are now defined for this type. The enum has been renamed to `staj_events`, following the convention that 
+    bitmask types have plural names, but aliased back to its original name `staj_event_type` for backwards compatibility. 
+    This allows us to write e.g.
       ```cpp
-      constexpr auto mask = staj_event_type::begin_array | staj_event_type::begin_object;
-      if ((event_type & mask) != staj_event_type{}) {/*...*/}
+      constexpr auto mask = staj_events::begin_array | staj_events::begin_object;
+      if ((event_type & mask) != staj_events{}) {/*...*/}
       ```  
 
     - The `basic_json_pointer` operator `/` now accepts a `basic_string_view` as a right-hand argument,
@@ -24,12 +29,18 @@
 
     - The class `key_value` has a new member `name` that returns a `basic_string_view` of the key.
 
+    - Git Issue #695: Optimized for JMESPath short circuit of **or** and **and** operators via PR #698 
+
     - jsonschema validation now supports validation of instances of `jsoncons::pmr::json` and `jsoncons::pmr::ojson`.
       Note that temporary allocations still use `std::allocator`.
 
     - Reduced allocations in jsonschema compilation and validation.
 
-    - Git Discussion #678: "Make json-patches in custom report that will fix validating object", is now supported
+    - Git Discussion #678: "Make json-patches in custom report that will fix validating object", is now supported.
+
+        - The `json_schema` function `validate` now suports providing a reporter that takes an optional user supplied patch as an argument.
+
+        - The `json_schema` function `walk` now suports providing a reporter that takes an optional user supplied patch as an argument.
 
 1.6.0
 -----
