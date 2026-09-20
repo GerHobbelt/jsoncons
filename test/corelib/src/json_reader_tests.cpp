@@ -12,7 +12,7 @@ TEST_CASE("test json_reader buffered read")
 {
     SECTION("string with split buffer")
     {
-        std::string str(stream_source<char>::default_max_buffer_size+10, '1');
+        std::string str(stream_source<char>::default_max_chunk_size+10, '1');
         for (std::size_t i = 0; i < str.size(); i+= 2)
         {
             str[i] = '0';
@@ -31,7 +31,7 @@ TEST_CASE("test json_reader buffered read")
 
     SECTION("number with split buffer")
     {
-        std::string str(stream_source<char>::default_max_buffer_size-7, 'a');
+        std::string str(stream_source<char>::default_max_chunk_size-7, 'a');
         std::string neg_num("-123456789.123456789");
 
         std::string input;
@@ -57,7 +57,7 @@ TEST_CASE("test json_reader buffered read")
         std::string str;
         str.push_back('[');
         str.push_back('"');
-        str.append(stream_source<char>::default_max_buffer_size-8, 'a');
+        str.append(stream_source<char>::default_max_chunk_size-8, 'a');
         str.push_back('"');
         str.push_back(',');
         str.append("false");
@@ -76,7 +76,7 @@ TEST_CASE("test json_reader buffered read")
         std::string str;
         str.push_back('[');
         str.push_back('"');
-        str.append(stream_source<char>::default_max_buffer_size - 6, 'a');
+        str.append(stream_source<char>::default_max_chunk_size - 6, 'a');
         str.push_back('"');
         str.push_back(',');
         str.append("true");
@@ -95,7 +95,7 @@ TEST_CASE("test json_reader buffered read")
         std::string str;
         str.push_back('[');
         str.push_back('"');
-        str.append(stream_source<char>::default_max_buffer_size - 5, 'a');
+        str.append(stream_source<char>::default_max_chunk_size - 5, 'a');
         str.push_back('"');
         str.push_back(',');
         str.append("null");
@@ -391,7 +391,7 @@ TEST_CASE("json_reader stateful allocator tests")
 
         json_decoder<cust_json,MyScopedAllocator<char>> decoder(my_allocator,
                                                               my_allocator);
-        basic_json_reader<char,string_source<char>,MyScopedAllocator<char>> reader(input, decoder, my_allocator);
+        basic_json_reader<char,chars_source<char>,MyScopedAllocator<char>> reader(input, decoder, my_allocator);
         reader.read();
 
         cust_json j = decoder.get_result();

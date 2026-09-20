@@ -11,13 +11,101 @@
 #include <jsoncons/json.hpp>
 #include <jsoncons/json_encoder.hpp>
 
+#include <list>
 #include <sstream>
+#include <string>
 #include <vector>
 #include <utility>
 #include <ctime>
 #include <catch/catch.hpp>
 
 using namespace jsoncons;
+
+TEST_CASE("cbor cursor exposes definite strings as views")
+{
+    SECTION("text string from bytes source")
+    {
+        std::vector<uint8_t> data = {'\x65','h','e','l','l','o'};
+        cbor::cbor_bytes_cursor cursor(data);
+
+        REQUIRE(staj_events::string_value == cursor.current().event_type());
+        auto sv = cursor.current().get<jsoncons::string_view>();
+        CHECK(sv == jsoncons::string_view("hello", 5));
+        CHECK(sv.data() == reinterpret_cast<const char*>(data.data() + 1));
+    }
+
+    SECTION("byte string from bytes source")
+    {
+        std::vector<uint8_t> data = {'\x43',0x01,0x02,0x03};
+        cbor::cbor_bytes_cursor cursor(data);
+
+        REQUIRE(staj_events::byte_string_value == cursor.current().event_type());
+        auto bytes = cursor.current().get<byte_string_view>();
+        CHECK(bytes.size() == 3);
+        CHECK(bytes.data() == data.data() + 1);
+        CHECK(bytes[0] == 0x01);
+        CHECK(bytes[2] == 0x03);
+    }
+}
+
+TEST_CASE("cbor stream source spans straddled strings")
+{
+    std::string data;
+    data.push_back('\x65');
+    data.append("hello");
+    std::istringstream is(data);
+    jsoncons::binary_stream_source source(is, 2);
+    std::error_code ec;
+    cbor::cbor_stream_cursor cursor(std::move(source), ec);
+
+    REQUIRE_FALSE(ec);
+    REQUIRE(staj_events::string_value == cursor.current().event_type());
+    CHECK(cursor.current().get<std::string>() == "hello");
+}
+
+TEST_CASE("cbor stream rejects truncated huge byte string length")
+{
+    std::string data;
+    data.push_back('\x5b');
+    data.push_back('\xf6');
+    std::istringstream is(data);
+
+    CHECK_THROWS_AS(cbor::decode_cbor<json>(is), ser_error);
+}
+
+TEST_CASE("cbor stream source spans consecutive straddled strings")
+{
+    std::string data;
+    data.push_back('\x82');
+    data.push_back('\x65');
+    data.append("abcde");
+    data.push_back('\x65');
+    data.append("fghij");
+    std::istringstream is(data);
+    jsoncons::binary_stream_source source(is, 3);
+    std::error_code ec;
+    cbor::cbor_stream_cursor cursor(std::move(source), ec);
+
+    REQUIRE_FALSE(ec);
+    REQUIRE(staj_events::begin_array == cursor.current().event_type());
+    cursor.next(ec);
+    REQUIRE_FALSE(ec);
+    REQUIRE(staj_events::string_value == cursor.current().event_type());
+    CHECK(cursor.current().get<std::string>() == "abcde");
+    cursor.next(ec);
+    REQUIRE_FALSE(ec);
+    REQUIRE(staj_events::string_value == cursor.current().event_type());
+    CHECK(cursor.current().get<std::string>() == "fghij");
+}
+
+TEST_CASE("cbor iterator source rejects a huge claimed byte string cleanly")
+{
+    const std::vector<uint8_t> data = {0x5b,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0x00};
+    std::list<uint8_t> input(data.begin(), data.end());
+
+    auto result = cbor::try_decode_cbor<json>(input.begin(), input.end());
+    REQUIRE_FALSE(result);
+}
 
 TEST_CASE("cbor_cursor reputon test")
 {
@@ -572,4 +660,3 @@ TEMPLATE_TEST_CASE("cbor_event_reader reset test", "",
         CHECK(reader.done());
     }
 }
-

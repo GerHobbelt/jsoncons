@@ -71,6 +71,7 @@ class basic_cbor_parser : public ser_context
     using tag_allocator_type = typename std::allocator_traits<allocator_type>:: template rebind_alloc<uint64_t>;                 
     using parse_state_allocator_type = typename std::allocator_traits<allocator_type>:: template rebind_alloc<parse_state>;                         
     using string_type = std::basic_string<char_type,char_traits_type,char_allocator_type>;
+    using string_view_type = jsoncons::basic_string_view<char_type>;
     using byte_string_type = std::vector<uint8_t,byte_allocator_type>;
 
     struct mapped_string
@@ -86,6 +87,11 @@ class basic_cbor_parser : public ser_context
         {
         }
 
+        mapped_string(const string_view_type& sv, const allocator_type& alloc = allocator_type())
+            : type(jsoncons::cbor::detail::cbor_major_type::text_string), str(sv.data(), sv.size(), alloc), bytes(alloc)
+        {
+        }
+
         mapped_string(string_type&& str, const allocator_type& alloc = allocator_type())
             : type(jsoncons::cbor::detail::cbor_major_type::text_string), str(std::move(str), alloc), bytes(alloc)
         {
@@ -94,6 +100,12 @@ class basic_cbor_parser : public ser_context
         mapped_string(const byte_string_type& bytes, 
             const allocator_type& alloc = allocator_type())
             : type(jsoncons::cbor::detail::cbor_major_type::byte_string), str(alloc), bytes(bytes,alloc)
+        {
+        }
+
+        mapped_string(const byte_string_view& bytes,
+            const allocator_type& alloc = allocator_type())
+            : type(jsoncons::cbor::detail::cbor_major_type::byte_string), str(alloc), bytes(bytes.begin(),bytes.end(),alloc)
         {
         }
 
@@ -171,6 +183,11 @@ class basic_cbor_parser : public ser_context
                 c.push_back(b);
             }
         }
+
+        byte_string_view view(std::error_code&)
+        {
+            return bytes;
+        }
     };
 
     struct read_byte_string_from_source
@@ -185,6 +202,11 @@ class basic_cbor_parser : public ser_context
         void operator()(Container& cont, std::error_code& ec)
         {
             source->read_byte_string(cont,ec);
+        }
+
+        byte_string_view view(std::error_code& ec)
+        {
+            return source->read_byte_string_view(ec);
         }
     };
 
@@ -622,7 +644,7 @@ public:
                     {
                         case jsoncons::cbor::detail::cbor_major_type::text_string:
                         {
-                            handle_string(visitor, jsoncons::basic_string_view<char>(str.str.data(),str.str.length()),ec);
+                            handle_string(visitor, jsoncons::string_view(str.str.data(),str.str.length()),ec);
                             if (JSONCONS_UNLIKELY(ec))
                             {
                                 return;
@@ -700,21 +722,19 @@ public:
             }
             case jsoncons::cbor::detail::cbor_major_type::text_string:
             {
-                text_buffer_.clear();
-
-                read_text_string(text_buffer_, ec);
+                auto sv = read_text_string_view(ec);
                 if (JSONCONS_UNLIKELY(ec))
                 {
                     return;
                 }
-                auto result = unicode_traits::validate(text_buffer_.data(),text_buffer_.size());
+                auto result = unicode_traits::validate(sv.data(),sv.size());
                 if (result.ec != unicode_traits::unicode_errc())
                 {
                     ec = cbor_errc::invalid_utf8_text_string;
                     more_ = false;
                     return;
                 }
-                handle_string(visitor, jsoncons::basic_string_view<char>(text_buffer_.data(),text_buffer_.length()),ec);
+                handle_string(visitor, sv, ec);
                 if (JSONCONS_UNLIKELY(ec))
                 {
                     return;
@@ -1093,6 +1113,52 @@ private:
         state_stack_.pop_back();
     }
 
+    string_view_type read_text_string_view(std::error_code& ec)
+    {
+        auto c = source_.peek();
+        if (JSONCONS_UNLIKELY(c.eof))
+        {
+            ec = cbor_errc::unexpected_eof;
+            more_ = false;
+            return string_view_type();
+        }
+        jsoncons::cbor::detail::cbor_major_type major_type = get_major_type(c.value);
+        JSONCONS_ASSERT(major_type == jsoncons::cbor::detail::cbor_major_type::text_string);
+        uint8_t info = get_additional_information_value(c.value);
+
+        if (info == jsoncons::cbor::detail::additional_info::indefinite_length)
+        {
+            text_buffer_.clear();
+            source_.ignore(1);
+            iterate_string_chunks(text_buffer_, major_type, ec);
+            if (JSONCONS_UNLIKELY(ec))
+            {
+                return string_view_type();
+            }
+            return string_view_type(text_buffer_.data(), text_buffer_.size());
+        }
+
+        std::size_t length = read_size(ec);
+        if (JSONCONS_UNLIKELY(ec))
+        {
+            return string_view_type();
+        }
+        auto data = source_.read_span(length, text_buffer_);
+        if (data.size() != length)
+        {
+            ec = cbor_errc::unexpected_eof;
+            more_ = false;
+            return string_view_type();
+        }
+        string_view_type sv(reinterpret_cast<const char_type*>(data.data()), data.size());
+        if (!stringref_map_stack_.empty() &&
+            sv.length() >= jsoncons::cbor::detail::min_length_for_stringref(stringref_map_stack_.back().size()))
+        {
+            stringref_map_stack_.back().emplace_back(mapped_string(sv,alloc_));
+        }
+        return sv;
+    }
+
     void read_text_string(string_type& str, std::error_code& ec)
     {
         auto c = source_.peek();
@@ -1134,6 +1200,54 @@ private:
         {
             stringref_map_stack_.back().emplace_back(mapped_string(str,alloc_));
         }
+    }
+
+    byte_string_view read_byte_string_view(std::error_code& ec)
+    {
+        auto c = source_.peek();
+        if (JSONCONS_UNLIKELY(c.eof))
+        {
+            ec = cbor_errc::unexpected_eof;
+            more_ = false;
+            return byte_string_view();
+        }
+        jsoncons::cbor::detail::cbor_major_type major_type = get_major_type(c.value);
+        uint8_t info = get_additional_information_value(c.value);
+
+        JSONCONS_ASSERT(major_type == jsoncons::cbor::detail::cbor_major_type::byte_string);
+
+        if (info == jsoncons::cbor::detail::additional_info::indefinite_length)
+        {
+            bytes_buffer_.clear();
+            source_.ignore(1);
+            iterate_string_chunks(bytes_buffer_, major_type, ec);
+            if (JSONCONS_UNLIKELY(ec))
+            {
+                return byte_string_view();
+            }
+            return byte_string_view(bytes_buffer_.data(), bytes_buffer_.size());
+        }
+
+        std::size_t length = read_size(ec);
+        if (JSONCONS_UNLIKELY(ec))
+        {
+            return byte_string_view();
+        }
+        auto data = source_.read_span(length, bytes_buffer_);
+        if (data.size() != length)
+        {
+            ec = cbor_errc::unexpected_eof;
+            more_ = false;
+            return byte_string_view();
+        }
+        
+        byte_string_view bytes(data.data(), data.size());
+        if (!stringref_map_stack_.empty() &&
+            bytes.size() >= jsoncons::cbor::detail::min_length_for_stringref(stringref_map_stack_.back().size()))
+        {
+            stringref_map_stack_.back().emplace_back(mapped_string(bytes, alloc_));
+        }
+        return bytes;
     }
 
     std::size_t read_size(std::error_code& ec)
@@ -1702,7 +1816,7 @@ private:
                 str.push_back('-');
                 str.push_back('0');
                 str.push_back('x');
-                jsoncons::integer_to_hex(static_cast<uint64_t>(-val), str);
+                jsoncons::integer_to_hex(static_cast<uint64_t>(-1 - val) + 1u, str);
                 break;
             }
             case jsoncons::cbor::detail::cbor_major_type::semantic_tag:
@@ -1768,7 +1882,7 @@ private:
         else
         {
             str.push_back('-');
-            jsoncons::integer_to_hex(static_cast<uint64_t>(-exponent), str);
+            jsoncons::integer_to_hex(static_cast<uint64_t>(-1 - exponent) + 1u, str);
         }
     }
 
@@ -1828,7 +1942,7 @@ private:
         }
     }
 
-    void handle_string(generic_visitor& visitor, const jsoncons::basic_string_view<char>& v, std::error_code& ec)
+    void handle_string(generic_visitor& visitor, const jsoncons::string_view& v, std::error_code& ec)
     {
         semantic_tag tag = semantic_tag::none;
         if (other_tags_[item_tag])
@@ -1878,14 +1992,13 @@ private:
             {
                 case 0x2:
                 {
-                    bytes_buffer_.clear();
-                    read(bytes_buffer_,ec);
+                    auto bytes = read.view(ec);
                     if (JSONCONS_UNLIKELY(ec))
                     {
                         more_ = false;
                         return;
                     }
-                    bigint n = bigint::from_bytes_be(1, bytes_buffer_.data(), bytes_buffer_.size());
+                    bigint n = bigint::from_bytes_be(1, bytes.data(), bytes.size());
                     text_buffer_.clear();
                     n.write_string(text_buffer_);
                     visitor.string_value(text_buffer_, semantic_tag::bigint, *this, ec);
@@ -1894,14 +2007,13 @@ private:
                 }
                 case 0x3:
                 {
-                    bytes_buffer_.clear();
-                    read(bytes_buffer_,ec);
+                    auto bytes = read.view(ec);
                     if (JSONCONS_UNLIKELY(ec))
                     {
                         more_ = false;
                         return;
                     }
-                    bigint n = bigint::from_bytes_be(1, bytes_buffer_.data(), bytes_buffer_.size());
+                    bigint n = bigint::from_bytes_be(1, bytes.data(), bytes.size());
                     n = -1 - n;
                     text_buffer_.clear();
                     n.write_string(text_buffer_);
@@ -1910,38 +2022,19 @@ private:
                     break;
                 }
                 case 0x15:
-                {
-                    read(bytes_buffer_,ec);
-                    if (JSONCONS_UNLIKELY(ec))
-                    {
-                        more_ = false;
-                        return;
-                    }
-                    visitor.byte_string_value(bytes_buffer_, semantic_tag::base64url, *this, ec);
-                    more_ = !cursor_mode_;
-                    break;
-                }
                 case 0x16:
-                {
-                    read(bytes_buffer_,ec);
-                    if (JSONCONS_UNLIKELY(ec))
-                    {
-                        more_ = false;
-                        return;
-                    }
-                    visitor.byte_string_value(bytes_buffer_, semantic_tag::base64, *this, ec);
-                    more_ = !cursor_mode_;
-                    break;
-                }
                 case 0x17:
                 {
-                    read(bytes_buffer_,ec);
+                    auto bytes = read.view(ec);
                     if (JSONCONS_UNLIKELY(ec))
                     {
                         more_ = false;
                         return;
                     }
-                    visitor.byte_string_value(bytes_buffer_, semantic_tag::base16, *this, ec);
+                    const semantic_tag tag = raw_tag_ == 0x15 ? semantic_tag::base64url
+                        : raw_tag_ == 0x16 ? semantic_tag::base64
+                        : semantic_tag::base16;
+                    visitor.byte_string_value(bytes, tag, *this, ec);
                     more_ = !cursor_mode_;
                     break;
                 }
@@ -2457,13 +2550,13 @@ private:
                 }
                 default:
                 {
-                    read(bytes_buffer_,ec);
+                    auto bytes = read.view(ec);
                     if (JSONCONS_UNLIKELY(ec))
                     {
                         more_ = false;
                         return;
                     }
-                    visitor.byte_string_value(bytes_buffer_, raw_tag_, *this, ec);
+                    visitor.byte_string_value(bytes, raw_tag_, *this, ec);
                     more_ = !cursor_mode_;
                     break;
                 }
@@ -2472,12 +2565,12 @@ private:
         }
         else
         {
-            read(bytes_buffer_,ec);
+            auto bytes = read.view(ec);
             if (JSONCONS_UNLIKELY(ec))
             {
                 return;
             }
-            visitor.byte_string_value(bytes_buffer_, semantic_tag::none, *this, ec);
+            visitor.byte_string_value(bytes, semantic_tag::none, *this, ec);
             more_ = !cursor_mode_;
         }
     }
@@ -2548,10 +2641,17 @@ private:
         }
         else if (major_type == jsoncons::cbor::detail::cbor_major_type::byte_string)
         {
+            std::size_t typed_array_count = typed_array_stack_.size();
             read_byte_string_from_source read(this);
             read_byte_string(read, visitor, ec);
             if (JSONCONS_UNLIKELY(ec))
             {
+                return;
+            }
+            if (typed_array_stack_.size() == typed_array_count)
+            {
+                // Byte string storage must be a typed array
+                ec = cbor_errc::bad_mdarray;
                 return;
             }
         }
@@ -2574,13 +2674,21 @@ private:
             more_ = false;
             return;
         }
+        if (get_major_type(b.value) != jsoncons::cbor::detail::cbor_major_type::array)
+        {
+            ec = cbor_errc::bad_extents;
+            more_ = false;
+            return;
+        }
         uint8_t info = get_additional_information_value(b.value);
 
         switch (info)
         {
             case jsoncons::cbor::detail::additional_info::indefinite_length:
             {
-                while (true)
+                source_.ignore(1);
+                bool done = false;
+                while (!done)
                 {
                     auto c = source_.peek();
                     if (JSONCONS_UNLIKELY(c.eof))
@@ -2592,7 +2700,7 @@ private:
                     if (c.value == 0xff)
                     {
                         source_.ignore(1);
-                        return;
+                        done = true;
                     }
                     else
                     {

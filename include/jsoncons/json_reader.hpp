@@ -176,7 +176,7 @@ namespace jsoncons {
     private:
         using char_allocator_type = typename std::allocator_traits<TempAlloc>:: template rebind_alloc<CharT>;
 
-        static constexpr size_t default_max_buffer_size = 16384;
+        static constexpr size_t default_max_chunk_size = 16384;
 
         json_source_adaptor<Source> source_;
         basic_default_json_visitor<CharT> default_visitor_;
@@ -283,7 +283,7 @@ namespace jsoncons {
             {
                 if (parser_.source_exhausted())
                 {
-                    auto s = source_.read_buffer(ec);
+                    auto s = source_.read_chunk(ec);
                     if (JSONCONS_UNLIKELY(ec)) return;
                     if (s.size() > 0)
                     {
@@ -313,7 +313,7 @@ namespace jsoncons {
                 parser_.skip_whitespace();
                 if (parser_.source_exhausted())
                 {
-                    auto s = source_.read_buffer(ec);
+                    auto s = source_.read_chunk(ec);
                     if (JSONCONS_UNLIKELY(ec)) return;
                     if (s.size() > 0)
                     {
@@ -365,7 +365,7 @@ namespace jsoncons {
                 {
                     if (parser_.source_exhausted())
                     {
-                        auto s = source_.read_buffer(ec);
+                        auto s = source_.read_chunk(ec);
                         if (JSONCONS_UNLIKELY(ec)) return;
                         if (s.size() > 0)
                         {
@@ -403,8 +403,8 @@ namespace jsoncons {
         }
     };
 
-    using json_string_reader = basic_json_reader<char,string_source<char>>;
-    using wjson_string_reader = basic_json_reader<wchar_t,string_source<wchar_t>>;
+    using json_string_reader = basic_json_reader<char,chars_source<char>>;
+    using wjson_string_reader = basic_json_reader<wchar_t,chars_source<wchar_t>>;
     using json_stream_reader = basic_json_reader<char,stream_source<char>>;
     using wjson_stream_reader = basic_json_reader<wchar_t,stream_source<wchar_t>>;
 
