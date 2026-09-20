@@ -50,7 +50,8 @@ enum class staj_events : uint64_t
     begin_array       = 1024,
     end_array         = 2048,
     key_flag          = 4096,
-    key               = key_flag | string_value
+    key               = key_flag | string_value,
+    id                = key_flag | uint64_value
 };
 
 using staj_event_type = staj_events; // For backwards compatibility
@@ -195,7 +196,7 @@ class basic_staj_event
 {
     staj_events event_flags_;
     semantic_tag tag_;
-    uint64_t ext_tag_{0};
+    uint64_t raw_tag_{0};
     union
     {
         bool bool_value_;
@@ -285,9 +286,9 @@ public:
 
     basic_staj_event(const byte_string_view& s,
         staj_events event_type,
-        uint64_t ext_tag,
+        uint64_t raw_tag,
         staj_events key_flag = staj_events{})
-        : event_flags_(event_type | key_flag), tag_(semantic_tag::ext), ext_tag_(ext_tag), length_(s.size())
+        : event_flags_(event_type | key_flag), tag_(semantic_tag::ext), raw_tag_(raw_tag), length_(s.size())
     {
         value_.byte_string_data_ = s.data();
     }
@@ -495,7 +496,7 @@ public:
 
     semantic_tag tag() const noexcept { return tag_; }
 
-    uint64_t ext_tag() const noexcept { return ext_tag_; }
+    uint64_t ext_tag() const noexcept { return raw_tag_; }
 
 private:
 

@@ -36,7 +36,8 @@
 #include <jsoncons/json_error.hpp>
 #include <jsoncons/json_exception.hpp>
 #include <jsoncons/json_fwd.hpp>
-#include <jsoncons/json_object.hpp>
+#include <jsoncons/ordered_json_object.hpp>
+#include <jsoncons/sorted_json_object.hpp>
 #include <jsoncons/json_options.hpp>
 #include <jsoncons/json_reader.hpp>
 #include <jsoncons/json_type.hpp>
@@ -92,116 +93,111 @@ namespace jsoncons {
 
     namespace detail {
 
-        template <typename Iterator,typename Enable = void>
-        class random_access_iterator_wrapper
-        {
-        };
-
         template <typename Iterator>
-        class random_access_iterator_wrapper<Iterator,
-                 typename std::enable_if<std::is_same<typename std::iterator_traits<Iterator>::iterator_category, 
-                                                      std::random_access_iterator_tag>::value>::type> 
+        class json_object_iterator_adaptor
         { 
-            Iterator it_; 
+            Iterator current_; 
+            typedef std::iterator_traits<Iterator> traits_type;
+
             bool has_value_;
 
-            template <typename Iter,typename Enable> 
-            friend class random_access_iterator_wrapper;
+            template <typename Iter> 
+            friend class json_object_iterator_adaptor;
         public:
             using iterator_category = std::random_access_iterator_tag;
 
-            using value_type = typename std::iterator_traits<Iterator>::value_type;
-            using difference_type = typename std::iterator_traits<Iterator>::difference_type;
-            using pointer = typename std::iterator_traits<Iterator>::pointer;
-            using reference = typename std::iterator_traits<Iterator>::reference;
+            using value_type = typename traits_type::value_type;
+            using difference_type = typename traits_type::difference_type;
+            using reference = typename traits_type::reference;
+            using pointer = typename traits_type::pointer;
         
-            random_access_iterator_wrapper() : it_(), has_value_(false) 
+            json_object_iterator_adaptor() : current_(), has_value_(false) 
             { 
             }
 
-            explicit random_access_iterator_wrapper(Iterator ptr) : it_(ptr), has_value_(true)  
+            explicit json_object_iterator_adaptor(Iterator ptr) : current_(ptr), has_value_(true)  
             {
             }
 
-            random_access_iterator_wrapper(const random_access_iterator_wrapper&) = default;
-            random_access_iterator_wrapper(random_access_iterator_wrapper&&) = default;
-            random_access_iterator_wrapper& operator=(const random_access_iterator_wrapper&) = default;
-            random_access_iterator_wrapper& operator=(random_access_iterator_wrapper&&) = default;
+            json_object_iterator_adaptor(const json_object_iterator_adaptor&) = default;
+            json_object_iterator_adaptor(json_object_iterator_adaptor&&) = default;
+            json_object_iterator_adaptor& operator=(const json_object_iterator_adaptor&) = default;
+            json_object_iterator_adaptor& operator=(json_object_iterator_adaptor&&) = default;
 
             template <typename Iter,
                       typename=typename std::enable_if<!std::is_same<Iter,Iterator>::value && std::is_convertible<Iter,Iterator>::value>::type>
-            random_access_iterator_wrapper(const random_access_iterator_wrapper<Iter>& other)
-                : it_(other.it_), has_value_(other.has_value_)
+            json_object_iterator_adaptor(const json_object_iterator_adaptor<Iter>& other)
+                : current_(other.current_), has_value_(other.has_value_)
             {
             }
 
             operator Iterator() const
             { 
-                return it_; 
+                return current_; 
             }
 
             reference operator*() const 
             {
-                return *it_;
+                return *current_;
             }
 
             pointer operator->() const 
             {
-                return &(*it_);
+                return &(*current_);
             }
 
-            random_access_iterator_wrapper& operator++() 
+            json_object_iterator_adaptor& operator++() 
             {
-                ++it_;
+                ++current_;
                 return *this;
             }
 
-            random_access_iterator_wrapper operator++(int) 
+            json_object_iterator_adaptor operator++(int) 
             {
-                random_access_iterator_wrapper temp = *this;
+                json_object_iterator_adaptor temp = *this;
                 ++*this;
                 return temp;
             }
 
-            random_access_iterator_wrapper& operator--() 
+            json_object_iterator_adaptor& operator--() 
             {
-                --it_;
+                --current_;
                 return *this;
             }
 
-            random_access_iterator_wrapper operator--(int) 
+            json_object_iterator_adaptor operator--(int) 
             {
-                random_access_iterator_wrapper temp = *this;
+                json_object_iterator_adaptor temp = *this;
                 --*this;
                 return temp;
             }
 
-            random_access_iterator_wrapper& operator+=(const difference_type offset) 
+            json_object_iterator_adaptor& operator+=(const difference_type offset) 
             {
-                it_ += offset;
+                current_ += offset;
                 return *this;
             }
 
-            random_access_iterator_wrapper operator+(const difference_type offset) const 
+            json_object_iterator_adaptor operator+(const difference_type offset) const 
             {
-                random_access_iterator_wrapper temp = *this;
+                json_object_iterator_adaptor temp = *this;
                 return temp += offset;
             }
 
-            random_access_iterator_wrapper& operator-=(const difference_type offset) 
+            json_object_iterator_adaptor& operator-=(const difference_type offset) 
             {
                 return *this += -offset;
             }
 
-            random_access_iterator_wrapper operator-(const difference_type offset) const 
+            json_object_iterator_adaptor operator-(const difference_type offset) const 
             {
-                random_access_iterator_wrapper temp = *this;
+                json_object_iterator_adaptor temp = *this;
                 return temp -= offset;
             }
 
-            difference_type operator-(const random_access_iterator_wrapper& rhs) const noexcept
+            difference_type operator-(const json_object_iterator_adaptor& rhs) const noexcept
             {
-                return it_ - rhs.it_;
+                return current_ - rhs.current_;
             }
 
             reference operator[](const difference_type offset) const noexcept
@@ -209,53 +205,47 @@ namespace jsoncons {
                 return *(*this + offset);
             }
 
-            bool operator==(const random_access_iterator_wrapper& rhs) const noexcept
+            bool operator==(const json_object_iterator_adaptor& rhs) const noexcept
             {
-                if (!has_value_ || !rhs.has_value_)
+                if (JSONCONS_LIKELY(has_value_ && rhs.has_value_))
                 {
-                    return has_value_ == rhs.has_value_ ? true : false;
+                    return current_ == rhs.current_;
                 }
-                else
-                {
-                    return it_ == rhs.it_;
-                }
+                return !has_value_ && !rhs.has_value_;
             }
 
-            bool operator!=(const random_access_iterator_wrapper& rhs) const noexcept
+            bool operator!=(const json_object_iterator_adaptor& rhs) const noexcept
             {
                 return !(*this == rhs);
             }
 
-            bool operator<(const random_access_iterator_wrapper& rhs) const noexcept
+            bool operator<(const json_object_iterator_adaptor& rhs) const noexcept
             {
-                if (!has_value_ || !rhs.has_value_)
+                if (JSONCONS_LIKELY(has_value_ && rhs.has_value_))
                 {
-                    return has_value_ == rhs.has_value_ ? false :(has_value_ ? false : true);
+                    return current_ < rhs.current_;
                 }
-                else
-                {
-                    return it_ < rhs.it_;
-                }
+                return has_value_ ? false : (rhs.has_value_ ? true : false);
             }
 
-            bool operator>(const random_access_iterator_wrapper& rhs) const noexcept
+            bool operator>(const json_object_iterator_adaptor& rhs) const noexcept
             {
                 return rhs < *this;
             }
 
-            bool operator<=(const random_access_iterator_wrapper& rhs) const noexcept
+            bool operator<=(const json_object_iterator_adaptor& rhs) const noexcept
             {
                 return !(rhs < *this);
             }
 
-            bool operator>=(const random_access_iterator_wrapper& rhs) const noexcept
+            bool operator>=(const json_object_iterator_adaptor& rhs) const noexcept
             {
                 return !(*this < rhs);
             }
 
             inline 
-            friend random_access_iterator_wrapper<Iterator> operator+(
-                difference_type offset, random_access_iterator_wrapper<Iterator> next) 
+            friend json_object_iterator_adaptor<Iterator> operator+(
+                difference_type offset, json_object_iterator_adaptor<Iterator> next) 
             {
                 return next += offset;
             }
@@ -282,7 +272,7 @@ namespace jsoncons {
     struct order_preserving_policy
     {
         template <typename KeyT,typename Json>
-        using object = order_preserving_json_object<KeyT,Json,std::vector>;
+        using object = ordered_json_object<KeyT,Json,std::vector>;
 
         template <typename Json>
         using array = json_array<Json,std::vector>;
@@ -301,8 +291,8 @@ namespace jsoncons {
         !ext_traits::is_detected<ext_traits::container_object_iterator_type_t, Policy>::value ||
         !ext_traits::is_detected<ext_traits::container_const_object_iterator_type_t, Policy>::value>::type>
     {
-        using object_iterator_type = jsoncons::detail::random_access_iterator_wrapper<typename Policy::template object<KeyT,Json>::iterator>;                    
-        using const_object_iterator_type = jsoncons::detail::random_access_iterator_wrapper<typename Policy::template object<KeyT,Json>::const_iterator>;
+        using object_iterator_type = jsoncons::detail::json_object_iterator_adaptor<typename Policy::template object<KeyT,Json>::iterator>;                    
+        using const_object_iterator_type = jsoncons::detail::json_object_iterator_adaptor<typename Policy::template object<KeyT,Json>::const_iterator>;
     };
 
     template <typename Policy,typename KeyT,typename Json>
@@ -310,8 +300,8 @@ namespace jsoncons {
         ext_traits::is_detected<ext_traits::container_object_iterator_type_t, Policy>::value &&
         ext_traits::is_detected<ext_traits::container_const_object_iterator_type_t, Policy>::value>::type>
     {
-        using object_iterator_type = jsoncons::detail::random_access_iterator_wrapper<typename Policy::template object_iterator<KeyT,Json>>;
-        using const_object_iterator_type = jsoncons::detail::random_access_iterator_wrapper<typename Policy::template const_object_iterator<KeyT,Json>>;
+        using object_iterator_type = jsoncons::detail::json_object_iterator_adaptor<typename Policy::template object_iterator<KeyT,Json>>;
+        using const_object_iterator_type = jsoncons::detail::json_object_iterator_adaptor<typename Policy::template const_object_iterator<KeyT,Json>>;
     };
 
     template <typename Policy,typename KeyT,typename Json,typename Enable=void>
@@ -951,10 +941,10 @@ namespace jsoncons {
         }
 
         typename byte_string_storage::pointer create_byte_string(const allocator_type& alloc, const uint8_t* data, std::size_t length,
-            uint64_t ext_tag)
+            uint64_t raw_tag)
         {
             using heap_string_factory_type = jsoncons::heap::heap_string_factory<uint8_t,uint64_t,Allocator>;
-            return heap_string_factory_type::create(data, length, ext_tag, alloc); 
+            return heap_string_factory_type::create(data, length, raw_tag, alloc); 
         }
         
         template <typename... Args>
@@ -2742,24 +2732,24 @@ namespace jsoncons {
 
         template <typename BytesViewLike>
         basic_json(byte_string_arg_t, const BytesViewLike& source, 
-                   uint64_t ext_tag,
+                   uint64_t raw_tag,
                    typename std::enable_if<ext_traits::is_bytes_view_like<BytesViewLike>::value,int>::type = 0)
         {
             auto bytes = jsoncons::span<const uint8_t>(reinterpret_cast<const uint8_t*>(source.data()), source.size());
 
-            auto ptr = create_byte_string(Allocator(), bytes.data(), bytes.size(), ext_tag);
+            auto ptr = create_byte_string(Allocator(), bytes.data(), bytes.size(), raw_tag);
             construct<byte_string_storage>(ptr, semantic_tag::ext);
         }
 
         template <typename BytesViewLike>
         basic_json(byte_string_arg_t, const BytesViewLike& source, 
-                   uint64_t ext_tag,
+                   uint64_t raw_tag,
                    const Allocator& alloc,
                    typename std::enable_if<ext_traits::is_bytes_view_like<BytesViewLike>::value,int>::type = 0)
         {
             auto bytes = jsoncons::span<const uint8_t>(reinterpret_cast<const uint8_t*>(source.data()), source.size());
 
-            auto ptr = create_byte_string(alloc, bytes.data(), bytes.size(), ext_tag);
+            auto ptr = create_byte_string(alloc, bytes.data(), bytes.size(), raw_tag);
             construct<byte_string_storage>(ptr, semantic_tag::ext);
         }
 
@@ -2795,12 +2785,34 @@ namespace jsoncons {
 
         basic_json& operator[](std::size_t i)
         {
-            return at(i);
+            switch (storage_kind())
+            {
+                case json_storage_kind::array:
+                    return cast<array_storage>().value().data()[i];
+                case json_storage_kind::object:
+                    return cast<object_storage>().value().data()[i].value();
+                case json_storage_kind::json_ref:
+                    return cast<json_ref_storage>().value().operator[](i);
+                default:
+                    JSONCONS_THROW(json_runtime_error<std::domain_error>("Index on non-array value not supported"));
+            }
         }
 
         const basic_json& operator[](std::size_t i) const
         {
-            return at(i);
+            switch (storage_kind())
+            {
+                case json_storage_kind::array:
+                    return cast<array_storage>().value().data()[i];
+                case json_storage_kind::object:
+                    return cast<object_storage>().value().data()[i].value();
+                case json_storage_kind::json_ref:
+                    return cast<json_ref_storage>().value().operator[](i);
+                case json_storage_kind::const_json_ref:
+                    return cast<json_ref_storage>().value().operator[](i);
+                default:
+                    JSONCONS_THROW(json_runtime_error<std::domain_error>("Index on non-array value not supported"));
+            }
         }
 
         basic_json& operator[](const string_view_type& key)
@@ -4211,15 +4223,14 @@ namespace jsoncons {
 
         // Removes all elements from an array value whose index is between from_index, inclusive, and to_index, exclusive.
 
-        void erase(const string_view_type& key)
+        typename object::size_type erase(string_view_type key)
         {
             switch (storage_kind())
             {
                 case json_storage_kind::empty_object:
-                    break;
+                    return 0;
                 case json_storage_kind::object:
-                    cast<object_storage>().value().erase(key);
-                    break;
+                    return cast<object_storage>().value().erase(key);
                 case json_storage_kind::json_ref:
                     return cast<json_ref_storage>().value().erase(key);
                 default:

@@ -35,6 +35,26 @@ TEST_CASE("ojson insert(first,last) test")
         CHECK(it++->key() == "b");
         CHECK(it++->key() == "c");
     }
+    SECTION("copy map into ojson with duplicates")
+    {
+        std::map<std::string, double> m1 = {{"f", 4}, {"e", 5}, {"d", 6}, {"e", 7}};
+        std::map<std::string, double> m2 = {{"c", 1}, {"b", 2}, {"a", 3}, {"b", 3}, {"e", 5}};
+
+        ojson doc;
+        doc.insert(m1.begin(), m1.end());
+        doc.insert(m2.begin(), m2.end());
+
+        //std::cout << doc << "\n";
+
+        REQUIRE(6 == doc.size());
+        auto it = doc.object_range().begin();
+        CHECK(it++->key() == "d");
+        CHECK(it++->key() == "e");
+        CHECK(it++->key() == "f");
+        CHECK(it++->key() == "a");
+        CHECK(it++->key() == "b");
+        CHECK(it++->key() == "c");
+    }
 }
 
 TEST_CASE("ojson parse_duplicate_names")
@@ -64,6 +84,90 @@ TEST_CASE("ojson parse_duplicate_names")
         CHECK(1 == doc["first"].as<int>());
         CHECK(2 == doc["second"].as<int>());
         CHECK(3 == doc["third"].as<int>());
+    }
+
+    SECTION("510 duplicate char keys")
+    {
+        jsoncons::ojson expected{jsoncons::json_object_arg};
+        expected["foo"] = 0;
+        expected["baz"] = 256;
+
+        std::string str = "{";
+        for (std::size_t i = 0; i < 256; ++i)
+        {
+            if (i > 0)
+            {
+                str.push_back(',');
+            }
+            str.append(R"("foo":)");
+            str.append(std::to_string(i));
+        }
+        for (std::size_t i = 256; i < 512; ++i)
+        {
+            str.push_back(',');
+            str.append(R"("baz":)");
+            str.append(std::to_string(i));
+        }
+        str.push_back('}');
+
+        auto j = ojson::parse(str);
+        CHECK(expected == j);
+    }
+
+    SECTION("1022 duplicate char keys")
+    {
+        jsoncons::ojson expected{jsoncons::json_object_arg};
+        expected["foo"] = 0;
+        expected["baz"] = 512;
+
+        std::string str = "{";
+        for (std::size_t i = 0; i < 512; ++i)
+        {
+            if (i > 0)
+            {
+                str.push_back(',');
+            }
+            str.append(R"("foo":)");
+            str.append(std::to_string(i));
+        }
+        for (std::size_t i = 512; i < 1024; ++i)
+        {
+            str.push_back(',');
+            str.append(R"("baz":)");
+            str.append(std::to_string(i));
+        }
+        str.push_back('}');
+
+        auto j = ojson::parse(str);
+        CHECK(expected == j);
+    }
+
+    SECTION("510 duplicate wchar_t keys")
+    {
+        jsoncons::wojson expected{jsoncons::json_object_arg};
+        expected[L"foo"] = 0;
+        expected[L"baz"] = 256;
+
+        std::wstring str = L"{";
+        for (std::size_t i = 0; i < 256; ++i)
+        {
+            if (i > 0)
+            {
+                str.push_back(',');
+            }
+            str.append(LR"("foo":)");
+            str.append(std::to_wstring(i));
+        }
+        for (std::size_t i = 256; i < 512; ++i)
+        {
+            str.push_back(',');
+            str.append(LR"("baz":)");
+            str.append(std::to_wstring(i));
+        }
+        str.push_back('}');
+
+        auto j = wojson::parse(str);
+        CHECK(expected == j);
     }
 }
 

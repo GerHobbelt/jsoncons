@@ -1,3 +1,47 @@
+master (1.9.0 preview)
+------
+
+- Fixed bugs:
+
+  - Fixed issue identified by Google fuzz where a CBOR classical multi-dimensional array 
+  contained elements of typed array.
+
+- Emhancements:
+
+  - Until 1.9.0, cbor and msgpack cursors read key-value pairs
+  and convert the key part into a string before making it
+  avaliable to the cursor as a `staj_events::key` event . 
+  Since 1.9.0, cbor and msgpack cursors read key-value pairs 
+  and make both string and non-string keys available to the cursor
+  as a value event ORed with a key flag (`staj_events::key_flag`).
+  For backwards compatibility, `staj_events::key` is now defined as
+  `staj_events::string_value | staj_events::key_flag`.
+  
+  - For the common case of CBOR or MessagePack unsigned integer keys,
+  the enum value `id` has been added to `sjaj_events`, 
+  defined as `staj_events::uint64_value | staj_events::key_flag`.
+    ```cpp
+    cbor::cbor_bytes_cursor cursor{data};
+    while (!cursor.done())
+    {
+        switch (cursor.current().event_type())
+        {
+            case staj_events::id:
+                auto id = cursor.current().get<uint64_t>();
+                // handle unsigned integer key event
+                break;
+        }
+    }
+    ```
+  
+  - When decoding a CBOR or MessagePack array of maps that have unsigned
+  integer keys, code like
+  ```cpp
+  auto m = cbor::decode_cbor<std::vector<std::map<uint64_t, std::string>>>(data);
+  ```
+  produces the same result as 1.8.0, but no longer results in conversions
+  from integer to string and back to integer.  
+
 Release 1.8.1
 -------------
 

@@ -38,7 +38,7 @@ TEST_CASE("oss-fuzz issues")
         REQUIRE_THROWS_WITH(json::parse(is, options), Catch::Matchers::Contains(json_error_category_impl().message((int)json_errc::expected_comma_or_rbracket).c_str()));
     }
 
-    // Fuzz target: fuzz_cbo
+    // Fuzz target: fuzz_cbor
     // Issue: Abrt in __cxxabiv1::failed_throw
     // Diagnosis: Huge length field in binary data formats
     // Resolution: Read from source in chunks, to avoid bad_alloc, and fail with unexpected_eof
@@ -923,7 +923,7 @@ TEST_CASE("Fuzz target: fuzz_cbor_encoder")
         (reader.read(ec));
         //CHECK(ec.value() == (int)cbor::cbor_errc::unexpected_eof);
         std::cout << ec.message() << "\n";
-    }*/
+    }
 
     // Fuzz target: fuzz_cbor_encoder
     // Issue:  Bad-cast to jsoncons::cbor::cbor_mdarray_row_major_iterator
@@ -941,9 +941,48 @@ TEST_CASE("Fuzz target: fuzz_cbor_encoder")
         cbor::cbor_stream_reader reader(is, encoder);
 
         std::error_code ec;
-        //REQUIRE_NOTHROW
-        (reader.read(ec));
+        REQUIRE_NOTHROW(reader.read(ec));
         //CHECK(ec.value() == (int)cbor::cbor_errc::unexpected_eof);
+        std::cout << ec.message() << "\n";
+    }
+
+    // Fuzz target: fuzz_cbor_encoder
+    // Issue:  Heap-use-after-free in jsoncons::cbor::cbor_mdarray_row_major_iterator<jsoncons::stream_source<unsigned 
+    // Resolution: 
+
+    SECTION("issue 522297018")
+    {
+        std::string pathname = "clusterfuzz/input/clusterfuzz-testcase-minimized-fuzz_cbor_encoder-4834232383111168";
+
+        std::ifstream is(pathname, std::ios_base::in | std::ios_base::binary);
+        CHECK(is); //-V521
+
+        std::vector<uint8_t> buf;
+        cbor::cbor_bytes_encoder encoder(buf);
+        cbor::cbor_stream_reader reader(is, encoder);
+
+        std::error_code ec;
+        REQUIRE_NOTHROW(reader.read(ec));
+        CHECK((int)cbor::cbor_errc::unknown_type == ec.value());
+        //std::cout << ec.message() << "\n";
+    }*/
+
+
+    // Fuzz target: fuzz_cbor
+    // Issue: Timeout in fuzz_cbor
+    SECTION("issue 521614220")
+    {
+        std::string pathname = "clusterfuzz/input/clusterfuzz-testcase-minimized-fuzz_cbor-6502991770484736";
+
+        std::ifstream is(pathname, std::ios_base::in | std::ios_base::binary);
+        CHECK(is); //-V521
+
+        default_json_visitor visitor;
+
+        cbor::cbor_stream_reader reader(is, visitor);
+
+        std::error_code ec;
+        REQUIRE_NOTHROW(reader.read(ec));
         std::cout << ec.message() << "\n";
     }
 }
