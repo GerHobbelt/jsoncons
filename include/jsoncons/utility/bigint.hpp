@@ -20,6 +20,7 @@
 #include <system_error>
 #include <type_traits> // std::enable_if
 #include <vector> // std::vector
+#include <limits> // std::numeric_limits
 
 #include <jsoncons/config/compiler_support.hpp>
 #include <jsoncons/config/jsoncons_config.hpp>
@@ -207,7 +208,7 @@ public:
             : is_allocated_(true),
               is_negative_(stor.is_negative_),
               size_(stor.size_),
-              capacity_(round_up(stor.size_))
+              capacity_(stor.capacity_)
         {
             real_allocator_type alloc(a);
 
@@ -268,13 +269,17 @@ public:
         }
 
         // Find suitable new block size
-        size_type round_up(size_type i) const noexcept
+        static size_type round_up(size_type i) noexcept 
         {
-            //if (i == (std::numeric_limits<size_type>::max)())
-            //{
-            //    return i;
-            //}
-            return ((i + 1/3) / mem_unit + 1) * mem_unit;
+            std::size_t remainder = i % mem_unit;
+
+            std::size_t x = (std::numeric_limits<size_type>::max)() - (mem_unit - remainder);
+            if (i > x)
+            {
+                return (std::numeric_limits<size_type>::max)();
+            }
+
+            return i + (mem_unit - remainder);
         }
     };
 

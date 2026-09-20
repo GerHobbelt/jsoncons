@@ -3,6 +3,12 @@ master
 
 - Fixed bugs:
 
+  - Git Issue #714: json_parser does not stop calling the visitor after visit_* signals an error via std::error_code
+
+  - Git Issue #712/PR #713: quieten GCC 16 (spurious?) array-out-of-bounds warning
+
+  - Git PR #711: Fix staj_event::as_double silently returning 0 for non-numeric strings
+
   - Git Issue #709: JSONCONS_N_MEMBER_TRAITS silently swallows mandatory-field errors when nested inside an optional parent member
 
   - Git Issue #702/ PR #703: JMESPath - Merge function can't merge when receiving a json_const_ref
@@ -19,46 +25,68 @@ master
 
 - Changes:
 
-    - The types `json_pointer_arg_t` and `json_const_pointer_arg_t` and the
+    - The types `json_pointer_arg_t` and `json_const_pointer_arg_t` have been
+    renamed to `json_ptr_arg_t` and `const_json_ptr_arg_t`, and the
     constants `json_pointer_arg` and `json_const_pointer_arg` have been 
-    deprecated and will be removed in a future version. These have been
-    replaced by the types `json_ref_arg_t` and `const_json_ref_arg_t` and the
-    constants `json_ref_arg` and `const_json_ref_arg`.
-    
-    - The basic_json constructors
-
-        `basic_json(json_const_pointer_arg_t, const basic_json* ptr) noexcept;` 
-
-        `basic_json(json_pointer_arg_t, basic_json* ptr) noexcept;` 
-    
-    have been deprecated and will be removed in a future version. These
-    have been replaced by    
-    
-        `basic_json(const_json_ref_arg_t, const basic_json& ref) noexcept;`
-
-        `basic_json(json_ref_arg_t, basic_json& ref) noexcept;`
+    renamed to `json_ptr_arg` and `const_json_ptr_arg`. The old names have been
+    deprecated and will be removed in a future version. For now they are
+    aliased to the new names. 
 
     - Since 1.8.0, the `basic_json` copy constructor makes a deep copy of any `const_json_ref`
     and `json_ref` pointers it may hold. Until 1.8.0, it made a shallow copy. With
     this change, the `basic_json::deep_copy()` function is no longer needed, and has been
     deprecated.
 
+    - The (undocumented but sometimes useful) class `basic_json_diagnostics_visitor` has
+    been renamed to `basic_trace_json_visitor`, and its header `diagnostics_visitor.hpp`
+    to `trace_json_visitor.hpp`. Rationale: naming consistency.
+
+    - Until 1.8.0, when using the cursor api, it was necessary to supply a custom visitor 
+      to read a CBOR typed array, like this,  
+      ```
+          struct my_cbor_visitor : public default_json_visitor
+          {
+              std::vector<double> v;
+          private:
+              bool visit_typed_array(const span<const double>& data,  
+                  semantic_tag, const ser_context&, std::error_code&) override
+              {
+                  v = std::vector<double>(data.begin(),data.end());
+                  return true;
+              }
+          };
+
+          my_cbor_visitor visitor;
+          cursor.read_to(visitor);
+      ```
+      Since 1.8.0, this will not work, `read_to(visitor)` will not result in a call to `visit_typed_array`.
+      Instead, you can simply write,
+      ```
+          std::vector<double> v;
+          cursor.read_typed_array(v);
+      ```
+
 Enhancements:
 
-  - The following functions have been added to `basic_staj_cursor` to support
-  multi-dimensional array input:
+  - The following virtual functions have been added to `basic_staj_cursor`,
+  with specializations provided by `basic_cbor_cursor`,  to support multi-dimensional array input:
 
         virtual bool is_mult_dim() const;
         virtual jsoncons::span<const std::size_t> extents() const;
         virtual mdarray_order order() const;
 
-  - The following functions have been added to `basic_staj_cursor` to support
+  - The following virtual functions have been added to `basic_staj_cursor`,
+  with specializations provided by `basic_cbor_cursor`, to support
   typed array input:
 
         virtual bool is_typed_array() const;
         virtual typed_array_tags array_tag() const; 
         virtual jsoncons::span<uint8_t> array_buffer(); 
         virtual void to_end_array(); 
+
+  - The following function has been added to `basic_staj_cursor` to support
+  typed array input:
+
         template <typename T>
         void read_typed_array(T& v);
 
@@ -170,7 +198,7 @@ Release 1.7.0
       argument have been deprecated and will be removed in a future release. Use the 
       `allow_trailing_comma` and `allow_comments` options instead.
 
-    - The functors `strict_json_parsing` and `allow_trailing_commas` have been deprecated and 
+    - The functors `strict_json_parsing` and `allow_trailing_commas` have been renamed and 
       will be removed in a future release. Use the `allow_trailing_comma` and `allow_comments` 
       options instead.
 

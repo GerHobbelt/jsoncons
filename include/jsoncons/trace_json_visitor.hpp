@@ -4,8 +4,8 @@
 
 // See https://github.com/danielaparker/jsoncons for latest version
 
-#ifndef JSONCONS_DIAGNOSTICS_VISITOR_HPP
-#define JSONCONS_DIAGNOSTICS_VISITOR_HPP
+#ifndef JSONCONS_DIAGNOSTICS_JSON_VISITOR_HPP
+#define JSONCONS_DIAGNOSTICS_JSON_VISITOR_HPP
 
 #include <cstddef>
 #include <cstdint>
@@ -21,7 +21,7 @@
 namespace jsoncons {
 
     template <typename CharT>
-    class basic_json_diagnostics_visitor : public basic_default_json_visitor<CharT>
+    class basic_trace_json_visitor : public basic_default_json_visitor<CharT>
     {
     public:
         using stream_type = std::basic_ostream<CharT>;
@@ -57,22 +57,22 @@ namespace jsoncons {
         // If CharT is char, then enable the default constructor which binds to
         // std::cout.
         template <typename U = enabler>
-        basic_json_diagnostics_visitor(
+        basic_trace_json_visitor(
             typename std::enable_if<std::is_same<CharT, char>::value, U>::type = enabler{})
-            : basic_json_diagnostics_visitor(std::cout)
+            : basic_trace_json_visitor(std::cout)
         {
         }
 
         // If CharT is wchar_t, then enable the default constructor which binds
         // to std::wcout.
         template <typename U = enabler>
-        basic_json_diagnostics_visitor(
+        basic_trace_json_visitor(
             typename std::enable_if<std::is_same<CharT, wchar_t>::value, U>::type = enabler{})
-            : basic_json_diagnostics_visitor(std::wcout)
+            : basic_trace_json_visitor(std::wcout)
         {
         }
 
-        explicit basic_json_diagnostics_visitor(
+        explicit basic_trace_json_visitor(
             stream_type& output,
             string_type indentation = string_type())
             : output_(output),
@@ -87,111 +87,126 @@ namespace jsoncons {
                 output_ << indentation_;
         }
 
-        JSONCONS_VISITOR_RETURN_TYPE visit_begin_object(semantic_tag, const ser_context&, std::error_code&) override
+        JSONCONS_VISITOR_RET_TYP visit_begin_object(semantic_tag, const ser_context&, std::error_code&) override
         {
             indent();
             output_ << visit_begin_object_name << '\n';
             ++level_;
-            JSONCONS_VISITOR_RETURN;
+            JSONCONS_VISITOR_RET_VAL
         }
 
-        JSONCONS_VISITOR_RETURN_TYPE visit_begin_object(std::size_t length, semantic_tag, const ser_context&, std::error_code&) override
+        JSONCONS_VISITOR_RET_TYP visit_begin_object(std::size_t length, semantic_tag, const ser_context&, std::error_code&) override
         {
             indent();
             output_ << visit_begin_object_name << separator_ << length << '\n';
             ++level_;
-            JSONCONS_VISITOR_RETURN;
+            JSONCONS_VISITOR_RET_VAL
         }
 
-        JSONCONS_VISITOR_RETURN_TYPE visit_end_object(const ser_context&, std::error_code&) override
+        JSONCONS_VISITOR_RET_TYP visit_end_object(const ser_context&, std::error_code&) override
         {
             --level_;
             indent();
             output_ << visit_end_object_name << '\n';
-            JSONCONS_VISITOR_RETURN;
+            JSONCONS_VISITOR_RET_VAL
         }
 
-        JSONCONS_VISITOR_RETURN_TYPE visit_begin_array(semantic_tag, const ser_context&, std::error_code&) override
+        JSONCONS_VISITOR_RET_TYP visit_begin_array(semantic_tag, const ser_context&, std::error_code&) override
         {
             indent();
             output_ << visit_begin_array_name << '\n';
             ++level_;
-            JSONCONS_VISITOR_RETURN;
+            JSONCONS_VISITOR_RET_VAL
         }
 
-        JSONCONS_VISITOR_RETURN_TYPE visit_begin_array(std::size_t length, semantic_tag, const ser_context&, std::error_code&) override
+        JSONCONS_VISITOR_RET_TYP visit_begin_array(std::size_t length, semantic_tag, const ser_context&, std::error_code&) override
         {
             indent();
             output_ << visit_begin_array_name << separator_  << length << '\n';
             ++level_;
-            JSONCONS_VISITOR_RETURN;
+            JSONCONS_VISITOR_RET_VAL
         }
 
-        JSONCONS_VISITOR_RETURN_TYPE visit_end_array(const ser_context&, std::error_code&) override
+        JSONCONS_VISITOR_RET_TYP visit_end_array(const ser_context&, std::error_code&) override
         {
             --level_;
             indent();
             output_ << visit_end_array_name << '\n';
-            JSONCONS_VISITOR_RETURN;
+            JSONCONS_VISITOR_RET_VAL
         }
 
-        JSONCONS_VISITOR_RETURN_TYPE visit_key(const string_view_type& s, const ser_context&, std::error_code&) override
+        JSONCONS_VISITOR_RET_TYP visit_key(const string_view_type& s, const ser_context&, std::error_code&) override
         {
             indent();
             output_ << visit_key_name << separator_  << s << '\n';
-            JSONCONS_VISITOR_RETURN;
+            JSONCONS_VISITOR_RET_VAL
         }
-        JSONCONS_VISITOR_RETURN_TYPE visit_string(const string_view_type& s, semantic_tag, const ser_context&, std::error_code&) override
+        JSONCONS_VISITOR_RET_TYP visit_string(const string_view_type& s, semantic_tag, const ser_context&, std::error_code&) override
         {
             indent();
             output_ << visit_string_name << separator_  << s << '\n';
-            JSONCONS_VISITOR_RETURN;
+            JSONCONS_VISITOR_RET_VAL
         }
-        JSONCONS_VISITOR_RETURN_TYPE visit_int64(int64_t val, semantic_tag, const ser_context&, std::error_code&) override
+        JSONCONS_VISITOR_RET_TYP visit_int64(int64_t val, semantic_tag, const ser_context&, std::error_code&) override
         {
             indent();
             output_ << visit_int64_name << separator_  << val << '\n';
-            JSONCONS_VISITOR_RETURN;
+            JSONCONS_VISITOR_RET_VAL
         }
-        JSONCONS_VISITOR_RETURN_TYPE visit_uint64(uint64_t val, semantic_tag, const ser_context&, std::error_code&) override
+        JSONCONS_VISITOR_RET_TYP visit_uint64(uint64_t val, semantic_tag, const ser_context&, std::error_code&) override
         {
             indent();
             output_ << visit_uint64_name << separator_ << val << '\n';
-            JSONCONS_VISITOR_RETURN;
+            JSONCONS_VISITOR_RET_VAL
         }
-        JSONCONS_VISITOR_RETURN_TYPE visit_bool(bool val, semantic_tag, const ser_context&, std::error_code&) override
+        JSONCONS_VISITOR_RET_TYP visit_double(double val, semantic_tag, const ser_context&, std::error_code&) override
+        {
+            indent();
+            output_ << visit_double_name << separator_ << val << '\n';
+            JSONCONS_VISITOR_RET_VAL
+        }
+        JSONCONS_VISITOR_RET_TYP visit_bool(bool val, semantic_tag, const ser_context&, std::error_code&) override
         {
             indent();
             output_ << visit_bool_name << separator_ << val << '\n';
-            JSONCONS_VISITOR_RETURN;
+            JSONCONS_VISITOR_RET_VAL
         }
-        JSONCONS_VISITOR_RETURN_TYPE visit_null(semantic_tag, const ser_context&, std::error_code&) override
+        JSONCONS_VISITOR_RET_TYP visit_null(semantic_tag, const ser_context&, std::error_code&) override
         {
             indent();
             output_ << visit_null_name << '\n';
-            JSONCONS_VISITOR_RETURN;
+            JSONCONS_VISITOR_RET_VAL
         }
     };
 #if __cplusplus >= 201703L
 // not needed for C++17
 #else
-    template <typename C> constexpr C basic_json_diagnostics_visitor<C>::visit_begin_array_name[];
-    template <typename C> constexpr C basic_json_diagnostics_visitor<C>::visit_end_array_name[];
-    template <typename C> constexpr C basic_json_diagnostics_visitor<C>::visit_begin_object_name[];
-    template <typename C> constexpr C basic_json_diagnostics_visitor<C>::visit_end_object_name[];
-    template <typename C> constexpr C basic_json_diagnostics_visitor<C>::visit_key_name[];
-    template <typename C> constexpr C basic_json_diagnostics_visitor<C>::visit_string_name[];
-    template <typename C> constexpr C basic_json_diagnostics_visitor<C>::visit_byte_string_name[];
-    template <typename C> constexpr C basic_json_diagnostics_visitor<C>::visit_null_name[];
-    template <typename C> constexpr C basic_json_diagnostics_visitor<C>::visit_bool_name[];
-    template <typename C> constexpr C basic_json_diagnostics_visitor<C>::visit_uint64_name[];
-    template <typename C> constexpr C basic_json_diagnostics_visitor<C>::visit_int64_name[];
-    template <typename C> constexpr C basic_json_diagnostics_visitor<C>::visit_half_name[];
-    template <typename C> constexpr C basic_json_diagnostics_visitor<C>::visit_double_name[];
+    template <typename C> constexpr C basic_trace_json_visitor<C>::visit_begin_array_name[];
+    template <typename C> constexpr C basic_trace_json_visitor<C>::visit_end_array_name[];
+    template <typename C> constexpr C basic_trace_json_visitor<C>::visit_begin_object_name[];
+    template <typename C> constexpr C basic_trace_json_visitor<C>::visit_end_object_name[];
+    template <typename C> constexpr C basic_trace_json_visitor<C>::visit_key_name[];
+    template <typename C> constexpr C basic_trace_json_visitor<C>::visit_string_name[];
+    template <typename C> constexpr C basic_trace_json_visitor<C>::visit_byte_string_name[];
+    template <typename C> constexpr C basic_trace_json_visitor<C>::visit_null_name[];
+    template <typename C> constexpr C basic_trace_json_visitor<C>::visit_bool_name[];
+    template <typename C> constexpr C basic_trace_json_visitor<C>::visit_uint64_name[];
+    template <typename C> constexpr C basic_trace_json_visitor<C>::visit_int64_name[];
+    template <typename C> constexpr C basic_trace_json_visitor<C>::visit_half_name[];
+    template <typename C> constexpr C basic_trace_json_visitor<C>::visit_double_name[];
 #endif // C++17 check
 
-    using json_diagnostics_visitor = basic_json_diagnostics_visitor<char>;
-    using wjson_diagnostics_visitor = basic_json_diagnostics_visitor<wchar_t>;
+    using trace_json_visitor = basic_trace_json_visitor<char>;
+    using wtrace_json_visitor = basic_trace_json_visitor<wchar_t>;
+
+#if !defined(JSONCONS_NO_DEPRECATED)
+
+    template <typename CharT>
+    using basic_json_diagnostics_visitor = basic_trace_json_visitor<CharT>;
+    using json_diagnostics_visitor = trace_json_visitor;
+    using json_wdiagnostics_visitor = basic_trace_json_visitor<wchar_t>;
+
+#endif
 
 } // namespace jsoncons
 

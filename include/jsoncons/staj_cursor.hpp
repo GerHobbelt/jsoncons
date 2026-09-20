@@ -14,6 +14,7 @@
 #include <ios>
 #include <memory> // std::allocator
 #include <system_error>
+#include <type_traits>
 
 #include <jsoncons/config/jsoncons_config.hpp>
 #include <jsoncons/allocator_set.hpp>
@@ -27,6 +28,7 @@
 #include <jsoncons/typed_array.hpp>
 #include <jsoncons/utility/bigint.hpp>
 #include <jsoncons/utility/write_number.hpp>
+#include <jsoncons/utility/more_type_traits.hpp>
 #include <jsoncons/utility/conversion.hpp>
 
 namespace jsoncons {
@@ -114,121 +116,121 @@ private:
         return true;
     }
 
-    JSONCONS_VISITOR_RETURN_TYPE visit_begin_object(semantic_tag tag, const ser_context&, std::error_code&) override
+    JSONCONS_VISITOR_RET_TYP visit_begin_object(semantic_tag tag, const ser_context&, std::error_code&) override
     {
         event_ = basic_staj_event<CharT>(staj_events::begin_object, tag);
-        JSONCONS_VISITOR_RETURN;
+        JSONCONS_VISITOR_RET_VAL
     }
 
-    JSONCONS_VISITOR_RETURN_TYPE visit_begin_object(std::size_t length, semantic_tag tag, const ser_context&, std::error_code&) override
+    JSONCONS_VISITOR_RET_TYP visit_begin_object(std::size_t length, semantic_tag tag, const ser_context&, std::error_code&) override
     {
         event_ = basic_staj_event<CharT>(staj_events::begin_object, length, tag);
-        JSONCONS_VISITOR_RETURN;
+        JSONCONS_VISITOR_RET_VAL
     }
 
-    JSONCONS_VISITOR_RETURN_TYPE visit_end_object(const ser_context&, std::error_code&) override
+    JSONCONS_VISITOR_RET_TYP visit_end_object(const ser_context&, std::error_code&) override
     {
         event_ = basic_staj_event<CharT>(staj_events::end_object);
-        JSONCONS_VISITOR_RETURN;
+        JSONCONS_VISITOR_RET_VAL
     }
 
-    JSONCONS_VISITOR_RETURN_TYPE visit_begin_array(semantic_tag tag, const ser_context&, std::error_code&) override
+    JSONCONS_VISITOR_RET_TYP visit_begin_array(semantic_tag tag, const ser_context&, std::error_code&) override
     {
         event_ = basic_staj_event<CharT>(staj_events::begin_array, tag);
-        JSONCONS_VISITOR_RETURN;
+        JSONCONS_VISITOR_RET_VAL
     }
 
-    JSONCONS_VISITOR_RETURN_TYPE visit_begin_array(std::size_t length, semantic_tag tag, const ser_context&, std::error_code&) override
+    JSONCONS_VISITOR_RET_TYP visit_begin_array(std::size_t length, semantic_tag tag, const ser_context&, std::error_code&) override
     {
         event_ = basic_staj_event<CharT>(staj_events::begin_array, length, tag);
-        JSONCONS_VISITOR_RETURN;
+        JSONCONS_VISITOR_RET_VAL
     }
 
-    JSONCONS_VISITOR_RETURN_TYPE visit_end_array(const ser_context&, std::error_code&) override
+    JSONCONS_VISITOR_RET_TYP visit_end_array(const ser_context&, std::error_code&) override
     {
         event_ = basic_staj_event<CharT>(staj_events::end_array);
-        JSONCONS_VISITOR_RETURN;
+        JSONCONS_VISITOR_RET_VAL
     }
 
-    JSONCONS_VISITOR_RETURN_TYPE visit_key(const string_view_type& name, const ser_context&, std::error_code&) override
+    JSONCONS_VISITOR_RET_TYP visit_key(const string_view_type& name, const ser_context&, std::error_code&) override
     {
         event_ = basic_staj_event<CharT>(name, staj_events::key);
-        JSONCONS_VISITOR_RETURN;
+        JSONCONS_VISITOR_RET_VAL
     }
 
-    JSONCONS_VISITOR_RETURN_TYPE visit_null(semantic_tag tag, const ser_context&, std::error_code&) override
+    JSONCONS_VISITOR_RET_TYP visit_null(semantic_tag tag, const ser_context&, std::error_code&) override
     {
         event_ = basic_staj_event<CharT>(staj_events::null_value, tag);
-        JSONCONS_VISITOR_RETURN;
+        JSONCONS_VISITOR_RET_VAL
     }
 
-    JSONCONS_VISITOR_RETURN_TYPE visit_bool(bool value, semantic_tag tag, const ser_context&, std::error_code&) override
+    JSONCONS_VISITOR_RET_TYP visit_bool(bool value, semantic_tag tag, const ser_context&, std::error_code&) override
     {
         event_ = basic_staj_event<CharT>(value, tag);
-        JSONCONS_VISITOR_RETURN;
+        JSONCONS_VISITOR_RET_VAL
     }
 
-    JSONCONS_VISITOR_RETURN_TYPE visit_string(const string_view_type& s, semantic_tag tag, const ser_context&, std::error_code&) override
+    JSONCONS_VISITOR_RET_TYP visit_string(const string_view_type& s, semantic_tag tag, const ser_context&, std::error_code&) override
     {
         event_ = basic_staj_event<CharT>(s, staj_events::string_value, tag);
-        JSONCONS_VISITOR_RETURN;
+        JSONCONS_VISITOR_RET_VAL
     }
 
-    JSONCONS_VISITOR_RETURN_TYPE visit_byte_string(const byte_string_view& s, 
+    JSONCONS_VISITOR_RET_TYP visit_byte_string(const byte_string_view& s, 
         semantic_tag tag,
         const ser_context&,
         std::error_code&) override
     {
         event_ = basic_staj_event<CharT>(s, staj_events::byte_string_value, tag);
-        JSONCONS_VISITOR_RETURN;
+        JSONCONS_VISITOR_RET_VAL
     }
 
-    JSONCONS_VISITOR_RETURN_TYPE visit_byte_string(const byte_string_view& s, 
+    JSONCONS_VISITOR_RET_TYP visit_byte_string(const byte_string_view& s, 
         uint64_t ext_tag,
         const ser_context&,
         std::error_code&) override
     {
         event_ = basic_staj_event<CharT>(s, staj_events::byte_string_value, ext_tag);
-        JSONCONS_VISITOR_RETURN;
+        JSONCONS_VISITOR_RET_VAL
     }
 
-    JSONCONS_VISITOR_RETURN_TYPE visit_uint64(uint64_t value, 
+    JSONCONS_VISITOR_RET_TYP visit_uint64(uint64_t value, 
         semantic_tag tag, 
         const ser_context&,
         std::error_code&) override
     {
         event_ = basic_staj_event<CharT>(value, tag);
-        JSONCONS_VISITOR_RETURN;
+        JSONCONS_VISITOR_RET_VAL
     }
 
-    JSONCONS_VISITOR_RETURN_TYPE visit_int64(int64_t value, 
+    JSONCONS_VISITOR_RET_TYP visit_int64(int64_t value, 
         semantic_tag tag,
         const ser_context&,
         std::error_code&) override
     {
         event_ = basic_staj_event<CharT>(value, tag);
-        JSONCONS_VISITOR_RETURN;
+        JSONCONS_VISITOR_RET_VAL
     }
 
-    JSONCONS_VISITOR_RETURN_TYPE visit_half(uint16_t value, 
+    JSONCONS_VISITOR_RET_TYP visit_half(uint16_t value, 
         semantic_tag tag,
         const ser_context&,
         std::error_code&) override
     {
         event_ = basic_staj_event<CharT>(half_arg, value, tag);
-        JSONCONS_VISITOR_RETURN;
+        JSONCONS_VISITOR_RET_VAL
     }
 
-    JSONCONS_VISITOR_RETURN_TYPE visit_double(double value, 
+    JSONCONS_VISITOR_RET_TYP visit_double(double value, 
         semantic_tag tag, 
         const ser_context&,
         std::error_code&) override
     {
         event_ = basic_staj_event<CharT>(value, tag);
-        JSONCONS_VISITOR_RETURN;
+        JSONCONS_VISITOR_RET_VAL
     }
 
-    JSONCONS_VISITOR_RETURN_TYPE visit_begin_multi_dim(const jsoncons::span<const size_t>& shape,
+    JSONCONS_VISITOR_RET_TYP visit_begin_multi_dim(const jsoncons::span<const size_t>& shape,
         semantic_tag tag,
         const ser_context& context, 
         std::error_code& ec) override
@@ -236,14 +238,14 @@ private:
         state_ = staj_cursor_state::multi_dim;
         shape_ = shape;
         this->begin_array(2, tag, context, ec);
-        JSONCONS_VISITOR_RETURN;
+        JSONCONS_VISITOR_RET_VAL
     }
 
-    JSONCONS_VISITOR_RETURN_TYPE visit_end_multi_dim(const ser_context& context,
+    JSONCONS_VISITOR_RET_TYP visit_end_multi_dim(const ser_context& context,
         std::error_code& ec) override
     {
         this->end_array(context, ec);
-        JSONCONS_VISITOR_RETURN;
+        JSONCONS_VISITOR_RET_VAL
     }
 
     void visit_flush() override
@@ -330,102 +332,209 @@ public:
         {
             switch (array_tag())
             {
-                case typed_array_tags::uint8:
-                {
-                    auto ta = typed_array_cast<const uint8_t>(array_buffer());
-                    for (auto item : ta)
-                    {
-                        v.push_back(static_cast<value_type>(item));
-                    }
-                    break;
-                }
-                case typed_array_tags::uint16:
-                {
-                    auto ta = typed_array_cast<const uint16_t>(array_buffer());
-                    for (auto item : ta)
-                    {
-                        v.push_back(static_cast<value_type>(item));
-                    }
-                    break;
-                }
-                case typed_array_tags::uint32:
-                {
-                    auto ta = typed_array_cast<const uint32_t>(array_buffer());
-                    for (auto item : ta)
-                    {
-                        v.push_back(static_cast<value_type>(item));
-                    }
-                    break;
-                }
-                case typed_array_tags::uint64:
-                {
-                    auto ta = typed_array_cast<const uint64_t>(array_buffer());
-                    for (auto item : ta)
-                    {
-                        v.push_back(static_cast<value_type>(item));
-                    }
-                    break;
-                }
                 case typed_array_tags::int8:
                 {
                     auto ta = typed_array_cast<const int8_t>(array_buffer());
-                    for (auto item : ta)
+                    if (std::is_same<value_type, int8_t>::value)
                     {
-                        v.push_back(static_cast<value_type>(item));
+                        v.resize(ta.size());
+                        std::memcpy(v.data(), ta.data(), ta.size()*sizeof(value_type));
+                    }
+                    else
+                    {
+                        v.reserve(ta.size());
+                        for (auto item : ta)
+                        {
+                            v.push_back(static_cast<value_type>(item));
+                        }
                     }
                     break;
                 }
                 case typed_array_tags::int16:
                 {
                     auto ta = typed_array_cast<const int16_t>(array_buffer());
-                    for (auto item : ta)
+                    if (std::is_same<value_type, int16_t>::value)
                     {
-                        v.push_back(static_cast<value_type>(item));
+                        v.resize(ta.size());
+                        std::memcpy(v.data(), ta.data(), ta.size()*sizeof(value_type));
+                    }
+                    else
+                    {
+                        v.reserve(ta.size());
+                        for (auto item : ta)
+                        {
+                            v.push_back(static_cast<value_type>(item));
+                        }
                     }
                     break;
                 }
                 case typed_array_tags::int32:
                 {
                     auto ta = typed_array_cast<const int32_t>(array_buffer());
-                    for (auto item : ta)
+                    if (std::is_same<value_type, int32_t>::value)
                     {
-                        v.push_back(static_cast<value_type>(item));
+                        v.resize(ta.size());
+                        std::memcpy(v.data(), ta.data(), ta.size()*sizeof(value_type));
+                    }
+                    else
+                    {
+                        v.reserve(ta.size());
+                        for (auto item : ta)
+                        {
+                            v.push_back(static_cast<value_type>(item));
+                        }
                     }
                     break;
                 }
                 case typed_array_tags::int64:
                 {
                     auto ta = typed_array_cast<const int64_t>(array_buffer());
-                    for (auto item : ta)
+                    if (std::is_same<value_type, int64_t>::value)
                     {
-                        v.push_back(static_cast<value_type>(item));
+                        v.resize(ta.size());
+                        std::memcpy(v.data(), ta.data(), ta.size()*sizeof(value_type));
+                    }
+                    else
+                    {
+                        v.reserve(ta.size());
+                        for (auto item : ta)
+                        {
+                            v.push_back(static_cast<value_type>(item));
+                        }
+                    }
+                    break;
+                }
+                case typed_array_tags::uint8:
+                {
+                    auto ta = typed_array_cast<const uint8_t>(array_buffer());
+                    if (std::is_same<value_type, uint8_t>::value)
+                    {
+                        v.resize(ta.size());
+                        std::memcpy(v.data(), ta.data(), ta.size()*sizeof(value_type));
+                    }
+                    else
+                    {
+                        v.reserve(ta.size());
+                        for (auto item : ta)
+                        {
+                            v.push_back(static_cast<value_type>(item));
+                        }
+                    }
+                    break;
+                }
+                case typed_array_tags::uint16:
+                {
+                    auto ta = typed_array_cast<const uint16_t>(array_buffer());
+                    if (std::is_same<value_type, uint16_t>::value)
+                    {
+                        v.resize(ta.size());
+                        std::memcpy(v.data(), ta.data(), ta.size()*sizeof(value_type));
+                    }
+                    else
+                    {
+                        v.reserve(ta.size());
+                        for (auto item : ta)
+                        {
+                            v.push_back(static_cast<value_type>(item));
+                        }
+                    }
+                    break;
+                }
+                case typed_array_tags::uint32:
+                {
+                    auto ta = typed_array_cast<const uint32_t>(array_buffer());
+                    if (std::is_same<value_type, uint32_t>::value)
+                    {
+                        v.resize(ta.size());
+                        std::memcpy(v.data(), ta.data(), ta.size()*sizeof(value_type));
+                    }
+                    else
+                    {
+                        v.reserve(ta.size());
+                        for (auto item : ta)
+                        {
+                            v.push_back(static_cast<value_type>(item));
+                        }
+                    }
+                    break;
+                }
+                case typed_array_tags::uint64:
+                {
+                    auto ta = typed_array_cast<const uint64_t>(array_buffer());
+                    if (std::is_same<value_type, uint64_t>::value)
+                    {
+                        v.resize(ta.size());
+                        std::memcpy(v.data(), ta.data(), ta.size()*sizeof(value_type));
+                    }
+                    else
+                    {
+                        v.reserve(ta.size());
+                        for (auto item : ta)
+                        {
+                            v.push_back(static_cast<value_type>(item));
+                        }
                     }
                     break;
                 }
                 case typed_array_tags::half_float:
                 {
                     auto ta = typed_array_cast<const int16_t>(array_buffer());
-                    for (auto item : ta)
+                    if (std::is_same<value_type, int16_t>::value)
                     {
-                        v.push_back(static_cast<value_type>(item));
+                        v.resize(ta.size());
+                        std::memcpy(v.data(), ta.data(), ta.size()*sizeof(value_type));
+                    }
+                    else if (std::is_floating_point<value_type>::value)
+                    {
+                        v.reserve(ta.size());
+                        for (auto item : ta)
+                        {
+                            v.push_back(static_cast<value_type>(binary::decode_half(item)));
+                        }
+                    }
+                    else
+                    {
+                        v.reserve(ta.size());
+                        for (auto item : ta)
+                        {
+                            v.push_back(static_cast<value_type>(item));
+                        }
                     }
                     break;
                 }
                 case typed_array_tags::float32:
                 {
                     auto ta = typed_array_cast<const float>(array_buffer());
-                    for (auto item : ta)
+                    if (std::is_same<value_type, float>::value)
                     {
-                        v.push_back(static_cast<value_type>(item));
+                        v.resize(ta.size());
+                        std::memcpy(v.data(), ta.data(), ta.size()*sizeof(value_type));
+                    }
+                    else
+                    {
+                        v.reserve(ta.size());
+                        for (auto item : ta)
+                        {
+                            v.push_back(static_cast<value_type>(item));
+                        }
                     }
                     break;
                 }
                 case typed_array_tags::float64 :
                 {
                     auto ta = typed_array_cast<const double>(array_buffer());
-                    for (auto item : ta)
+                    if (std::is_same<value_type, double>::value)
                     {
-                        v.push_back(static_cast<value_type>(item));
+                        v.resize(ta.size());
+                        std::memcpy(v.data(), ta.data(), ta.size()*sizeof(value_type));
+                    }
+                    else
+                    {
+                        v.reserve(ta.size());
+                        for (auto item : ta)
+                        {
+                            v.push_back(static_cast<value_type>(item));
+                        }
                     }
                     break;
                 }

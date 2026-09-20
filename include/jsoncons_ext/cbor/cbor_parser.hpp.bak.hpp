@@ -39,23 +39,11 @@ enum class parse_mode {root,accept,array,typed_array,indefinite_array,map_key,ma
 template <typename Source,typename Allocator>
 class basic_cbor_parser;
 
-class cbor_mdarray_iterator
+template <typename Source, typename Allocator>
+class mdarray_row_major_reader 
 {
 public:
-    virtual ~cbor_mdarray_iterator() = default;
-
-    virtual std::size_t count() const = 0;
-
-    virtual bool done() const = 0;
-
-    virtual void next(item_event_visitor& visitor, const ser_context& context, 
-        std::error_code& ec) = 0;
-
-};
-
-template <typename Source, typename Allocator>
-class cbor_mdarray_row_major_iterator : public cbor_mdarray_iterator
-{
+    using json_visitor_type = item_event_visitor;
 private:
 
     std::vector<mdarray_dimension> dimensions_;
@@ -65,12 +53,15 @@ private:
     bool done_{false};
     std::size_t count_{0};
     basic_cbor_parser<Source,Allocator>* parser_;
-    bool cursor_mode_;
 public:
-    cbor_mdarray_row_major_iterator(jsoncons::span<const std::size_t> extents,
-        basic_cbor_parser<Source,Allocator>* parser, bool cursor_mode)
+    mdarray_row_major_reader()
+        : done_(true), parser_(nullptr)
+    {
+    }
+    mdarray_row_major_reader(jsoncons::span<const std::size_t> extents,
+        basic_cbor_parser<Source,Allocator>* parser)
         : dimensions_(extents.size(), mdarray_dimension{}),
-          parser_(parser), cursor_mode_(cursor_mode)
+          parser_(parser)
     {
         std::vector<std::size_t> strides(extents.size(), 0);
         std::size_t stride = 1;
@@ -89,18 +80,18 @@ public:
         }
     }
 
-    bool done() const final
+    bool done() const 
     {
         return done_;
     }
 
-    std::size_t count() const final 
+    std::size_t count() const
     {
         return count_;
     }
 
-    void next(item_event_visitor& visitor, const ser_context& context, 
-        std::error_code& ec) final
+    void next(json_visitor_type& visitor, const ser_context& context, 
+        std::error_code& ec) 
     {
         JSONCONS_ASSERT(!dimensions_.empty());
 
@@ -121,14 +112,7 @@ public:
         }
         if (dim_+1 < dimensions_.size() && dimensions_[dim_].index < dimensions_[dim_].end)
         {
-            if (!cursor_mode_)
-            {
-                visitor.begin_array(dimensions_[dim_].extent, semantic_tag::none, context, ec);
-                if (JSONCONS_UNLIKELY(ec))
-                {
-                    return;
-                }
-            }
+            visitor.begin_array(dimensions_[dim_].extent, semantic_tag::none, context, ec);
             ++dim_;
             return;
         }
@@ -141,133 +125,7 @@ public:
         }
         if (dimensions_[dim_].index + dimensions_[dim_].stride >= dimensions_[dim_].end)
         {
-            if (!cursor_mode_)
-            {
-                visitor.end_array(context, ec);
-                if (JSONCONS_UNLIKELY(ec))
-                {
-                    return;
-                }
-            }
-            if (JSONCONS_UNLIKELY(ec))
-            {
-                return;
-            }
-            if (dim_ > 0)
-            {
-                --dim_;
-                dimensions_[dim_].index += dimensions_[dim_].stride;
-                if (dimensions_[dim_].index < dimensions_[dim_].end)
-                {
-                    for (std::size_t i = dim_+1; i < dimensions_.size(); ++i)
-                    {
-                        dimensions_[i].index = dimensions_[i-1].index;
-                        dimensions_[i].end = dimensions_[i].index + dimensions_[i].stride*dimensions_[i].extent;
-                    }
-                }
-            }
-        }
-    }
-};
-
-template <typename Source, typename Allocator>
-class cbor_mdarray_column_major_iterator  : public cbor_mdarray_iterator
-{
-private:
-
-    std::vector<mdarray_dimension> dimensions_;
-    semantic_tag tag_{};
-    std::size_t dim_{0};
-    bool first_{true};
-    bool done_{false};
-    std::size_t count_{0};
-    basic_cbor_parser<Source,Allocator>* parser_;
-    bool cursor_mode_;
-public:
-    cbor_mdarray_column_major_iterator(jsoncons::span<const std::size_t> extents,
-        basic_cbor_parser<Source,Allocator>* parser, bool cursor_mode)
-        : dimensions_(extents.size(), mdarray_dimension{}),
-          parser_(parser), cursor_mode_(cursor_mode)
-    {
-        std::vector<std::size_t> strides(extents.size(), 0);
-        std::size_t stride = 1;
-        const size_t num_extents = extents.size();
-        for (size_t i = 0; i < num_extents; ++i)
-        {
-            strides[num_extents - i - 1] = stride;
-            stride *= extents[num_extents - i - 1];
-        }
-        for (std::size_t i = 0; i < strides.size(); ++i)
-        {
-            dimensions_[i].extent = extents[i];
-            dimensions_[i].stride = strides[i];
-            dimensions_[i].index = 0;
-            dimensions_[i].end = strides[i] * extents[i];
-        }
-    }
-
-    bool done() const final
-    {
-        return done_;
-    }
-
-    std::size_t count() const final
-    {
-        return count_;
-    }
-
-    void next(item_event_visitor& visitor, const ser_context& context, 
-        std::error_code& ec) final 
-    {
-        JSONCONS_ASSERT(!dimensions_.empty());
-
-        if (dim_ == 0)
-        {
-            if (first_)
-            {
-                if (!cursor_mode_)
-                {
-                    visitor.begin_array(dimensions_[dim_].extent, semantic_tag::multi_dim_column_major, context, ec);
-                    visitor.begin_array(dimensions_[dim_].extent, semantic_tag::none, context, ec);
-                    for (auto item : dimensions_)
-                    {
-                        visitor.uint64_value(item.extent, semantic_tag::none, context, ec);
-                    }
-                    visitor.end_array(context, ec);
-                }
-                visitor.begin_array(dimensions_[dim_].extent, tag_, context, ec);
-                if (JSONCONS_UNLIKELY(ec))
-                {
-                    return;
-                }
-                first_ = false;
-                return;
-            }
-            if (dimensions_[dim_].index == dimensions_[dim_].end)
-            {
-                visitor.end_array(context, ec);
-                if (!cursor_mode_)
-                {
-                    visitor.end_array(context, ec);
-                }
-                done_ = true;
-                return;
-            }
-        }
-        if (dim_+1 < dimensions_.size() && dimensions_[dim_].index < dimensions_[dim_].end)
-        {
-            ++dim_;
-            return;
-        }
-        if (dimensions_[dim_].index < dimensions_[dim_].end)
-        {
-            parser_->read_item(visitor, ec);
-            dimensions_[dim_].index += dimensions_[dim_].stride;
-            ++count_;
-            return;
-        }
-        if (dimensions_[dim_].index + dimensions_[dim_].stride >= dimensions_[dim_].end)
-        {
+            visitor.end_array(context, ec);
             if (JSONCONS_UNLIKELY(ec))
             {
                 return;
@@ -402,7 +260,7 @@ class basic_cbor_parser : public ser_context
     std::vector<std::size_t> extents_;
     std::size_t mdarray_size_{0};
     std::vector<stringref_map,stringref_map_allocator_type> stringref_map_stack_;
-    std::unique_ptr<cbor_mdarray_iterator> classical_array_iter_;
+    mdarray_row_major_reader<Source,Allocator> row_major_reader_;
 
     struct read_byte_string_from_buffer
     {
@@ -583,11 +441,11 @@ public:
                 }
                 case parse_mode::array:
                 {
-                    if (is_multi_dim())
+                    if (is_multi_dim() && order_ == mdarray_order::row_major)
                     {
-                        if (!classical_array_iter_->done())
+                        if (!row_major_reader_.done())
                         {
-                            classical_array_iter_->next(visitor, *this, ec);
+                            row_major_reader_.next(visitor, *this, ec);
                             if (JSONCONS_UNLIKELY(ec))
                             {
                                 return;
@@ -595,13 +453,13 @@ public:
                         }
                         else
                         {
-                            if (classical_array_iter_->count() != state_stack_.back().length)
+                            if (row_major_reader_.count() != state_stack_.back().length)
                             {
                                 //std::cout << state_stack_.back().index << "!=" << state_stack_.back().length << "\n";
                                 ec = cbor_errc::bad_mdarray;
                                 return;
                             }
-                            end_classical_array_storage(ec);
+                            end_row_major_storage(ec);
                             if (JSONCONS_UNLIKELY(ec))
                             {
                                 return;
@@ -632,11 +490,11 @@ public:
                 }
                 case parse_mode::indefinite_array:
                 {
-                    if (is_multi_dim()) 
+                    if (is_multi_dim() && order_ == mdarray_order::row_major)
                     {
-                        if (!classical_array_iter_->done())
+                        if (!row_major_reader_.done())
                         {
-                            classical_array_iter_->next(visitor, *this, ec);
+                            row_major_reader_.next(visitor, *this, ec);
                             if (JSONCONS_UNLIKELY(ec))
                             {
                                 return;
@@ -660,7 +518,7 @@ public:
                                 ec = cbor_errc::bad_mdarray;
                                 return;
                             }
-                            end_classical_array_storage(ec);
+                            end_row_major_storage(ec);
                             if (JSONCONS_UNLIKELY(ec))
                             {
                                 return;
@@ -1209,7 +1067,7 @@ private:
         state_stack_.pop_back();
     }
 
-    void begin_classical_array_storage(uint8_t info, std::error_code& ec)
+    void begin_row_major_storage(uint8_t info, std::error_code& ec)
     {
         if (JSONCONS_UNLIKELY(++nesting_depth_ > max_nesting_depth_))
         {
@@ -1247,7 +1105,7 @@ private:
         }
     }
 
-    void end_classical_array_storage(std::error_code&)
+    void end_row_major_storage(std::error_code&)
     {
         --nesting_depth_;
 
@@ -2216,7 +2074,7 @@ private:
                         return;
                     }
                     auto ta = typed_array_cast<const uint8_t>(array_buffer_);
-                    if (!cursor_mode_ && state_stack_.back().mode == parse_mode::multi_dim) 
+                    if (state_stack_.back().mode == parse_mode::multi_dim) // multi-dim array
                     {
                         if (mdarray_size_ != ta.size())
                         {
@@ -2247,7 +2105,7 @@ private:
                         return;
                     }
                     auto ta = typed_array_cast<const uint8_t>(array_buffer_);
-                    if (!cursor_mode_ && state_stack_.back().mode == parse_mode::multi_dim) 
+                    if (state_stack_.back().mode == parse_mode::multi_dim) // multi-dim array
                     {
                         if (mdarray_size_ != ta.size())
                         {
@@ -2287,7 +2145,7 @@ private:
                             ta[i] = binary::byte_swap<uint16_t>(ta[i]);
                         }
                     }
-                    if (!cursor_mode_ && state_stack_.back().mode == parse_mode::multi_dim) 
+                    if (state_stack_.back().mode == parse_mode::multi_dim) // multi-dim array
                     {
                         if (mdarray_size_ != ta.size())
                         {
@@ -2327,7 +2185,7 @@ private:
                             ta[i] = binary::byte_swap<uint32_t>(ta[i]);
                         }
                     }
-                    if (!cursor_mode_ && state_stack_.back().mode == parse_mode::multi_dim) 
+                    if (state_stack_.back().mode == parse_mode::multi_dim) // multi-dim array
                     {
                         if (mdarray_size_ != ta.size())
                         {
@@ -2367,7 +2225,7 @@ private:
                             ta[i] = binary::byte_swap<uint64_t>(ta[i]);
                         }
                     }
-                    if (!cursor_mode_ && state_stack_.back().mode == parse_mode::multi_dim) 
+                    if (state_stack_.back().mode == parse_mode::multi_dim) // multi-dim array
                     {
                         if (mdarray_size_ != ta.size())
                         {
@@ -2397,7 +2255,7 @@ private:
                         return;
                     }
                     auto ta = typed_array_cast<int8_t>(array_buffer_);
-                    if (!cursor_mode_ && state_stack_.back().mode == parse_mode::multi_dim) 
+                    if (state_stack_.back().mode == parse_mode::multi_dim) // multi-dim array
                     {
                         if (mdarray_size_ != ta.size())
                         {
@@ -2437,7 +2295,7 @@ private:
                             ta[i] = binary::byte_swap<int16_t>(ta[i]);
                         }
                     }
-                    if (!cursor_mode_ && state_stack_.back().mode == parse_mode::multi_dim) 
+                    if (state_stack_.back().mode == parse_mode::multi_dim) // multi-dim array
                     {
                         if (mdarray_size_ != ta.size())
                         {
@@ -2477,7 +2335,7 @@ private:
                             ta[i] = binary::byte_swap<int32_t>(ta[i]);
                         }
                     }
-                    if (!cursor_mode_ && state_stack_.back().mode == parse_mode::multi_dim) 
+                    if (state_stack_.back().mode == parse_mode::multi_dim) // multi-dim array
                     {
                         if (mdarray_size_ != ta.size())
                         {
@@ -2517,7 +2375,7 @@ private:
                             ta[i] = binary::byte_swap<int64_t>(ta[i]);
                         }
                     }
-                    if (!cursor_mode_ && state_stack_.back().mode == parse_mode::multi_dim) 
+                    if (state_stack_.back().mode == parse_mode::multi_dim) // multi-dim array
                     {
                         if (mdarray_size_ != ta.size())
                         {
@@ -2557,7 +2415,7 @@ private:
                             ta[i] = binary::byte_swap<uint16_t>(ta[i]);
                         }
                     }
-                    if (!cursor_mode_ && state_stack_.back().mode == parse_mode::multi_dim) 
+                    if (state_stack_.back().mode == parse_mode::multi_dim) // multi-dim array
                     {
                         if (mdarray_size_ != ta.size())
                         {
@@ -2597,7 +2455,7 @@ private:
                             ta[i] = binary::byte_swap<float>(ta[i]);
                         }
                     }
-                    if (!cursor_mode_ && state_stack_.back().mode == parse_mode::multi_dim) 
+                    if (state_stack_.back().mode == parse_mode::multi_dim) // multi-dim array
                     {
                         if (mdarray_size_ != ta.size())
                         {
@@ -2637,7 +2495,7 @@ private:
                             ta[i] = binary::byte_swap<double>(ta[i]);
                         }
                     }
-                    if (!cursor_mode_ && state_stack_.back().mode == parse_mode::multi_dim) 
+                    if (state_stack_.back().mode == parse_mode::multi_dim) // multi-dim array
                     {
                         if (mdarray_size_ != ta.size())
                         {
@@ -2719,30 +2577,25 @@ private:
         state_stack_.emplace_back(parse_mode::multi_dim, 0);
         ++state_stack_.back().index;
 
-        if (major_type == jsoncons::cbor::detail::cbor_major_type::array && order_ == mdarray_order::row_major) 
+        if (major_type == jsoncons::cbor::detail::cbor_major_type::array && order_ == mdarray_order::row_major)
         {
-            begin_classical_array_storage(info, ec);
+            begin_row_major_storage(info, ec);
             if (JSONCONS_UNLIKELY(ec))
             {
                 return;
             }
-            classical_array_iter_ = jsoncons::make_unique<cbor_mdarray_row_major_iterator<Source,Allocator>>(extents_, this, cursor_mode_);
-            if (!classical_array_iter_->done())
+            row_major_reader_ = mdarray_row_major_reader<Source,Allocator>(extents_, this);
+            if (!row_major_reader_.done())
             {
-                classical_array_iter_->next(visitor, *this, ec);
+                row_major_reader_.next(visitor, *this, ec);
             }
         }
-        else if (major_type == jsoncons::cbor::detail::cbor_major_type::array && order_ == mdarray_order::column_major) 
+        else if (major_type == jsoncons::cbor::detail::cbor_major_type::array && order_ == mdarray_order::column_major)
         {
-            begin_classical_array_storage(info, ec);
+            begin_array(visitor, info, ec);
             if (JSONCONS_UNLIKELY(ec))
             {
                 return;
-            }
-            classical_array_iter_ = jsoncons::make_unique<cbor_mdarray_column_major_iterator<Source,Allocator>>(extents_, this, cursor_mode_);
-            if (!classical_array_iter_->done())
-            {
-                classical_array_iter_->next(visitor, *this, ec);
             }
         }
         else if (major_type == jsoncons::cbor::detail::cbor_major_type::byte_string)
@@ -2759,7 +2612,6 @@ private:
             ec = cbor_errc::bad_mdarray;
             return;
         }
-        // cursor case
     }
 
     void read_extents(std::error_code& ec)

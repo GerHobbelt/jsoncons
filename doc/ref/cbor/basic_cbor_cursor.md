@@ -29,31 +29,30 @@ cbor_bytes_cursor   |basic_cbor_cursor<jsoncons::bytes_source>
 
 ### Implemented interfaces
 
-[staj_cursor](staj_cursor.md)
+[basic_staj_cursor](../corelib/staj_cursor.md)
 
 #### Constructors
 
     basic_cbor_cursor(Sourceable&& source,
-                      const cbor_decode_options& options = cbor_decode_options(),
-                      const Allocator& alloc = Allocator()); (1)
+        const cbor_decode_options& options = cbor_decode_options(),   (1)
+        const Allocator& alloc = Allocator()); 
 
     template <typename Sourceable>
-    basic_cbor_cursor(Sourceable&& source, 
-                      std::error_code& ec); (2)
+    basic_cbor_cursor(Sourceable&& source, std::error_code& ec);      (2)
 
     template <typename Sourceable>
-    basic_cbor_cursor(Sourceable&& source, 
-                      const cbor_decode_options& options,
-                      std::error_code& ec); (3)
+    basic_cbor_cursor(Sourceable&& source,                            (3)
+        const cbor_decode_options& options,                          
+        std::error_code& ec); 
 
     template <typename Sourceable>
     basic_cbor_cursor(std::allocator_arg_t, const Allocator& alloc, 
-                      Sourceable&& source,
-                      const cbor_decode_options& options,
-                      std::error_code& ec); (4)
+        Sourceable&& source,                                          (4)
+        const cbor_decode_options& options,
+        std::error_code& ec); 
 
 Constructors (1) reads from a buffer or stream source and throws a 
-[ser_error](ser_error.md) if a parsing error is encountered while processing the initial event.
+[ser_error](../corelib/ser_error.md) if a parsing error is encountered while processing the initial event.
 
 Constructors (2)-(4) read from a buffer or stream source and set `ec`
 if a parsing error is encountered while processing the initial event.
@@ -67,47 +66,82 @@ as `basic_cbor_cursor` holds a pointer to but does not own this object.
 
 #### Member functions
 
-    uint64_t raw_tag() const;      // (since 1.2.0)
-Returns the CBOR tag associated with the current value
+##### staj_event input
 
-    bool done() const override;
-Checks if there are no more events.
+    bool done() const final;
+Check if there are no more events.
 
-    const staj_event& current() const override;
-Returns the current [staj_event](basic_staj_event.md).
+    void next() final;
+Get the next event. If a parsing error is encountered, throws a [ser_error](../corelib/ser_error.md).
 
-    void read_to(json_visitor& visitor) override
-Feeds the current and succeeding [staj events](basic_staj_event.md) through the provided
-[visitor](basic_json_visitor.md), until the visitor indicates
-to stop. If a parsing error is encountered, throws a [ser_error](ser_error.md).
+    void next(std::error_code& ec) final;
+Get the next event. If a parsing error is encountered, sets `ec`.
 
-    void read_to(json_visitor& visitor, std::error_code& ec) override
-Feeds the current and succeeding [staj events](basic_staj_event.md) through the provided
-[visitor](basic_json_visitor.md), until the visitor indicates
-to stop. If a parsing error is encountered, sets `ec`.
+    const staj_event& current() const final;
+Returns the current [staj_event](../corelib/basic_staj_event.md).
 
-    void next() override;
-Advances to the next event. If a parsing error is encountered, throws a 
-[ser_error](ser_error.md).
+    void read_to(json_visitor& visitor) final;
+Sends the parse events from the current event to the
+matching completion event to the supplied [visitor](../corelib/basic_json_visitor.md)
+E.g., if the current event is `begin_object`, sends the `begin_object`
+event and all inbetween events until the matching `end_object` event.
+If a parsing error is encountered, throws a [ser_error](../corelib/ser_error.md).
 
-    void next(std::error_code& ec) override;
-Advances to the next event. If a parsing error is encountered, sets `ec`.
+    void read_to(json_visitor& visitor, std::error_code& ec) final;
+Sends the parse events from the current event to the
+matching completion event to the supplied [visitor](../corelib/basic_json_visitor.md)
+E.g., if the current event is `begin_object`, sends the `begin_object`
+event and all inbetween events until the matching `end_object` event.
+If a parsing error is encountered, sets `ec`.
 
-    const ser_context& context() const override;
-Returns the current [context](ser_context.md)
+##### Typed Array input
+
+    bool is_typed_array() const final;                         (since 1.8.0)
+
+    typed_array_tags array_tag() const final;                  (since 1.8.0)
+Returns a [tag](../corelib/typed_array_tags.md) that indicates the element type of the typed array.
+
+    jsoncons::span<uint8_t> array_buffer() final;              (since 1.8.0)
+
+    void to_end_array() final;                                 (since 1.8.0)
+
+##### Multi-dimensional array input
+
+    bool is_multi_dim() const final;                           (since 1.8.0)
+Indicates whether an array is a multi-dimensional array.
+
+    jsoncons::span<const std::size_t> extents() const final;   (since 1.8.0)
+Indicates the number of elements along each dimension of the array.
+
+    mdarray_order order() const final;                         (since 1.8.0)
+Indicates whether the elements of a multi-dimensional array are
+arranged in row-major or column-major order. Returns a [mdarray_order](../corelib/mdarray_order.md).
+
+##### Miscellaneous
+
+    const ser_context& context() const final;
+Returns the current [context](../corelib/ser_context.md)
 
     void reset();
 Reset cursor to read another value from the same source
 
     template <typename Sourceable>
     reset(Sourceable&& source)
-Reset cursor to read new value from a new sources
+Reset cursor to read new value from a new source
 
-#### Non-member functions
+    uint64_t raw_tag() const;                                  (since 1.2.0)
+Returns the CBOR tag associated with the current value
 
-   template <typename Source,typename Allocator>
-   staj_filter_view operator|(basic_cbor_cursor<Source,Allocator>& cursor, 
-                              std::function<bool(const staj_event&, const ser_context&)> pred);
+##### Inherited from [jsoncons::basic_staj_cursor](../corelib/staj_cursor.md)
+
+    template <typename T>                                      (since 1.8.0)
+    void read_typed_array(T& v);
+
+##### Non-member functions
+
+    template <typename Source,typename Allocator>
+    staj_filter_view operator|(basic_cbor_cursor<Source,Allocator>& cursor, 
+                               std::function<bool(const staj_event&, const ser_context&)> pred);
 
 ### Examples
 
@@ -282,60 +316,52 @@ Haruki Murakami
 Graham Greene
 ```
 
-### Typed Array examples
+### Typed Array examples (until 1.8.0)
 
-#### Read a Typed Array
+#### Read a typed array
 
 ```cpp
 #include <jsoncons/json.hpp>
 #include <jsoncons_ext/cbor/cbor.hpp>
 #include <iostream>
-#include <iomanip>
 #include <cassert>
 
-struct my_cbor_visitor : public default_json_visitor
+namespace cbor = jsoncons::cbor;
+
+struct my_cbor_visitor : public jsoncons::default_json_visitor
 {
     std::vector<double> v;
 private:
-    bool visit_typed_array(const span<const double>& data,  
-                        semantic_tag,
-                        const ser_context&,
-                        std::error_code&) override
+    bool visit_typed_array(const jsoncons::span<const double>&data,
+        jsoncons::semantic_tag,
+        const jsoncons::ser_context&,
+        std::error_code&) override
     {
-        v = std::vector<double>(data.begin(),data.end());
+        v = std::vector<double>(data.begin(), data.end());
         return false;
     }
 };
 
 int main()
 {
-    std::vector<double> v{10.0,20.0,30.0,40.0};
-
-    std::vector<uint8_t> buffer;
-    auto options = cbor::cbor_options{}
-        .use_typed_arrays(true);
-    cbor::encode_cbor(v, buffer, options);
-
-    std::cout << "(1)\n";
-    std::cout << byte_string_view(buffer) << "\n\n";
-/*
-    0xd8, // Tag
+    std::vector<uint8_t> data = {
+        0xd8, // Tag
         0x56, // Tag 86, float64, little endian, Typed Array
-    0x58,0x20, // Byte string value of length 32 
-        0x00,0x00,0x00,0x00,0x00,0x00,0x24,0x40,
-        0x00,0x00,0x00,0x00,0x00,0x00,0x34,0x40, 
-        0x00,0x00,0x00,0x00,0x00,0x00,0x3e,0x40, 
-        0x00,0x00,0x00,0x00,0x00,0x00,0x44,0x40
-*/
+        0x58, 0x20, // Byte string value of length 32
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x24, 0x40,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x34, 0x40,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x3e, 0x40,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x44, 0x40
+    };
 
-    cbor::cbor_bytes_cursor cursor(buffer);
-    assert(cursor.current().event_type() == staj_event_type::begin_array);
+    cbor::cbor_bytes_cursor cursor(data);
+    //assert(jsoncons::staj_event_type::begin_array == cursor.current().event_type()); 
+    assert(jsoncons::staj_events::begin_array == cursor.current().event_type());       // (since 1.7.0)
     assert(cursor.is_typed_array());
 
     my_cbor_visitor visitor;
     cursor.read_to(visitor);
-    std::cout << "(2)\n";
-    for (auto item : handler.v)
+    for (auto item : visitor.v)
     {
         std::cout << item << "\n";
     }
@@ -344,17 +370,13 @@ int main()
 ```
 Output:
 ```
-(1)
-d8 56 58 20 00 00 00 00 00 00 24 40 00 00 00 00 00 00 34 40 00 00 00 00 00 00 3e 40 00 00 00 00 00 00 44 40
-
-(2)
 10
 20
 30
 40
 ```
 
-#### Navigating Typed Arrays with cursor - multi-dimensional row major with Typed Array
+#### Navigating typed arrays with cursor - multi-dimensional row major with Typed Array 
 
 This example is taken from [CBOR Tags for Typed Arrays](https://tools.ietf.org/html/rfc8746)
 
@@ -423,7 +445,7 @@ end_array (n/a)
 end_array (n/a)
 ```
 
-#### Navigating Typed Arrays with cursor - multi-dimensional column major with classical CBOR array
+#### Navigating typed arrays with cursor - multi-dimensional column major with classical CBOR array
 
 This example is taken from [CBOR Tags for Typed Arrays](https://tools.ietf.org/html/rfc8746)
 
@@ -489,6 +511,51 @@ uint64_value: 10 (n/a)
 uint64_value: 100 (n/a)
 end_array (n/a)
 end_array (n/a)
+```
+
+### Typed Array examples (since 1.8.0)
+
+#### Read a typed array
+
+```cpp
+#include <jsoncons/json.hpp>
+#include <jsoncons_ext/cbor/cbor.hpp>
+#include <iostream>
+#include <cassert>
+
+namespace cbor = jsoncons::cbor;
+
+int main()
+{
+    std::vector<uint8_t> data = {
+        0xd8, // Tag
+        0x56, // Tag 86, float64, little endian, Typed Array
+        0x58, 0x20, // Byte string value of length 32
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x24, 0x40,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x34, 0x40,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x3e, 0x40,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x44, 0x40
+    };
+
+    cbor::cbor_bytes_cursor cursor(data);
+    assert(jsoncons::staj_events::begin_array == cursor.current().event_type()); 
+    assert(cursor.is_typed_array());
+
+    std::vector<double> v;
+    cursor.read_typed_array(v);
+    for (auto item : v)
+    {
+        std::cout << item << "\n";
+    }
+    std::cout << "\n";
+}
+```
+Output:
+```
+10
+20
+30
+40
 ```
 
 ### See also
