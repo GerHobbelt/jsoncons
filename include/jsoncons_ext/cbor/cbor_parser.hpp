@@ -141,11 +141,9 @@ class basic_cbor_parser : public ser_context
     string_type text_buffer_;
     byte_string_type bytes_buffer_;
     std::vector<parse_state,parse_state_allocator_type> state_stack_;
-    bool is_typed_array_{false};
-    bool is_multi_dim_{false};
     mdarray_order order_{};
     std::unique_ptr<typed_array_iterator> typed_array_iter_;
-    typed_array_element_types element_type_{};
+    typed_array_tags array_tag_{};
     semantic_tag typed_array_tag_{};
     byte_string_type array_buffer_;
     std::vector<std::size_t> extents_;
@@ -232,12 +230,7 @@ public:
 
     bool is_typed_array() const
     {
-        return is_typed_array_;
-    }
-
-    bool is_multi_dim() const
-    {
-        return is_multi_dim_;
+        return state_stack_.back().mode == parse_mode::typed_array;
     }
 
     mdarray_order order() const
@@ -245,7 +238,12 @@ public:
         return order_;
     }
 
-    jsoncons::span<const std::size_t> extents() const
+    bool is_multi_dim() const
+    {
+        return state_stack_.size() >=2 && state_stack_[state_stack_.size()-2].mode == parse_mode::multi_dim;
+    }
+
+    jsoncons::span<const std::size_t> extents() const 
     {
         return jsoncons::span<const std::size_t>(extents_.data(), extents_.size());
     }
@@ -302,9 +300,9 @@ public:
         return raw_tag_;
     }
 
-    typed_array_element_types element_type() const
+    typed_array_tags array_tag() const
     {
-        return element_type_;
+        return array_tag_;
     }
 
     jsoncons::span<uint8_t> array_buffer()
@@ -314,8 +312,6 @@ public:
 
     void to_end_array()
     {
-        is_typed_array_ = false;
-        is_multi_dim_ = false;
         order_ = mdarray_order{};
         state_stack_.pop_back();
     }
@@ -328,15 +324,7 @@ public:
             {
                 case parse_mode::multi_dim:
                 {
-                    if (state_stack_.back().index == 0)
-                    {
-                        ++state_stack_.back().index;
-                        read_item(visitor, ec);
-                    }
-                    else
-                    {
-                        state_stack_.pop_back();
-                    }
+                    state_stack_.pop_back();
                     break;
                 }
                 case parse_mode::array:
@@ -445,17 +433,17 @@ public:
 private:
     void read_item(item_event_visitor& visitor, std::error_code& ec)
     {
-        if (is_typed_array_)
+        if (is_typed_array())
         {
             if (!typed_array_iter_->done())
             {
                 typed_array_iter_->next(visitor, *this, ec);
                 more_ = !cursor_mode_;
-            }
-            else
-            {
-                is_typed_array_ = false;
-                state_stack_.pop_back();
+
+                if (typed_array_iter_->done())
+                {
+                    state_stack_.pop_back();
+                }
             }
             return;
         }
@@ -692,14 +680,12 @@ private:
                             more_ = !cursor_mode_;
                             break;
                         case 40: // row major storage
-                            is_multi_dim_ = true;
                             order_ = mdarray_order::row_major;
-                            produce_begin_multi_dim(ec);
+                            read_mdarray_header(visitor, ec);
                             break;
                         case 1040: // column major storage
-                            is_multi_dim_ = true;
                             order_ = mdarray_order::column_major;
-                            produce_begin_multi_dim(ec);
+                            read_mdarray_header(visitor, ec);
                             break;
                         default:
                             begin_array(visitor, info, ec);
@@ -1706,8 +1692,7 @@ private:
                 }
                 case 0x40:
                 {
-                    is_typed_array_ = true;
-                    element_type_ = typed_array_element_types::uint8;
+                    array_tag_ = typed_array_tags::uint8;
                     array_buffer_.clear();
                     read(array_buffer_,ec);
                     if (JSONCONS_UNLIKELY(ec))
@@ -1716,11 +1701,11 @@ private:
                         return;
                     }
                     auto ta = typed_array_cast<const uint8_t>(array_buffer_);
-                    if (is_multi_dim_)
+                    if (state_stack_.back().mode == parse_mode::multi_dim) // multi-dim array
                     {
                         if (mdarray_size_ != ta.size())
                         {
-                            ec = cbor_errc::bad_mdarray;
+                            ec = cbor_errc::bad_extents;
                             more_ = false;
                             return;
                         }
@@ -1737,8 +1722,7 @@ private:
                 }
                 case 0x44:
                 {
-                    is_typed_array_ = true;
-                    element_type_ = typed_array_element_types::uint8;
+                    array_tag_ = typed_array_tags::uint8;
                     typed_array_tag_ = semantic_tag::clamped;
                     array_buffer_.clear();
                     read(array_buffer_,ec);
@@ -1748,11 +1732,11 @@ private:
                         return;
                     }
                     auto ta = typed_array_cast<const uint8_t>(array_buffer_);
-                    if (is_multi_dim_)
+                    if (state_stack_.back().mode == parse_mode::multi_dim) // multi-dim array
                     {
                         if (mdarray_size_ != ta.size())
                         {
-                            ec = cbor_errc::bad_mdarray;
+                            ec = cbor_errc::bad_extents;
                             more_ = false;
                             return;
                         }
@@ -1770,8 +1754,7 @@ private:
                 case 0x41:
                 case 0x45:
                 {
-                    is_typed_array_ = true;
-                    element_type_ = typed_array_element_types::uint16;
+                    array_tag_ = typed_array_tags::uint16;
                     array_buffer_.clear();
                     read(array_buffer_,ec);
                     if (JSONCONS_UNLIKELY(ec))
@@ -1789,11 +1772,11 @@ private:
                             ta[i] = binary::byte_swap<uint16_t>(ta[i]);
                         }
                     }
-                    if (is_multi_dim_)
+                    if (state_stack_.back().mode == parse_mode::multi_dim) // multi-dim array
                     {
                         if (mdarray_size_ != ta.size())
                         {
-                            ec = cbor_errc::bad_mdarray;
+                            ec = cbor_errc::bad_extents;
                             more_ = false;
                             return;
                         }
@@ -1811,8 +1794,7 @@ private:
                 case 0x42:
                 case 0x46:
                 {
-                    is_typed_array_ = true;
-                    element_type_ = typed_array_element_types::uint32;
+                    array_tag_ = typed_array_tags::uint32;
                     array_buffer_.clear();
                     read(array_buffer_,ec);
                     if (JSONCONS_UNLIKELY(ec))
@@ -1830,11 +1812,11 @@ private:
                             ta[i] = binary::byte_swap<uint32_t>(ta[i]);
                         }
                     }
-                    if (is_multi_dim_)
+                    if (state_stack_.back().mode == parse_mode::multi_dim) // multi-dim array
                     {
                         if (mdarray_size_ != ta.size())
                         {
-                            ec = cbor_errc::bad_mdarray;
+                            ec = cbor_errc::bad_extents;
                             more_ = false;
                             return;
                         }
@@ -1852,8 +1834,7 @@ private:
                 case 0x43:
                 case 0x47:
                 {
-                    is_typed_array_ = true;
-                    element_type_ = typed_array_element_types::uint64;
+                    array_tag_ = typed_array_tags::uint64;
                     array_buffer_.clear();
                     read(array_buffer_,ec);
                     if (JSONCONS_UNLIKELY(ec))
@@ -1871,11 +1852,11 @@ private:
                             ta[i] = binary::byte_swap<uint64_t>(ta[i]);
                         }
                     }
-                    if (is_multi_dim_)
+                    if (state_stack_.back().mode == parse_mode::multi_dim) // multi-dim array
                     {
                         if (mdarray_size_ != ta.size())
                         {
-                            ec = cbor_errc::bad_mdarray;
+                            ec = cbor_errc::bad_extents;
                             more_ = false;
                             return;
                         }
@@ -1892,8 +1873,7 @@ private:
                 }
                 case 0x48:
                 {
-                    is_typed_array_ = true;
-                    element_type_ = typed_array_element_types::int8;
+                    array_tag_ = typed_array_tags::int8;
                     array_buffer_.clear();
                     read(array_buffer_,ec);
                     if (JSONCONS_UNLIKELY(ec))
@@ -1902,11 +1882,11 @@ private:
                         return;
                     }
                     auto ta = typed_array_cast<int8_t>(array_buffer_);
-                    if (is_multi_dim_)
+                    if (state_stack_.back().mode == parse_mode::multi_dim) // multi-dim array
                     {
                         if (mdarray_size_ != ta.size())
                         {
-                            ec = cbor_errc::bad_mdarray;
+                            ec = cbor_errc::bad_extents;
                             more_ = false;
                             return;
                         }
@@ -1924,8 +1904,7 @@ private:
                 case 0x49:
                 case 0x4d:
                 {
-                    is_typed_array_ = true;
-                    element_type_ = typed_array_element_types::int16;
+                    array_tag_ = typed_array_tags::int16;
                     array_buffer_.clear();
                     read(array_buffer_,ec);
                     if (JSONCONS_UNLIKELY(ec))
@@ -1943,11 +1922,11 @@ private:
                             ta[i] = binary::byte_swap<int16_t>(ta[i]);
                         }
                     }
-                    if (is_multi_dim_)
+                    if (state_stack_.back().mode == parse_mode::multi_dim) // multi-dim array
                     {
                         if (mdarray_size_ != ta.size())
                         {
-                            ec = cbor_errc::bad_mdarray;
+                            ec = cbor_errc::bad_extents;
                             more_ = false;
                             return;
                         }
@@ -1965,8 +1944,7 @@ private:
                 case 0x4a:
                 case 0x4e:
                 {
-                    is_typed_array_ = true;
-                    element_type_ = typed_array_element_types::int32;
+                    array_tag_ = typed_array_tags::int32;
                     array_buffer_.clear();
                     read(array_buffer_,ec);
                     if (JSONCONS_UNLIKELY(ec))
@@ -1984,11 +1962,11 @@ private:
                             ta[i] = binary::byte_swap<int32_t>(ta[i]);
                         }
                     }
-                    if (is_multi_dim_)
+                    if (state_stack_.back().mode == parse_mode::multi_dim) // multi-dim array
                     {
                         if (mdarray_size_ != ta.size())
                         {
-                            ec = cbor_errc::bad_mdarray;
+                            ec = cbor_errc::bad_extents;
                             more_ = false;
                             return;
                         }
@@ -2006,8 +1984,7 @@ private:
                 case 0x4b:
                 case 0x4f:
                 {
-                    is_typed_array_ = true;
-                    element_type_ = typed_array_element_types::int64;
+                    array_tag_ = typed_array_tags::int64;
                     array_buffer_.clear();
                     read(array_buffer_,ec);
                     if (JSONCONS_UNLIKELY(ec))
@@ -2025,11 +2002,11 @@ private:
                             ta[i] = binary::byte_swap<int64_t>(ta[i]);
                         }
                     }
-                    if (is_multi_dim_)
+                    if (state_stack_.back().mode == parse_mode::multi_dim) // multi-dim array
                     {
                         if (mdarray_size_ != ta.size())
                         {
-                            ec = cbor_errc::bad_mdarray;
+                            ec = cbor_errc::bad_extents;
                             more_ = false;
                             return;
                         }
@@ -2047,8 +2024,7 @@ private:
                 case 0x50:
                 case 0x54:
                 {
-                    is_typed_array_ = true;
-                    element_type_ = typed_array_element_types::half_float;
+                    array_tag_ = typed_array_tags::half_float;
                     array_buffer_.clear();
                     read(array_buffer_,ec);
                     if (JSONCONS_UNLIKELY(ec))
@@ -2066,11 +2042,11 @@ private:
                             ta[i] = binary::byte_swap<uint16_t>(ta[i]);
                         }
                     }
-                    if (is_multi_dim_)
+                    if (state_stack_.back().mode == parse_mode::multi_dim) // multi-dim array
                     {
                         if (mdarray_size_ != ta.size())
                         {
-                            ec = cbor_errc::bad_mdarray;
+                            ec = cbor_errc::bad_extents;
                             more_ = false;
                             return;
                         }
@@ -2088,8 +2064,7 @@ private:
                 case 0x51:
                 case 0x55:
                 {
-                    is_typed_array_ = true;
-                    element_type_ = typed_array_element_types::float32;
+                    array_tag_ = typed_array_tags::float32;
                     array_buffer_.clear();
                     read(array_buffer_,ec);
                     if (JSONCONS_UNLIKELY(ec))
@@ -2107,11 +2082,11 @@ private:
                             ta[i] = binary::byte_swap<float>(ta[i]);
                         }
                     }
-                    if (is_multi_dim_)
+                    if (state_stack_.back().mode == parse_mode::multi_dim) // multi-dim array
                     {
                         if (mdarray_size_ != ta.size())
                         {
-                            ec = cbor_errc::bad_mdarray;
+                            ec = cbor_errc::bad_extents;
                             more_ = false;
                             return;
                         }
@@ -2129,8 +2104,7 @@ private:
                 case 0x52:
                 case 0x56:
                 {
-                    is_typed_array_ = true;
-                    element_type_ = typed_array_element_types::float64 ;
+                    array_tag_ = typed_array_tags::float64 ;
                     array_buffer_.clear();
                     read(array_buffer_,ec);
                     if (JSONCONS_UNLIKELY(ec))
@@ -2148,11 +2122,11 @@ private:
                             ta[i] = binary::byte_swap<double>(ta[i]);
                         }
                     }
-                    if (is_multi_dim_)
+                    if (state_stack_.back().mode == parse_mode::multi_dim) // multi-dim array
                     {
                         if (mdarray_size_ != ta.size())
                         {
-                            ec = cbor_errc::bad_mdarray;
+                            ec = cbor_errc::bad_extents;
                             more_ = false;
                             return;
                         }
@@ -2194,7 +2168,7 @@ private:
         }
     }
 
-    void produce_begin_multi_dim(std::error_code& ec)
+    void read_mdarray_header(item_event_visitor& visitor, std::error_code& ec)
     {
         uint8_t b;
         if (source_.read(&b, 1) == 0)
@@ -2213,7 +2187,41 @@ private:
             return;
         }
 
+        read_tags(ec);
+        if (JSONCONS_UNLIKELY(ec))
+        {
+            return;
+        }
+        auto c = source_.peek();
+        if (JSONCONS_UNLIKELY(c.eof))
+        {
+            ec = cbor_errc::unexpected_eof;
+            more_ = false;
+            return;
+        }
+        major_type = get_major_type(c.value);
+        info = get_additional_information_value(c.value);
         state_stack_.emplace_back(parse_mode::multi_dim, 0);
+        ++state_stack_.back().index;
+
+        if (major_type == jsoncons::cbor::detail::cbor_major_type::array)
+        {
+            begin_array(visitor, info, ec);
+        }
+        else if (major_type == jsoncons::cbor::detail::cbor_major_type::byte_string)
+        {
+            read_byte_string_from_source read(this);
+            read_byte_string(read, visitor, ec);
+            if (JSONCONS_UNLIKELY(ec))
+            {
+                return;
+            }
+        }
+        else
+        {
+            ec = cbor_errc::bad_mdarray;
+            return;
+        }
     }
 
     void read_extents(uint8_t info, std::error_code& ec)

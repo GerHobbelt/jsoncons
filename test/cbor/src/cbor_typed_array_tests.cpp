@@ -60,11 +60,11 @@ private:
     }
 };
 
-TEST_CASE("cbor typed array cursor tests")
+TEST_CASE("cbor Typed Array cursor tests")
 {
     SECTION("Tag 86, float64, little endian")
     {
-        //std::cout << "CBOR cursor typed array Tag 86, float64, little endian" << '\n';
+        //std::cout << "CBOR cursor Typed Array Tag 86, float64, little endian" << '\n';
 
         const std::vector<uint8_t> input = {
             0xd8, // Tag
@@ -87,11 +87,11 @@ TEST_CASE("cbor typed array cursor tests")
     }
 }
 
-TEST_CASE("cbor typed array tests")
+TEST_CASE("cbor Typed Array tests")
 {
     SECTION("Tag 64 (uint8 Typed Array)")
     {
-        //std::cout << "CBOR typed array Tag 64 (uint8 Typed Array)" << '\n';
+        //std::cout << "CBOR Typed Array Tag 64 (uint8 Typed Array)" << '\n';
 
         //std::cout << (int)detail::endian::native << "\n";
 
@@ -217,7 +217,7 @@ TEST_CASE("cbor typed array tests")
 
     SECTION("Tags 69 (uint16, little endian)")
     {
-        //std::cout << "CBOR typed array Tags 69 (uint16, little endian)" << '\n';
+        //std::cout << "CBOR Typed Array Tags 69 (uint16, little endian)" << '\n';
 
         const std::vector<uint8_t> input = {
             0xd8, // Tag
@@ -262,7 +262,7 @@ TEST_CASE("cbor typed array tests")
 
     SECTION("Tags 70 (uint32, little endian)")
     {
-        //std::cout << "CBOR typed array Tags 70 (uint32, little endian)" << '\n';
+        //std::cout << "CBOR Typed Array Tags 70 (uint32, little endian)" << '\n';
 
         const std::vector<uint8_t> input = {
             0xd8, // Tag
@@ -303,7 +303,7 @@ TEST_CASE("cbor typed array tests")
 
     SECTION("Tag 71 (uint64,little endian)")
     {
-        //std::cout << "CBOR typed array Tag 71 (uint64,little endian)" << '\n';
+        //std::cout << "CBOR Typed Array Tag 71 (uint64,little endian)" << '\n';
 
         const std::vector<uint8_t> input = {
             0xd8, // Tag
@@ -478,7 +478,7 @@ TEST_CASE("cbor typed array tests")
     }
     SECTION("Tag 77 (int16, little endian)")
     {
-        //std::cout << "CBOR typed array Tag 77 (int16, little endian)" << '\n';
+        //std::cout << "CBOR Typed Array Tag 77 (int16, little endian)" << '\n';
 
         const std::vector<uint8_t> input = {
             0xd8, // Tag
@@ -524,7 +524,7 @@ TEST_CASE("cbor typed array tests")
     }
     SECTION("Tags 78 (int32, little endian)")
     {
-        //std::cout << "CBOR typed array Tags 78 (int32, little endian)" << '\n';
+        //std::cout << "CBOR Typed Array Tags 78 (int32, little endian)" << '\n';
 
         const std::vector<uint8_t> input = {
             0xd8, // Tag
@@ -565,7 +565,7 @@ TEST_CASE("cbor typed array tests")
 
     SECTION("Tag 79 (int64,little endian)")
     {
-        //std::cout << "CBOR typed array Tag 79 (int64,little endian)" << '\n';
+        //std::cout << "CBOR Typed Array Tag 79 (int64,little endian)" << '\n';
 
         const std::vector<uint8_t> input = {
             0xd8, // Tag
@@ -693,7 +693,7 @@ TEST_CASE("cbor typed array tests")
 
     SECTION("Tag 84, float16, little endian")
     {
-        //std::cout << "CBOR typed array Tag 84, float16, little endian" << '\n';
+        //std::cout << "CBOR Typed Array Tag 84, float16, little endian" << '\n';
 
         const std::vector<uint8_t> input = {
             0xd8, // Tag
@@ -716,7 +716,7 @@ TEST_CASE("cbor typed array tests")
     }
     SECTION("Tag 85, float32, little endian")
     {
-        //std::cout << "CBOR typed array Tag 85, float32, little endian" << '\n';
+        //std::cout << "CBOR Typed Array Tag 85, float32, little endian" << '\n';
 
         const std::vector<uint8_t> input = {
             0xd8, // Tag
@@ -747,7 +747,7 @@ TEST_CASE("cbor typed array tests")
     }
     SECTION("Tag 86, float64, little endian")
     {
-        //std::cout << "CBOR typed array Tag 86, float64, little endian" << '\n';
+        //std::cout << "CBOR Typed Array Tag 86, float64, little endian" << '\n';
 
         const std::vector<uint8_t> input = {
             0xd8, // Tag
@@ -779,7 +779,7 @@ TEST_CASE("cbor typed array tests")
 
     SECTION("Tag 87, float128, little endian")
     {
-        //std::cout << "CBOR typed array Tag 87, float128, little endian" << '\n';
+        //std::cout << "CBOR Typed Array Tag 87, float128, little endian" << '\n';
 
         const std::vector<uint8_t> input = {
             0xd8, // Tag
@@ -800,7 +800,7 @@ TEST_CASE("cbor typed array tests")
 {
     SECTION("Tag 86, float64, little endian")
     {
-        //std::cout << "CBOR multi dim typed array Tag 86, float64, little endian" << '\n';
+        //std::cout << "CBOR multi dim Typed Array Tag 86, float64, little endian" << '\n';
 
         const std::vector<uint8_t> v = {
             0xd8,0x28,0x82,0x82,0x02,0x03,0x86,0x02,0x04,0x08,0x04,0x10,0x19,0x01,0x00
@@ -822,7 +822,7 @@ TEST_CASE("cbor multi dim row major cursor tests")
 {
     SECTION("Tag 86, float64, little endian")
     {
-        //std::cout << "CBOR multi dim typed array Tag 86, float64, little endian" << '\n';
+        //std::cout << "CBOR multi dim Typed Array Tag 86, float64, little endian" << '\n';
 
         const std::vector<uint8_t> input = {
             0xd8, 0x28, 0x82, 0x82, 0x02, 0x03, 0x86, 0x02, 0x04, 0x08, 0x04, 0x10, 0x19, 0x01, 0x00
@@ -838,11 +838,11 @@ TEST_CASE("cbor multi dim row major cursor tests")
 }
 */
 
-TEST_CASE("cbor multi-dim typed array parse tests")
+TEST_CASE("cbor multi-dim Typed Array parse tests")
 {
     SECTION("Tag 86, float64, little endian")
     {
-        //std::cout << "CBOR multi dim typed array Tag 86, uint16, big endian" << '\n';
+        //std::cout << "CBOR multi dim Typed Array Tag 86, uint16, big endian" << '\n';
 
         auto expected = jsoncons::json::parse(R"(
             [[2, 4, 8], [4, 16, 256]]
@@ -875,7 +875,7 @@ TEST_CASE("cbor multi-dim typed array parse tests")
     }
     SECTION("Tag 86, float64, little endian")
     {
-        //std::cout << "CBOR multi dim typed array Tag 86, uint8" << '\n';
+        //std::cout << "CBOR multi dim Typed Array Tag 86, uint8" << '\n';
 
         auto expected = jsoncons::json::parse(R"(
             [[1, 2, 3], [4, 5, 6]]
@@ -901,11 +901,11 @@ TEST_CASE("cbor multi-dim typed array parse tests")
     }
 }
 
-TEST_CASE("cbor multi-dim typed array cursor tests")
+TEST_CASE("cbor multi-dim Typed Array cursor tests")
 {
     SECTION("Tag 86, float64, little endian")
     {
-        //std::cout << "CBOR multi dim typed array Tag 86, uint16, big endian" << '\n';
+        //std::cout << "CBOR multi dim Typed Array Tag 86, uint16, big endian" << '\n';
 
         auto expected = jsoncons::json::parse(R"(
             [[2, 4, 8], [4, 16, 256]]
@@ -937,7 +937,7 @@ TEST_CASE("cbor multi-dim typed array cursor tests")
     }
     SECTION("Tag 86, float64, little endian")
     {
-        //std::cout << "CBOR multi dim typed array Tag 86, uint8" << '\n';
+        //std::cout << "CBOR multi dim Typed Array Tag 86, uint8" << '\n';
 
         auto expected = jsoncons::json::parse(R"(
             [[1, 2, 3], [4, 5, 6]]
@@ -962,11 +962,11 @@ TEST_CASE("cbor multi-dim typed array cursor tests")
     }
 }
 
-TEST_CASE("cbor multi-dim parse tests")
+TEST_CASE("cbor multi-dim regular array tests")
 {
     SECTION("row major")
     {
-        //std::cout << "CBOR multi dim typed array Tag 86, uint16, big endian" << '\n';
+        //std::cout << "CBOR multi dim Typed Array Tag 86, uint16, big endian" << '\n';
 
         auto expected = jsoncons::json::parse(R"(
             [[1, 2, 3], [4, 5, 6]]
@@ -1026,7 +1026,7 @@ TEST_CASE("cbor multi-dim cursor tests")
 {
     SECTION("row major")
     {
-        //std::cout << "CBOR multi dim typed array Tag 86, uint16, big endian" << '\n';
+        //std::cout << "CBOR multi dim Typed Array Tag 86, uint16, big endian" << '\n';
 
         auto expected = jsoncons::json::parse(R"(
             [[1, 2, 3], [4, 5, 6]]
@@ -1073,5 +1073,44 @@ TEST_CASE("cbor multi-dim cursor tests")
             const auto& event = cursor.current();
             std::cout << event.event_type() << " " << event.tag() << std::endl;
         }
+    }
+}
+
+TEST_CASE("multi-dim regular array and typed array")
+{
+    SECTION("test 1")
+    {
+        auto expected = jsoncons::json::parse(R"(
+[[40000.0,40000.0,40000.0,40000.0],[50000.0]]
+        )");
+
+        std::vector<uint8_t> data = {
+            0x9f, // array open
+
+            // 2x2 matrix (values as floats):
+            0xd8, 0x28, 0x82, 0x82, 0x02, 0x02, 0x84, // header
+            0xfa, 0x47, 0x1c, 0x40, 0x00,
+            0xfa, 0x47, 0x1c, 0x40, 0x00,
+            0xfa, 0x47, 0x1c, 0x40, 0x00,
+            0xfa, 0x47, 0x1c, 0x40, 0x00,
+
+            // double tagged array [50000.0]:
+            0xd8, 0x56, 0x58, 0x08, // Header
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x6a, 0xe8, 0x40,
+
+            0xff, // array close
+        };
+        std::error_code ec;
+
+        std::cout << "\n\n";
+        jsoncons::json_decoder<json> decoder;
+
+        cbor::cbor_bytes_reader reader(data, decoder);
+        reader.read(ec);
+
+        REQUIRE(decoder.is_valid());
+        json result = decoder.get_result();
+
+        REQUIRE(expected == result);
     }
 }

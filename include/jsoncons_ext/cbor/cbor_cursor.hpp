@@ -163,14 +163,29 @@ public:
         return parser_.raw_tag();
     }
 
+    bool is_multi_dim() const final
+    {
+        return parser_.is_multi_dim();
+    }
+
+    jsoncons::span<const std::size_t> extents() const final
+    {
+        return parser_.extents();
+    }
+
+    mdarray_order order() const final
+    {
+        return parser_.order();
+    }
+
     bool is_typed_array() const final
     {
         return parser_.is_typed_array();
     }
 
-    typed_array_element_types element_type() const final
+    typed_array_tags array_tag() const final
     {
-        return parser_.element_type();
+        return parser_.array_tag();
     }
 
     jsoncons::span<uint8_t> array_buffer() final

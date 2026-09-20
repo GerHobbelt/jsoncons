@@ -25,7 +25,7 @@
 
 namespace jsoncons {
 
-enum class typed_array_element_types
+enum class typed_array_tags
 {
     uint8 = 1,
     uint16 = 2,
@@ -39,6 +39,38 @@ enum class typed_array_element_types
     float32 = 512, 
     float64 = 1024
 };
+
+JSONCONS_ATTRIBUTE_NODISCARD
+constexpr typed_array_tags
+operator|(typed_array_tags lhs, typed_array_tags rhs) noexcept
+{ return (typed_array_tags)((uint64_t)lhs | (uint64_t)rhs); }
+
+JSONCONS_ATTRIBUTE_NODISCARD
+constexpr typed_array_tags
+operator&(typed_array_tags lhs, typed_array_tags rhs) noexcept
+{ return (typed_array_tags)((uint64_t)lhs & (uint64_t)rhs); }
+
+JSONCONS_ATTRIBUTE_NODISCARD
+constexpr typed_array_tags
+operator^(typed_array_tags lhs, typed_array_tags rhs) noexcept
+{ return (typed_array_tags)((uint64_t)lhs ^ (uint64_t)rhs); }
+
+JSONCONS_ATTRIBUTE_NODISCARD
+constexpr typed_array_tags
+operator~(typed_array_tags types) noexcept
+{ return (typed_array_tags)~(uint64_t)types; }
+
+constexpr typed_array_tags&
+operator|=(typed_array_tags& lhs, typed_array_tags rhs) noexcept
+{ return lhs = lhs | rhs; }
+
+constexpr typed_array_tags&
+operator&=(typed_array_tags& lhs, typed_array_tags rhs) noexcept
+{ return lhs = lhs & rhs; }
+
+constexpr typed_array_tags&
+operator^=(typed_array_tags& lhs, typed_array_tags rhs) noexcept
+{ return lhs = lhs ^ rhs; }
 
 template <typename T>
 jsoncons::span<T> typed_array_cast(jsoncons::span<uint8_t> bytes);
@@ -306,7 +338,6 @@ jsoncons::expected<std::size_t,std::errc> calculate_mdarray_size(jsoncons::span<
     return n;
 }
 
-template <typename ValueType>
 struct mdarray_dimension
 {
     std::size_t extent;
@@ -319,7 +350,7 @@ template <typename ValueType>
 class mdarray_iterator : public typed_array_iterator
 {
     jsoncons::span<ValueType> data_;
-    std::vector<mdarray_dimension<ValueType>> dimensions_;
+    std::vector<mdarray_dimension> dimensions_;
     semantic_tag tag_{};
     std::size_t dim_{0};
     bool first_{true};
@@ -327,7 +358,7 @@ class mdarray_iterator : public typed_array_iterator
 public:
     mdarray_iterator(jsoncons::span<ValueType> data, jsoncons::span<const std::size_t> extents,
         mdarray_order order = mdarray_order::row_major)
-        : data_{data}, dimensions_(extents.size(), mdarray_dimension<ValueType>{})
+        : data_{data}, dimensions_(extents.size(), mdarray_dimension{})
     {
         std::vector<std::size_t> strides(extents.size(), 0);
         if (order == mdarray_order::column_major)

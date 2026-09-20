@@ -1,7 +1,23 @@
 master
 ------
 
-- Changes
+- Fixed bugs:
+
+  - Git Issue #709: JSONCONS_N_MEMBER_TRAITS silently swallows mandatory-field errors when nested inside an optional parent member
+
+  - Git Issue #702/ PR #703: JMESPath - Merge function can't merge when receiving a json_const_ref
+
+  - Git PR #707: Nested CBOR Parser Fix
+
+  - Git PR #705: JMESPath - Sort and sort_by functions can't sort when receiving a json_const_ref
+
+  - Git PR #704: JMESPath Support rhs expression in multi_select_list
+
+  - Git PR #701: Don't write extra value after some CBOR epoch timestamps
+
+  - Git PR #700: Fix bad multiplier when writing some BSON datetimes
+
+- Changes:
 
     - The types `json_pointer_arg_t` and `json_const_pointer_arg_t` and the
     constants `json_pointer_arg` and `json_const_pointer_arg` have been 
@@ -21,7 +37,31 @@ master
         `basic_json(const_json_ref_arg_t, const basic_json& ref) noexcept;`
 
         `basic_json(json_ref_arg_t, basic_json& ref) noexcept;`
- 
+
+    - Since 1.8.0, the `basic_json` copy constructor makes a deep copy of any `const_json_ref`
+    and `json_ref` pointers it may hold. Until 1.8.0, it made a shallow copy. With
+    this change, the `basic_json::deep_copy()` function is no longer needed, and has been
+    deprecated.
+
+Enhancements:
+
+  - The following functions have been added to `basic_staj_cursor` to support
+  multi-dimensional array input:
+
+        virtual bool is_mult_dim() const;
+        virtual jsoncons::span<const std::size_t> extents() const;
+        virtual mdarray_order order() const;
+
+  - The following functions have been added to `basic_staj_cursor` to support
+  typed array input:
+
+        virtual bool is_typed_array() const;
+        virtual typed_array_tags array_tag() const; 
+        virtual jsoncons::span<uint8_t> array_buffer(); 
+        virtual void to_end_array(); 
+        template <typename T>
+        void read_typed_array(T& v);
+
 Release 1.7.0
 -------------
 

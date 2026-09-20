@@ -49,3 +49,29 @@ Get the next event. If a parsing error is encountered, sets `ec`.
     virtual const ser_context& context() const = 0;
 Returns the current [context](ser_context.md)
 
+#### Multi-dimensional array input
+
+    virtual bool is_multi_dim() const;                           (since 1.8.0)
+Indicates whether an array is a multi-dimensional array.
+
+    virtual jsoncons::span<const std::size_t> extents() const;   (since 1.8.0)
+Indicates the number of elements along each dimension of the array.
+
+    virtual mdarray_order order() const;                         (since 1.8.0)
+Indicates whether the elements of a multi-dimensional array are
+arranged in row-major or column-major order. Returns a [mdarray_order](mdarray_order.md).
+
+#### Typed Array input
+
+    virtual bool is_typed_array() const;               (since 1.8.0)
+
+    virtual typed_array_tags array_tag() const;        (since 1.8.0)
+Returns a [Typed Array tag](typed_array_tags.md).
+
+    virtual jsoncons::span<uint8_t> array_buffer();    (since 1.8.0)
+
+    virtual void to_end_array();                       (since 1.8.0)
+
+    template <typename T>                              (since 1.8.0)
+    void read_typed_array(T& v);
+
