@@ -223,15 +223,10 @@ namespace jsonpointer {
             {
                 tokens.push_back(buffer);
             }
-            return basic_json_pointer(tokens);
+            return basic_json_pointer(std::move(tokens));
         }
 
         const std::vector<string_type>& tokens() const
-        {
-            return tokens_;
-        }
-
-        std::vector<string_type>& tokens() 
         {
             return tokens_;
         }

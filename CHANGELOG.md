@@ -1,4 +1,10 @@
-master (1.9.0 preview)
+master
+
+- Fixed bugs:
+
+  - Git PR ##738: fixed analyzer warning about possible uninitialized variable in encode_toon.hpp. 
+
+Release 1.9.0
 ------
 
 - Fixed bugs:
@@ -14,9 +20,13 @@ master (1.9.0 preview)
 
   - The class `binary_iterator_source` has been removed (replaced by `iterator_source`).
 
-  - The type name `order_preserving_policy` has been renamed to `ordered_policy`. 
-  The old name is aliased to the new name but is deprecated and will be removed 
-  in a future release.
+  - The type name `order_preserving_policy` has been deprecated and renamed to 
+  `ordered_policy`. For backwards compatibility the old name is aliased to the new name but 
+  will be removed in a future release.
+
+  - The type name `json_conv_traits` has been deprecated and renamed to `json_traits`. 
+  For backwards compatibility the old name is aliased to the new name but 
+  will be removed in a future release. 
 
 - Enhancements:
 
