@@ -30,6 +30,7 @@
 #include <jsoncons/source.hpp>
 #include <jsoncons/staj_cursor.hpp>
 #include <jsoncons/staj_event.hpp>
+#include <jsoncons/typed_array.hpp>
 #include <jsoncons/utility/more_type_traits.hpp>
 
 namespace jsoncons {
@@ -308,25 +309,32 @@ struct decode_traits<T,
             case staj_events::begin_array:
             {
                 T v = jsoncons::make_obj_using_allocator<T>(aset.get_allocator());
-                if (cursor.current().size() > 0)
+                if (cursor.is_typed_array())
                 {
-                    reserve_storage(typename std::integral_constant<bool, ext_traits::has_reserve<T>::value>::type(), v, cursor.current().size());
+                    cursor.read_typed_array(v);
                 }
-                cursor.next(ec);
-                while (cursor.current().event_type() != staj_events::end_array && !ec)
+                else
                 {
-                    auto r = decode_traits<element_type>::try_decode(aset, cursor);
-                    if (!r)
+                    if (cursor.current().size() > 0)
                     {
-                        return result_type(jsoncons::unexpect, r.error());
+                        reserve_storage(typename std::integral_constant<bool, ext_traits::has_reserve<T>::value>::type(), v, cursor.current().size());
                     }
-                    v.push_back(*r);
-                    //v[i] = std::move(*r);
                     cursor.next(ec);
-                }
-                if (JSONCONS_UNLIKELY(ec)) 
-                {
-                    return result_type{jsoncons::unexpect, conv_errc::not_vector, cursor.line(), cursor.column()}; 
+                    while (cursor.current().event_type() != staj_events::end_array && !ec)
+                    {
+                        auto r = decode_traits<element_type>::try_decode(aset, cursor);
+                        if (!r)
+                        {
+                            return result_type(jsoncons::unexpect, r.error());
+                        }
+                        v.push_back(*r);
+                        //v[i] = std::move(*r);
+                        cursor.next(ec);
+                    }
+                    if (JSONCONS_UNLIKELY(ec)) 
+                    {
+                        return result_type{jsoncons::unexpect, conv_errc::not_vector, cursor.line(), cursor.column()}; 
+                    }
                 }
 
                 return result_type{std::move(v)};
@@ -366,16 +374,15 @@ struct decode_traits<T,
     {
         std::error_code ec;
 
-        cursor.array_expected(ec);
-        if (JSONCONS_UNLIKELY(ec))
+        if (cursor.current().event_type() == staj_events::begin_array)
         {
-            return result_type(jsoncons::unexpect, ec, cursor.line(), cursor.column());
-        }
-        switch (cursor.current().event_type())
-        {
-            case staj_events::begin_array:
+            T v = jsoncons::make_obj_using_allocator<T>(aset.get_allocator());
+            if (cursor.is_typed_array())
             {
-                T v = jsoncons::make_obj_using_allocator<T>(aset.get_allocator());
+                cursor.read_typed_array(v);
+            }
+            else
+            {
                 if (cursor.current().size() > 0)
                 {
                     reserve_storage(typename std::integral_constant<bool, ext_traits::has_reserve<T>::value>::type(), v, cursor.current().size());
@@ -396,12 +403,12 @@ struct decode_traits<T,
                 {
                     return result_type{jsoncons::unexpect, conv_errc::not_vector, cursor.line(), cursor.column()}; 
                 }
-                return result_type{std::move(v)};
             }
-            default:
-            {
-                return result_type(jsoncons::unexpect, conv_errc::not_vector, cursor.line(), cursor.column()); 
-            }
+            return result_type{std::move(v)};
+        }
+        else
+        {
+            return result_type(jsoncons::unexpect, conv_errc::not_vector, cursor.line(), cursor.column()); 
         }
     }
 
