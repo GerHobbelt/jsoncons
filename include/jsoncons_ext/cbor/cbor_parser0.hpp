@@ -68,11 +68,10 @@ class basic_cbor_parser : public ser_context
     using allocator_type = Allocator;
     using char_allocator_type = typename std::allocator_traits<allocator_type>:: template rebind_alloc<char_type>;
     using byte_allocator_type = typename std::allocator_traits<allocator_type>:: template rebind_alloc<uint8_t>;                  
-    using size_type_allocator_type = typename std::allocator_traits<allocator_type>:: template rebind_alloc<std::size_t>;                  
     using tag_allocator_type = typename std::allocator_traits<allocator_type>:: template rebind_alloc<uint64_t>;                 
     using parse_state_allocator_type = typename std::allocator_traits<allocator_type>:: template rebind_alloc<parse_state>;                         
     using string_type = std::basic_string<char_type,char_traits_type,char_allocator_type>;
-    using string_view_type = jsoncons::basic_string_view<char_type>;
+    using byte_string_type = std::vector<uint8_t,byte_allocator_type>;
 
     struct mapped_string
     {
@@ -80,16 +79,10 @@ class basic_cbor_parser : public ser_context
 
         jsoncons::cbor::detail::cbor_major_type type;
         string_type str;
-        std::vector<uint8_t,byte_allocator_type> bytes;
+        byte_string_type bytes;
 
         mapped_string(const string_type& str, const allocator_type& alloc = allocator_type())
-            : type(jsoncons::cbor::detail::cbor_major_type::text_string), 
-              str(str.data(), str.size(), alloc), bytes(alloc)
-        {
-        }
-
-        mapped_string(const string_view_type& sv, const allocator_type& alloc = allocator_type())
-            : type(jsoncons::cbor::detail::cbor_major_type::text_string), str(sv.data(), sv.size(), alloc), bytes(alloc)
+            : type(jsoncons::cbor::detail::cbor_major_type::text_string), str(str.c_str(), str.size(), alloc), bytes(alloc)
         {
         }
 
@@ -98,19 +91,13 @@ class basic_cbor_parser : public ser_context
         {
         }
 
-        mapped_string(const std::vector<uint8_t,byte_allocator_type>& bytes, 
+        mapped_string(const byte_string_type& bytes, 
             const allocator_type& alloc = allocator_type())
             : type(jsoncons::cbor::detail::cbor_major_type::byte_string), str(alloc), bytes(bytes,alloc)
         {
         }
 
-        mapped_string(const byte_string_view& bytes,
-            const allocator_type& alloc = allocator_type())
-            : type(jsoncons::cbor::detail::cbor_major_type::byte_string), str(alloc), bytes(bytes.begin(),bytes.end(),alloc)
-        {
-        }
-
-        mapped_string(std::vector<uint8_t,byte_allocator_type>&& bytes, 
+        mapped_string(byte_string_type&& bytes, 
             const allocator_type& alloc = allocator_type())
             : type(jsoncons::cbor::detail::cbor_major_type::byte_string), str(alloc), bytes(std::move(bytes),alloc)
         {
@@ -156,14 +143,14 @@ class basic_cbor_parser : public ser_context
     Source source_;
     int max_nesting_depth_;
     string_type text_buffer_;
-    std::vector<uint8_t,byte_allocator_type> bytes_buffer_;
+    byte_string_type bytes_buffer_;
     std::vector<parse_state,parse_state_allocator_type> state_stack_;
     std::vector<std::shared_ptr<typed_array_iterator>> typed_array_stack_;
     std::vector<stringref_map,stringref_map_allocator_type> stringref_map_stack_;
     mdarray_order order_{};
     typed_array_tags array_tag_{};
     semantic_tag typed_array_tag_{};
-    std::vector<std::size_t,size_type_allocator_type> extents_;
+    std::vector<std::size_t> extents_;
     std::size_t mdarray_size_{0};
 
     struct read_byte_string_from_buffer
@@ -184,11 +171,6 @@ class basic_cbor_parser : public ser_context
                 c.push_back(b);
             }
         }
-
-        byte_string_view view(std::error_code&)
-        {
-            return bytes;
-        }
     };
 
     struct read_byte_string_from_source
@@ -204,11 +186,6 @@ class basic_cbor_parser : public ser_context
         {
             source->read_byte_string(cont,ec);
         }
-
-        byte_string_view view(std::error_code& ec)
-        {
-            return source->read_byte_string_view(ec);
-        }
     };
 
 public:
@@ -222,8 +199,7 @@ public:
          text_buffer_(alloc),
          bytes_buffer_(alloc),
          state_stack_(alloc),
-         stringref_map_stack_(alloc),
-         extents_(alloc)
+         stringref_map_stack_(alloc)
     {
         state_stack_.emplace_back(parse_mode::root,0);
     }
@@ -646,7 +622,7 @@ public:
                     {
                         case jsoncons::cbor::detail::cbor_major_type::text_string:
                         {
-                            handle_string(visitor, jsoncons::string_view(str.str.data(),str.str.length()),ec);
+                            handle_string(visitor, jsoncons::basic_string_view<char>(str.str.data(),str.str.length()),ec);
                             if (JSONCONS_UNLIKELY(ec))
                             {
                                 return;
@@ -724,19 +700,21 @@ public:
             }
             case jsoncons::cbor::detail::cbor_major_type::text_string:
             {
-                auto sv = read_text_string_view(ec);
+                text_buffer_.clear();
+
+                read_text_string(text_buffer_, ec);
                 if (JSONCONS_UNLIKELY(ec))
                 {
                     return;
                 }
-                auto result = unicode_traits::validate(sv.data(),sv.size());
+                auto result = unicode_traits::validate(text_buffer_.data(),text_buffer_.size());
                 if (result.ec != unicode_traits::unicode_errc())
                 {
                     ec = cbor_errc::invalid_utf8_text_string;
                     more_ = false;
                     return;
                 }
-                handle_string(visitor, sv, ec);
+                handle_string(visitor, jsoncons::basic_string_view<char>(text_buffer_.data(),text_buffer_.length()),ec);
                 if (JSONCONS_UNLIKELY(ec))
                 {
                     return;
@@ -1115,52 +1093,6 @@ private:
         state_stack_.pop_back();
     }
 
-    string_view_type read_text_string_view(std::error_code& ec)
-    {
-        auto c = source_.peek();
-        if (JSONCONS_UNLIKELY(c.eof))
-        {
-            ec = cbor_errc::unexpected_eof;
-            more_ = false;
-            return string_view_type();
-        }
-        jsoncons::cbor::detail::cbor_major_type major_type = get_major_type(c.value);
-        JSONCONS_ASSERT(major_type == jsoncons::cbor::detail::cbor_major_type::text_string);
-        uint8_t info = get_additional_information_value(c.value);
-
-        if (info == jsoncons::cbor::detail::additional_info::indefinite_length)
-        {
-            text_buffer_.clear();
-            source_.ignore(1);
-            iterate_string_chunks(text_buffer_, major_type, ec);
-            if (JSONCONS_UNLIKELY(ec))
-            {
-                return string_view_type();
-            }
-            return string_view_type(text_buffer_.data(), text_buffer_.size());
-        }
-
-        std::size_t length = read_size(ec);
-        if (JSONCONS_UNLIKELY(ec))
-        {
-            return string_view_type();
-        }
-        auto data = source_.read_span(length, text_buffer_);
-        if (data.size() != length)
-        {
-            ec = cbor_errc::unexpected_eof;
-            more_ = false;
-            return string_view_type();
-        }
-        string_view_type sv(reinterpret_cast<const char_type*>(data.data()), data.size());
-        if (!stringref_map_stack_.empty() &&
-            sv.length() >= jsoncons::cbor::detail::min_length_for_stringref(stringref_map_stack_.back().size()))
-        {
-            stringref_map_stack_.back().emplace_back(mapped_string(sv,alloc_));
-        }
-        return sv;
-    }
-
     void read_text_string(string_type& str, std::error_code& ec)
     {
         auto c = source_.peek();
@@ -1204,54 +1136,6 @@ private:
         }
     }
 
-    byte_string_view read_byte_string_view(std::error_code& ec)
-    {
-        auto c = source_.peek();
-        if (JSONCONS_UNLIKELY(c.eof))
-        {
-            ec = cbor_errc::unexpected_eof;
-            more_ = false;
-            return byte_string_view();
-        }
-        jsoncons::cbor::detail::cbor_major_type major_type = get_major_type(c.value);
-        uint8_t info = get_additional_information_value(c.value);
-
-        JSONCONS_ASSERT(major_type == jsoncons::cbor::detail::cbor_major_type::byte_string);
-
-        if (info == jsoncons::cbor::detail::additional_info::indefinite_length)
-        {
-            bytes_buffer_.clear();
-            source_.ignore(1);
-            iterate_string_chunks(bytes_buffer_, major_type, ec);
-            if (JSONCONS_UNLIKELY(ec))
-            {
-                return byte_string_view();
-            }
-            return byte_string_view(bytes_buffer_.data(), bytes_buffer_.size());
-        }
-
-        std::size_t length = read_size(ec);
-        if (JSONCONS_UNLIKELY(ec))
-        {
-            return byte_string_view();
-        }
-        auto data = source_.read_span(length, bytes_buffer_);
-        if (data.size() != length)
-        {
-            ec = cbor_errc::unexpected_eof;
-            more_ = false;
-            return byte_string_view();
-        }
-        
-        byte_string_view bytes(data.data(), data.size());
-        if (!stringref_map_stack_.empty() &&
-            bytes.size() >= jsoncons::cbor::detail::min_length_for_stringref(stringref_map_stack_.back().size()))
-        {
-            stringref_map_stack_.back().emplace_back(mapped_string(bytes, alloc_));
-        }
-        return bytes;
-    }
-
     std::size_t read_size(std::error_code& ec)
     {
         uint64_t u = read_uint64(ec);
@@ -1268,7 +1152,7 @@ private:
         return len;
     }
 
-    void read_byte_string(std::vector<uint8_t,byte_allocator_type>& v, std::error_code& ec)
+    void read_byte_string(byte_string_type& v, std::error_code& ec)
     {
         v.clear();
         auto c = source_.peek();
@@ -1351,7 +1235,6 @@ private:
             {
                 return;
             }
-            const std::size_t offset = v.size();
             if (source_reader<Source>::read(source_, v, length) != length)
             {
                 ec = cbor_errc::unexpected_eof;
@@ -1360,21 +1243,7 @@ private:
             {
                 return;
             }
-            if (type == jsoncons::cbor::detail::cbor_major_type::text_string)
-            {
-                // RFC 8949 3.2.3: each chunk of an indefinite-length text
-                // string must itself be well-formed UTF-8, so a code point
-                // may not be split across chunks.
-                auto result = unicode_traits::validate(
-                    reinterpret_cast<const char*>(v.data()) + offset, length);
-                if (result.ec != unicode_traits::unicode_errc())
-                {
-                    ec = cbor_errc::invalid_utf8_text_string;
-                    more_ = false;
-                    return;
-                }
-            }
-        }
+        } 
     }
 
     uint64_t read_uint64(std::error_code& ec)
@@ -1413,12 +1282,7 @@ private:
             case 0x19: // Unsigned integer (two-byte uint16_t follows)
             {
                 uint8_t buf[sizeof(uint16_t)];
-                if (source_.read(buf, sizeof(uint16_t)) != sizeof(uint16_t))
-                {
-                    ec = cbor_errc::unexpected_eof;
-                    more_ = false;
-                    return val;
-                }
+                source_.read(buf, sizeof(uint16_t));
                 val = binary::big_to_native<uint16_t>(buf, sizeof(buf));
                 break;
             }
@@ -1426,12 +1290,7 @@ private:
             case 0x1a: // Unsigned integer (four-byte uint32_t follows)
             {
                 uint8_t buf[sizeof(uint32_t)];
-                if (source_.read(buf, sizeof(uint32_t)) != sizeof(uint32_t))
-                {
-                    ec = cbor_errc::unexpected_eof;
-                    more_ = false;
-                    return val;
-                }
+                source_.read(buf, sizeof(uint32_t));
                 val = binary::big_to_native<uint32_t>(buf, sizeof(buf));
                 break;
             }
@@ -1439,12 +1298,7 @@ private:
             case 0x1b: // Unsigned integer (eight-byte uint64_t follows)
             {
                 uint8_t buf[sizeof(uint64_t)];
-                if (source_.read(buf, sizeof(uint64_t)) != sizeof(uint64_t))
-                {
-                    ec = cbor_errc::unexpected_eof;
-                    more_ = false;
-                    return val;
-                }
+                source_.read(buf, sizeof(uint64_t));
                 val = binary::big_to_native<uint64_t>(buf, sizeof(buf));
                 break;
             }
@@ -1629,39 +1483,25 @@ private:
             more_ = false;
             return;
         }
-        int32_t exponent = 0;
+        int64_t exponent = 0;
         switch (get_major_type(c.value))
         {
             case jsoncons::cbor::detail::cbor_major_type::unsigned_integer:
             {
-                auto u = read_uint64(ec);
+                exponent = read_uint64(ec);
                 if (JSONCONS_UNLIKELY(ec))
                 {
                     return;
                 }
-                if (u > static_cast<uint64_t>((std::numeric_limits<int>::max)()))
-                {
-                    ec = cbor_errc::invalid_decimal_fraction;
-                    more_ = false;
-                    return;
-                }
-                exponent = static_cast<int>(u);
                 break;
             }
             case jsoncons::cbor::detail::cbor_major_type::negative_integer:
             {
-                auto u = read_int64(ec);
+                exponent = read_int64(ec);
                 if (JSONCONS_UNLIKELY(ec))
                 {
                     return;
                 }
-                if (u < static_cast<int64_t>((std::numeric_limits<int>::min)()) || u > static_cast<int64_t>((std::numeric_limits<int>::max)()))
-                {
-                    ec = cbor_errc::invalid_decimal_fraction;
-                    more_ = false;
-                    return;
-                }
-                exponent = static_cast<int>(u);
                 break;
             }
             default:
@@ -1753,23 +1593,24 @@ private:
             }
         }
 
-        if (str.size() > static_cast<std::size_t>((std::numeric_limits<int>::max)()))
+        if (str.size() >= static_cast<std::size_t>((std::numeric_limits<int32_t>::max)()) || 
+            exponent >= (std::numeric_limits<int32_t>::max)() || 
+            exponent <= (std::numeric_limits<int32_t>::min)())
         {
             ec = cbor_errc::invalid_decimal_fraction;
             more_ = false;
             return;
         }
-        int length = static_cast<int>(str.size());
-        if (length > 0)
+        else if (str.size() > 0)
         {
             if (str[0] == '-')
             {
                 result.push_back('-');
-                jsoncons::prettify_string(str.data()+1, length-1, exponent, -4, 17, result);
+                jsoncons::prettify_string(str.c_str()+1, str.size()-1, (int)exponent, -4, 17, result);
             }
             else
             {
-                jsoncons::prettify_string(str.data(), length, exponent, -4, 17, result);
+                jsoncons::prettify_string(str.c_str(), str.size(), (int)exponent, -4, 17, result);
             }
         }
         else
@@ -1861,7 +1702,7 @@ private:
                 str.push_back('-');
                 str.push_back('0');
                 str.push_back('x');
-                jsoncons::integer_to_hex(static_cast<uint64_t>(-1 - val) + 1u, str);
+                jsoncons::integer_to_hex(static_cast<uint64_t>(-val), str);
                 break;
             }
             case jsoncons::cbor::detail::cbor_major_type::semantic_tag:
@@ -1927,7 +1768,7 @@ private:
         else
         {
             str.push_back('-');
-            jsoncons::integer_to_hex(static_cast<uint64_t>(-1 - exponent) + 1u, str);
+            jsoncons::integer_to_hex(static_cast<uint64_t>(-exponent), str);
         }
     }
 
@@ -1987,7 +1828,7 @@ private:
         }
     }
 
-    void handle_string(generic_visitor& visitor, const jsoncons::string_view& v, std::error_code& ec)
+    void handle_string(generic_visitor& visitor, const jsoncons::basic_string_view<char>& v, std::error_code& ec)
     {
         semantic_tag tag = semantic_tag::none;
         if (other_tags_[item_tag])
@@ -2037,13 +1878,14 @@ private:
             {
                 case 0x2:
                 {
-                    auto bytes = read.view(ec);
+                    bytes_buffer_.clear();
+                    read(bytes_buffer_,ec);
                     if (JSONCONS_UNLIKELY(ec))
                     {
                         more_ = false;
                         return;
                     }
-                    bigint n = bigint::from_bytes_be(1, bytes.data(), bytes.size());
+                    bigint n = bigint::from_bytes_be(1, bytes_buffer_.data(), bytes_buffer_.size());
                     text_buffer_.clear();
                     n.write_string(text_buffer_);
                     visitor.string_value(text_buffer_, semantic_tag::bigint, *this, ec);
@@ -2052,13 +1894,14 @@ private:
                 }
                 case 0x3:
                 {
-                    auto bytes = read.view(ec);
+                    bytes_buffer_.clear();
+                    read(bytes_buffer_,ec);
                     if (JSONCONS_UNLIKELY(ec))
                     {
                         more_ = false;
                         return;
                     }
-                    bigint n = bigint::from_bytes_be(1, bytes.data(), bytes.size());
+                    bigint n = bigint::from_bytes_be(1, bytes_buffer_.data(), bytes_buffer_.size());
                     n = -1 - n;
                     text_buffer_.clear();
                     n.write_string(text_buffer_);
@@ -2067,26 +1910,45 @@ private:
                     break;
                 }
                 case 0x15:
-                case 0x16:
-                case 0x17:
                 {
-                    auto bytes = read.view(ec);
+                    read(bytes_buffer_,ec);
                     if (JSONCONS_UNLIKELY(ec))
                     {
                         more_ = false;
                         return;
                     }
-                    const semantic_tag tag = raw_tag_ == 0x15 ? semantic_tag::base64url
-                        : raw_tag_ == 0x16 ? semantic_tag::base64
-                        : semantic_tag::base16;
-                    visitor.byte_string_value(bytes, tag, *this, ec);
+                    visitor.byte_string_value(bytes_buffer_, semantic_tag::base64url, *this, ec);
+                    more_ = !cursor_mode_;
+                    break;
+                }
+                case 0x16:
+                {
+                    read(bytes_buffer_,ec);
+                    if (JSONCONS_UNLIKELY(ec))
+                    {
+                        more_ = false;
+                        return;
+                    }
+                    visitor.byte_string_value(bytes_buffer_, semantic_tag::base64, *this, ec);
+                    more_ = !cursor_mode_;
+                    break;
+                }
+                case 0x17:
+                {
+                    read(bytes_buffer_,ec);
+                    if (JSONCONS_UNLIKELY(ec))
+                    {
+                        more_ = false;
+                        return;
+                    }
+                    visitor.byte_string_value(bytes_buffer_, semantic_tag::base16, *this, ec);
                     more_ = !cursor_mode_;
                     break;
                 }
                 case 0x40:
                 {
                     array_tag_ = typed_array_tags::uint8;
-                    std::vector<uint8_t,byte_allocator_type> array_buffer(alloc_);
+                    byte_string_type array_buffer(alloc_);
                     read(array_buffer, ec);
                     if (JSONCONS_UNLIKELY(ec))
                     {
@@ -2103,14 +1965,14 @@ private:
                             return;
                         }
                         auto iter = std::make_shared<mdarray_iterator<uint8_t,jsoncons::identity,Allocator>>(std::move(array_buffer), 
-                            typed_array_tags::uint8, extents_, order_, alloc_);
+                            typed_array_tags::uint8, extents_, order_);
                         typed_array_stack_.push_back(iter);
                         iter->next(visitor, *this, ec);
                     }
                     else
                     {
                         auto iter = std::make_shared<oned_typed_array_iterator<uint8_t,jsoncons::identity,Allocator>>(std::move(array_buffer), 
-                            typed_array_tags::uint8, semantic_tag::none, alloc_);
+                            typed_array_tags::uint8);
                         typed_array_stack_.push_back(iter);
                         iter->next(visitor, *this, ec);
                     }
@@ -2122,7 +1984,7 @@ private:
                 {
                     array_tag_ = typed_array_tags::uint8;
                     typed_array_tag_ = semantic_tag::clamped;
-                    std::vector<uint8_t,byte_allocator_type> array_buffer(alloc_);
+                    byte_string_type array_buffer(alloc_);
                     read(array_buffer, ec);
                     if (JSONCONS_UNLIKELY(ec))
                     {
@@ -2139,14 +2001,14 @@ private:
                             return;
                         }
                         auto iter = std::make_shared<mdarray_iterator<uint8_t,jsoncons::identity,Allocator>>(std::move(array_buffer), 
-                            typed_array_tags::uint8, extents_, order_, alloc_);
+                            typed_array_tags::uint8, extents_, order_);
                         typed_array_stack_.push_back(iter);
                         iter->next(visitor, *this, ec);
                     }
                     else
                     {
                         auto iter = std::make_shared<oned_typed_array_iterator<uint8_t,jsoncons::identity,Allocator>>(std::move(array_buffer), 
-                            typed_array_tags::uint8, semantic_tag::clamped, alloc_);
+                            typed_array_tags::uint8, semantic_tag::clamped);
                         typed_array_stack_.push_back(iter);
                         iter->next(visitor, *this, ec);
                     }
@@ -2158,7 +2020,7 @@ private:
                 case 0x45:
                 {
                     array_tag_ = typed_array_tags::uint16;
-                    std::vector<uint8_t,byte_allocator_type> array_buffer(alloc_);
+                    byte_string_type array_buffer(alloc_);
                     read(array_buffer, ec);
                     if (JSONCONS_UNLIKELY(ec))
                     {
@@ -2184,14 +2046,14 @@ private:
                             return;
                         }
                         auto iter = std::make_shared<mdarray_iterator<uint16_t,jsoncons::identity,Allocator>>(std::move(array_buffer), 
-                            typed_array_tags::uint16, extents_, order_, alloc_);
+                            typed_array_tags::uint16, extents_, order_);
                         typed_array_stack_.push_back(iter);
                         iter->next(visitor, *this, ec);
                     }
                     else
                     {
                         auto iter = std::make_shared<oned_typed_array_iterator<uint16_t,jsoncons::identity,Allocator>>(std::move(array_buffer),
-                            typed_array_tags::uint16, semantic_tag::none, alloc_);
+                            typed_array_tags::uint16);
                         typed_array_stack_.push_back(iter);
                         iter->next(visitor, *this, ec);
                     }
@@ -2203,7 +2065,7 @@ private:
                 case 0x46:
                 {
                     array_tag_ = typed_array_tags::uint32;
-                    std::vector<uint8_t,byte_allocator_type> array_buffer(alloc_);
+                    byte_string_type array_buffer(alloc_);
                     read(array_buffer, ec);
                     if (JSONCONS_UNLIKELY(ec))
                     {
@@ -2229,14 +2091,14 @@ private:
                             return;
                         }
                         auto iter = std::make_shared<mdarray_iterator<uint32_t,jsoncons::identity,Allocator>>(std::move(array_buffer), 
-                            typed_array_tags::uint32, extents_, order_, alloc_);
+                            typed_array_tags::uint32, extents_, order_);
                         typed_array_stack_.push_back(iter);
                         iter->next(visitor, *this, ec);
                     }
                     else
                     {
                         auto iter = std::make_shared<oned_typed_array_iterator<uint32_t,jsoncons::identity,Allocator>>(std::move(array_buffer),
-                            typed_array_tags::uint32, semantic_tag::none, alloc_);
+                            typed_array_tags::uint32);
                         typed_array_stack_.push_back(iter);
                         iter->next(visitor, *this, ec);
                     }
@@ -2248,7 +2110,7 @@ private:
                 case 0x47:
                 {
                     array_tag_ = typed_array_tags::uint64;
-                    std::vector<uint8_t,byte_allocator_type> array_buffer(alloc_);
+                    byte_string_type array_buffer(alloc_);
                     read(array_buffer, ec);
                     if (JSONCONS_UNLIKELY(ec))
                     {
@@ -2274,14 +2136,14 @@ private:
                             return;
                         }
                         auto iter = std::make_shared<mdarray_iterator<uint64_t,jsoncons::identity,Allocator>>(std::move(array_buffer), 
-                            typed_array_tags::uint64, extents_, order_, alloc_);
+                            typed_array_tags::uint64, extents_, order_);
                         typed_array_stack_.push_back(iter);
                         iter->next(visitor, *this, ec);
                     }
                     else
                     {
                         auto iter = std::make_shared<oned_typed_array_iterator<uint64_t,jsoncons::identity,Allocator>>(std::move(array_buffer),
-                            typed_array_tags::uint64, semantic_tag::none, alloc_);
+                            typed_array_tags::uint64);
                         typed_array_stack_.push_back(iter);
                         iter->next(visitor, *this, ec);
                     }
@@ -2292,7 +2154,7 @@ private:
                 case 0x48:
                 {
                     array_tag_ = typed_array_tags::int8;
-                    std::vector<uint8_t,byte_allocator_type> array_buffer(alloc_);
+                    byte_string_type array_buffer(alloc_);
                     read(array_buffer, ec);
                     if (JSONCONS_UNLIKELY(ec))
                     {
@@ -2309,14 +2171,14 @@ private:
                             return;
                         }
                         auto iter = std::make_shared<mdarray_iterator<int8_t,jsoncons::identity,Allocator>>(std::move(array_buffer), 
-                            typed_array_tags::int8, extents_, order_, alloc_);
+                            typed_array_tags::int8, extents_, order_);
                         typed_array_stack_.push_back(iter);
                         iter->next(visitor, *this, ec);
                     }
                     else
                     {
                         auto iter = std::make_shared<oned_typed_array_iterator<int8_t,jsoncons::identity,Allocator>>(std::move(array_buffer),
-                            typed_array_tags::int8, semantic_tag::none, alloc_);
+                            typed_array_tags::int8);
                         typed_array_stack_.push_back(iter);
                         iter->next(visitor, *this, ec);
                     }
@@ -2328,7 +2190,7 @@ private:
                 case 0x4d:
                 {
                     array_tag_ = typed_array_tags::int16;
-                    std::vector<uint8_t,byte_allocator_type> array_buffer(alloc_);
+                    byte_string_type array_buffer(alloc_);
                     read(array_buffer, ec);
                     if (JSONCONS_UNLIKELY(ec))
                     {
@@ -2354,14 +2216,14 @@ private:
                             return;
                         }
                         auto iter = std::make_shared<mdarray_iterator<int16_t,jsoncons::identity,Allocator>>(std::move(array_buffer), 
-                            typed_array_tags::int16, extents_, order_, alloc_);
+                            typed_array_tags::int16, extents_, order_);
                         typed_array_stack_.push_back(iter);
                         iter->next(visitor, *this, ec);
                     }
                     else
                     {
                         auto iter = std::make_shared<oned_typed_array_iterator<int16_t,jsoncons::identity,Allocator>>(std::move(array_buffer),
-                            typed_array_tags::int16, semantic_tag::none, alloc_);
+                            typed_array_tags::int16);
                         typed_array_stack_.push_back(iter);
                         iter->next(visitor, *this, ec);
                     }
@@ -2373,7 +2235,7 @@ private:
                 case 0x4e:
                 {
                     array_tag_ = typed_array_tags::int32;
-                    std::vector<uint8_t,byte_allocator_type> array_buffer(alloc_);
+                    byte_string_type array_buffer(alloc_);
                     read(array_buffer, ec);
                     if (JSONCONS_UNLIKELY(ec))
                     {
@@ -2399,14 +2261,14 @@ private:
                             return;
                         }
                         auto iter = std::make_shared<mdarray_iterator<int32_t,jsoncons::identity,Allocator>>(std::move(array_buffer), 
-                            typed_array_tags::int32, extents_, order_, alloc_);
+                            typed_array_tags::int32, extents_, order_);
                         typed_array_stack_.push_back(iter);
                         iter->next(visitor, *this, ec);
                     }
                     else
                     {
                         auto iter = std::make_shared<oned_typed_array_iterator<int32_t,jsoncons::identity,Allocator>>(std::move(array_buffer),
-                            typed_array_tags::int32, semantic_tag::none, alloc_);
+                            typed_array_tags::int32);
                         typed_array_stack_.push_back(iter);
                         iter->next(visitor, *this, ec);
                     }
@@ -2418,7 +2280,7 @@ private:
                 case 0x4f:
                 {
                     array_tag_ = typed_array_tags::int64;
-                    std::vector<uint8_t,byte_allocator_type> array_buffer(alloc_);
+                    byte_string_type array_buffer(alloc_);
                     read(array_buffer, ec);
                     if (JSONCONS_UNLIKELY(ec))
                     {
@@ -2444,14 +2306,13 @@ private:
                             return;
                         }
                         auto iter = std::make_shared<mdarray_iterator<int64_t,jsoncons::identity,Allocator>>(std::move(array_buffer), 
-                            typed_array_tags::int64, extents_, order_, alloc_);
+                            typed_array_tags::int64, extents_, order_);
                         typed_array_stack_.push_back(iter);
                         iter->next(visitor, *this, ec);
                     }
                     else
                     {
-                        auto iter = std::make_shared<oned_typed_array_iterator<int64_t,jsoncons::identity,Allocator>>(std::move(array_buffer), 
-                            typed_array_tags::int64, semantic_tag::none, alloc_);
+                        auto iter = std::make_shared<oned_typed_array_iterator<int64_t,jsoncons::identity,Allocator>>(std::move(array_buffer), typed_array_tags::int64);
                         typed_array_stack_.push_back(iter);
                         iter->next(visitor, *this, ec);
                     }
@@ -2463,7 +2324,7 @@ private:
                 case 0x54:
                 {
                     array_tag_ = typed_array_tags::half_float;
-                    std::vector<uint8_t,byte_allocator_type> array_buffer(alloc_);
+                    byte_string_type array_buffer(alloc_);
                     read(array_buffer, ec);
                     if (JSONCONS_UNLIKELY(ec))
                     {
@@ -2489,14 +2350,14 @@ private:
                             return;
                         }
                         auto iter = std::make_shared<mdarray_iterator<uint16_t,decode_half,Allocator>>(std::move(array_buffer), 
-                            typed_array_tags::half_float, extents_, order_, alloc_);
+                            typed_array_tags::half_float, extents_, order_);
                         typed_array_stack_.push_back(iter);
                         iter->next(visitor, *this, ec);
                     }
                     else
                     {
                         auto iter = std::make_shared<oned_typed_array_iterator<uint16_t,decode_half,Allocator>>(std::move(array_buffer),
-                            typed_array_tags::half_float, semantic_tag::none, alloc_);
+                            typed_array_tags::half_float);
                         typed_array_stack_.push_back(iter);
                         iter->next(visitor, *this, ec);
                     }
@@ -2508,7 +2369,7 @@ private:
                 case 0x55:
                 {
                     array_tag_ = typed_array_tags::float32;
-                    std::vector<uint8_t,byte_allocator_type> array_buffer(alloc_);
+                    byte_string_type array_buffer(alloc_);
                     read(array_buffer, ec);
                     if (JSONCONS_UNLIKELY(ec))
                     {
@@ -2534,14 +2395,14 @@ private:
                             return;
                         }
                         auto iter = std::make_shared<mdarray_iterator<float,jsoncons::identity,Allocator>>(std::move(array_buffer), 
-                            typed_array_tags::float32, extents_, order_, alloc_);
+                            typed_array_tags::float32, extents_, order_);
                         typed_array_stack_.push_back(iter);
                         iter->next(visitor, *this, ec);
                     }
                     else
                     {
                         auto iter = std::make_shared<oned_typed_array_iterator<float,jsoncons::identity,Allocator>>(std::move(array_buffer),
-                            typed_array_tags::float32, semantic_tag::none, alloc_);
+                            typed_array_tags::float32);
                         typed_array_stack_.push_back(iter);
                         iter->next(visitor, *this, ec);
                     }
@@ -2553,7 +2414,7 @@ private:
                 case 0x56:
                 {
                     array_tag_ = typed_array_tags::float64;
-                    std::vector<uint8_t,byte_allocator_type> array_buffer(alloc_);
+                    byte_string_type array_buffer(alloc_);
                     read(array_buffer, ec);
                     if (JSONCONS_UNLIKELY(ec))
                     {
@@ -2579,14 +2440,14 @@ private:
                             return;
                         }
                         auto iter = std::make_shared<mdarray_iterator<double,jsoncons::identity,Allocator>>(std::move(array_buffer), 
-                            typed_array_tags::float64, extents_, order_, alloc_);
+                            typed_array_tags::float64, extents_, order_);
                         typed_array_stack_.push_back(iter);
                         iter->next(visitor, *this, ec);
                     }
                     else
                     {
                         auto iter = std::make_shared<oned_typed_array_iterator<double,jsoncons::identity,Allocator>>(std::move(array_buffer),
-                            typed_array_tags::float64, semantic_tag::none, alloc_);
+                            typed_array_tags::float64);
                         typed_array_stack_.push_back(iter);
                         iter->next(visitor, *this, ec);
                     }
@@ -2596,13 +2457,13 @@ private:
                 }
                 default:
                 {
-                    auto bytes = read.view(ec);
+                    read(bytes_buffer_,ec);
                     if (JSONCONS_UNLIKELY(ec))
                     {
                         more_ = false;
                         return;
                     }
-                    visitor.byte_string_value(bytes, raw_tag_, *this, ec);
+                    visitor.byte_string_value(bytes_buffer_, raw_tag_, *this, ec);
                     more_ = !cursor_mode_;
                     break;
                 }
@@ -2611,12 +2472,12 @@ private:
         }
         else
         {
-            auto bytes = read.view(ec);
+            read(bytes_buffer_,ec);
             if (JSONCONS_UNLIKELY(ec))
             {
                 return;
             }
-            visitor.byte_string_value(bytes, semantic_tag::none, *this, ec);
+            visitor.byte_string_value(bytes_buffer_, semantic_tag::none, *this, ec);
             more_ = !cursor_mode_;
         }
     }
@@ -2664,7 +2525,7 @@ private:
             {
                 return;
             }
-            auto iter = std::make_shared<cbor_mdarray_row_major_iterator<Source,Allocator>>(extents_, this, cursor_mode_, alloc_);
+            auto iter = std::make_shared<cbor_mdarray_row_major_iterator<Source,Allocator>>(extents_, this, cursor_mode_);
             typed_array_stack_.push_back(iter);
             if (!iter->done())
             {
@@ -2678,7 +2539,7 @@ private:
             {
                 return;
             }
-            auto iter = std::make_shared<cbor_mdarray_column_major_iterator<Source,Allocator>>(extents_, this, cursor_mode_, alloc_);
+            auto iter = std::make_shared<cbor_mdarray_column_major_iterator<Source,Allocator>>(extents_, this, cursor_mode_);
             typed_array_stack_.push_back(iter);
             if (!iter->done())
             {
@@ -2687,17 +2548,10 @@ private:
         }
         else if (major_type == jsoncons::cbor::detail::cbor_major_type::byte_string)
         {
-            std::size_t typed_array_count = typed_array_stack_.size();
             read_byte_string_from_source read(this);
             read_byte_string(read, visitor, ec);
             if (JSONCONS_UNLIKELY(ec))
             {
-                return;
-            }
-            if (typed_array_stack_.size() == typed_array_count)
-            {
-                // Byte string storage must be a typed array
-                ec = cbor_errc::bad_mdarray;
                 return;
             }
         }
@@ -2720,21 +2574,13 @@ private:
             more_ = false;
             return;
         }
-        if (get_major_type(b.value) != jsoncons::cbor::detail::cbor_major_type::array)
-        {
-            ec = cbor_errc::bad_extents;
-            more_ = false;
-            return;
-        }
         uint8_t info = get_additional_information_value(b.value);
 
         switch (info)
         {
             case jsoncons::cbor::detail::additional_info::indefinite_length:
             {
-                source_.ignore(1);
-                bool done = false;
-                while (!done)
+                while (true)
                 {
                     auto c = source_.peek();
                     if (JSONCONS_UNLIKELY(c.eof))
@@ -2746,7 +2592,7 @@ private:
                     if (c.value == 0xff)
                     {
                         source_.ignore(1);
-                        done = true;
+                        return;
                     }
                     else
                     {

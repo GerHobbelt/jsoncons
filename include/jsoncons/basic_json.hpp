@@ -269,7 +269,7 @@ namespace jsoncons {
         using member_key = std::basic_string<CharT, CharTraits, Allocator>;
     };
 
-    struct order_preserving_policy
+    struct ordered_policy
     {
         template <typename KeyT,typename Json>
         using object = ordered_json_object<KeyT,Json,std::vector>;
@@ -280,6 +280,11 @@ namespace jsoncons {
         template <typename CharT,typename CharTraits,typename Allocator>
         using member_key = std::basic_string<CharT, CharTraits, Allocator>;
     };
+
+
+#if !defined(JSONCONS_NO_DEPRECATED)
+    using order_preserving_policy = ordered_policy;
+#endif
 
     template <typename Policy,typename KeyT,typename Json,typename Enable=void>
     struct object_iterator_typedefs
@@ -3538,7 +3543,7 @@ namespace jsoncons {
             auto r = reflect::json_conv_traits<basic_json,T>::try_as(make_alloc_set(), *this);
             if (!r)
             {
-                JSONCONS_THROW(conv_error(r.error().code(), r.error().message_arg()));
+                JSONCONS_THROW(conv_error(r.error().code(), r.error().msg_arg()));
             }
             return std::move(r.value());
         }
@@ -3550,7 +3555,7 @@ namespace jsoncons {
             auto r = reflect::json_conv_traits<basic_json,T>::try_as(aset, *this);
             if (!r)
             {
-                JSONCONS_THROW(conv_error(r.error().code(), r.error().message_arg()));
+                JSONCONS_THROW(conv_error(r.error().code(), r.error().msg_arg()));
             }
             return std::move(r.value());
         }
@@ -5154,8 +5159,8 @@ namespace jsoncons {
 
     using json = basic_json<char,sorted_policy,std::allocator<char>>;
     using wjson = basic_json<wchar_t,sorted_policy,std::allocator<char>>;
-    using ojson = basic_json<char, order_preserving_policy, std::allocator<char>>;
-    using wojson = basic_json<wchar_t, order_preserving_policy, std::allocator<char>>;
+    using ojson = basic_json<char, ordered_policy, std::allocator<char>>;
+    using wojson = basic_json<wchar_t, ordered_policy, std::allocator<char>>;
 
     inline namespace literals {
 
@@ -5191,8 +5196,8 @@ namespace jsoncons {
         using basic_json = jsoncons::basic_json<CharT, Policy, std::pmr::polymorphic_allocator<char>>;
         using json = basic_json<char,sorted_policy>;
         using wjson = basic_json<wchar_t,sorted_policy>;
-        using ojson = basic_json<char, order_preserving_policy>;
-        using wojson = basic_json<wchar_t, order_preserving_policy>;
+        using ojson = basic_json<char, ordered_policy>;
+        using wojson = basic_json<wchar_t, ordered_policy>;
     } // namespace pmr
     #endif
 

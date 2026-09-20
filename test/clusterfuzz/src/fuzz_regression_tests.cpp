@@ -7,6 +7,7 @@
 #include <jsoncons_ext/bson/bson.hpp>
 #include <jsoncons_ext/csv/csv.hpp>
 #include <jsoncons/json.hpp>
+#include <jsoncons/tracing_json_visitor.hpp>
 
 #include <iostream>
 #include <vector>
@@ -965,7 +966,7 @@ TEST_CASE("Fuzz target: fuzz_cbor_encoder")
         REQUIRE_NOTHROW(reader.read(ec));
         CHECK((int)cbor::cbor_errc::unknown_type == ec.value());
         //std::cout << ec.message() << "\n";
-    }*/
+    }
 
 
     // Fuzz target: fuzz_cbor
@@ -984,6 +985,42 @@ TEST_CASE("Fuzz target: fuzz_cbor_encoder")
         std::error_code ec;
         REQUIRE_NOTHROW(reader.read(ec));
         std::cout << ec.message() << "\n";
+    }
+    SECTION("issue 536466724")
+    {
+        std::string pathname = "clusterfuzz/input/clusterfuzz-testcase-minimized-fuzz_msgpack-5217334684614656";
+
+        std::ifstream is(pathname, std::ios_base::in | std::ios_base::binary);
+        CHECK(is); //-V521
+
+        json_decoder<json> visitor;
+
+        auto options = msgpack::msgpack_options{};
+
+        msgpack::msgpack_stream_reader reader(is,visitor);
+        std::error_code ec;
+        REQUIRE_NOTHROW(reader.read(ec));
+        CHECK(msgpack::msgpack_errc::unexpected_eof == ec); 
+    }*/
+    // Fuzz target: fuzz_cbor_parser_max
+    // Issue: Integer-overflow in void jsoncons::prettify_string<std::__1::basic_string<char, std::__1::char_trait
+    SECTION("issue 536952813")
+    {
+        std::string pathname = "clusterfuzz/input/clusterfuzz-testcase-minimized-fuzz_cbor_parser_max-5653520134242304";
+
+        std::ifstream is(pathname, std::ios_base::in | std::ios_base::binary);
+        CHECK(is); //-V521
+
+        // c4               Tag 4 (decimal fraction)
+        // 82               Array of length 2
+        // 1a 7f ff ff fe   Unsigned 32-bit integer: 2147483646
+        // 2c               Negative integer -13 (CBOR negative integers encode -1 - n, so 0x2c = -13)
+
+        default_json_visitor visitor;
+        cbor::cbor_stream_reader reader(is, visitor);
+        std::error_code ec;
+        reader.read(ec);
+        CHECK_FALSE(ec);
     }
 }
 
