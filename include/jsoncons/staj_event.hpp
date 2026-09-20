@@ -53,16 +53,48 @@ enum class staj_event_type : uint64_t
     key               = 0b0001000000000000
 };
 
-inline bool is_begin_container(staj_event_type event_type) noexcept
+JSONCONS_ATTRIBUTE_NODISCARD
+constexpr staj_event_type
+operator|(staj_event_type lhs, staj_event_type rhs) noexcept
+{ return (staj_event_type)((uint64_t)lhs | (uint64_t)rhs); }
+
+JSONCONS_ATTRIBUTE_NODISCARD
+constexpr staj_event_type
+operator&(staj_event_type lhs, staj_event_type rhs) noexcept
+{ return (staj_event_type)((uint64_t)lhs & (uint64_t)rhs); }
+
+JSONCONS_ATTRIBUTE_NODISCARD
+constexpr staj_event_type
+operator^(staj_event_type lhs, staj_event_type rhs) noexcept
+{ return (staj_event_type)((uint64_t)lhs ^ (uint64_t)rhs); }
+
+JSONCONS_ATTRIBUTE_NODISCARD
+constexpr staj_event_type
+operator~(staj_event_type types) noexcept
+{ return (staj_event_type)~(uint64_t)types; }
+
+constexpr staj_event_type&
+operator|=(staj_event_type& lhs, staj_event_type rhs) noexcept
+{ return lhs = lhs | rhs; }
+
+constexpr staj_event_type&
+operator&=(staj_event_type& lhs, staj_event_type rhs) noexcept
+{ return lhs = lhs & rhs; }
+
+constexpr staj_event_type&
+operator^=(staj_event_type& lhs, staj_event_type rhs) noexcept
+{ return lhs = lhs ^ rhs; }
+
+inline bool is_begin_container(staj_event_type types) noexcept
 {
-    static const uint64_t mask{ uint64_t(staj_event_type::begin_object) & uint64_t(staj_event_type::begin_array) };
-    return (uint64_t(event_type) & mask) == mask;
+    static const staj_event_type mask{ staj_event_type::begin_object | staj_event_type::begin_array };
+    return (types & mask) != staj_event_type{};
 }
 
-inline bool is_end_container(staj_event_type event_type) noexcept
+inline bool is_end_container(staj_event_type types) noexcept
 {
-    static const uint64_t mask{ uint64_t(staj_event_type::end_object) & uint64_t(staj_event_type::end_array) };
-    return (uint64_t(event_type) & mask) == mask;
+    static const staj_event_type mask{ staj_event_type::end_object | staj_event_type::end_array };
+    return (types & mask) != staj_event_type{};
 }
 
 template <typename CharT>
