@@ -4,6 +4,14 @@ jsoncons supports tags for [typed arrays](https://tools.ietf.org/html/rfc8746).
 
 ### Examples 
 
+[Read a typed array](#read-a-typed-array)  
+[Read a 3D typed array with row-major storage](#read-a-3d-typed-array-with-row-major-storage)  
+[Read a 3D typed array with column-major storage](#read-a-3d-typed-array-with-column-major-storage)  
+[Read a 3D classical array with row-major storage (since 1.8.0)](#read-a-3d-classical-array-with-row-major-storage-since-180)  
+[Write a typed array of half precision floating-point](#write-a-typed-array-of-half-precision-floating-point)  
+[Write a 3D 2 x 3 array with typed array storage (since 1.8.0)](#write-a-3d-2-x-3-array-with-typed-array-storage-since-180)  
+[Write a 3D 2 x 3 array with classical array storage](#write-a-3d-2-x-3-array-with-classical-array-storage)  
+
 Reading a CBOR multi-dimensional array and reading a typed array using a cursor have changed in version 1.8.0.
 
 #### Read a typed array
@@ -90,7 +98,7 @@ int main()
 {
     // A 3D typed array 2 x 3 x 2 with row-major storage
     std::vector<uint8_t> data = {
-        0xD8, 0x28,                         // tag(40) row major storage 
+        0xD8, 0x28,                         // tag(40) row-major storage 
         0x82,                               // array(2)
         0x83,                               // shape array(3)
         0x02, 0x03, 0x02,                   // [2, 3, 2]
@@ -242,7 +250,7 @@ int main()
 {
     // A 3D classical array 2 x 3 x 2 with row-major storage
     std::vector<uint8_t> data = {
-        0xD8, 0x28,                         // tag(40) row major storage 
+        0xD8, 0x28,                         // tag(40) row-major storage 
         0x82,                               // array(2)
         0x83,                               // shape array(3)
         0x02, 0x03, 0x02,                   // [2, 3, 2]

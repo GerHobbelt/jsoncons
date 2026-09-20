@@ -71,7 +71,6 @@ add_executable(unit_tests
                cbor/src/cbor_bitset_traits_tests.cpp
                cbor/src/cbor_cursor_tests.cpp
                cbor/src/cbor_encoder_tests.cpp
-               cbor/src/cbor_event_reader_tests.cpp
                cbor/src/cbor_event_visitor_tests.cpp
                cbor/src/cbor_reader_tests.cpp
                cbor/src/cbor_tests.cpp
@@ -95,6 +94,7 @@ add_executable(unit_tests
                corelib/src/const_json_ptr_arg_tests.cpp
                corelib/src/json_constructor_tests.cpp
                corelib/src/json_cursor_tests.cpp
+               corelib/src/generic_to_json_visitor_tests.cpp
                corelib/src/json_encoder_tests.cpp
                corelib/src/json_exception_tests.cpp
                corelib/src/json_filter_tests.cpp
@@ -201,7 +201,6 @@ add_executable(unit_tests
                msgpack/src/msgpack_bitset_traits_tests.cpp
                msgpack/src/msgpack_cursor_tests.cpp
                msgpack/src/msgpack_encoder_tests.cpp
-               msgpack/src/msgpack_event_reader_tests.cpp
                msgpack/src/msgpack_tests.cpp
                msgpack/src/msgpack_timestamp_tests.cpp
                ubjson/src/decode_ubjson_tests.cpp

@@ -1,5 +1,12 @@
-master
-------
+Release 1.8.1
+-------------
+
+- Fixed bugs:
+
+  - Git PR #717: fix misplaced #endif
+
+Release 1.8.0
+-------------
 
 - Fixed bugs:
 
@@ -70,6 +77,24 @@ master
           cursor.read_typed_array(v);
       ```
 
+    - Until 1.8.0, when reading a CBOR multidimensional arrays with typed array or classical array storage,
+      and serializing to JSON, the result would mimic the CBOR storage, e.g.
+      ```
+          [[2,3,2], [1,2,3,4,5,6,7,8,9,10,11 12]]]
+      ```
+      Information about order (row-major or column-major) is lost, and formatting this way
+      isn't compatible with our sample reflection traits for eigen matrices. Since 1.8.0, 
+      CBOR multidimensional arrays with row-major and column-major typed array storage 
+      and multi-dimensional arrays with row-major classical array storage are serialized 
+      as nested arrays, so the 2 x 3 x 2 3D array above, assuming row-major storage, becomes 
+      ```
+          [[[1,2],[3,4],[5,6]],[[7,8],[9,10],[11,12]]]
+      ```
+      and with column-major typed array storage,
+      ```
+           [[[1,7],[3,9],[5,11]],[[2,8],[4,10],[6,12]]]
+      ```
+            
 Enhancements:
 
   - The following virtual functions have been added to `basic_staj_cursor`,
@@ -386,6 +411,11 @@ This patch fixes some issues reported with v1.4.0
       be preferred to `position()` when [using filters to update JSON in place](https://github.com/danielaparker/jsoncons/blob/master/examples/src/update_json_in_place_examples.cpp).
       Currently the two accessors return the same value, but that may change in a future release. 
 
+    - Added macros **JSONCONS_VISITOR_RETURN_TYPE** and **JSONCONS_VISITOR_RETURN** that are
+      #define'd to `bool` and `return true` respectively. For users that have implemented 
+      classes that derive from `basic_json_filter`, and that have overridden `visit_xxx` functions,
+      it is recommended to use these macros for the return type and return value rather than
+      `bool` and `return true`. This is for forward compatibility. 
 1.3.0
 -----
 
