@@ -19,7 +19,7 @@
 #include <utility> // std::move
 #include <vector>
 
-#include <jsoncons/config/compiler_support.hpp>
+#include <jsoncons/nonstd/compiler_support.hpp>
 #include <jsoncons/config/jsoncons_config.hpp>
 #include <jsoncons/utility/number_readers.hpp>
 #include <jsoncons/json_exception.hpp> // jsoncons::ser_error
@@ -227,7 +227,7 @@ public:
 
     template <typename BytesViewLike>
     void byte_string_value_with_tag(const BytesViewLike& value, uint64_t raw_tag,
-        typename std::enable_if<ext_traits::is_bytes_view_like<BytesViewLike>::value,int>::type = 0) 
+        typename std::enable_if<nonstd::is_bytes_view_like<BytesViewLike>::value,int>::type = 0) 
     {
         write_tag(raw_tag);
         write_byte_string(byte_string_view(reinterpret_cast<const uint8_t*>(value.data()),value.size()));

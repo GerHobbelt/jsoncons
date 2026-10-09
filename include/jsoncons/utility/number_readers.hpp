@@ -17,10 +17,10 @@
 #include <type_traits> // std::enable_if
 #include <vector>
 
-#include <jsoncons/config/compiler_support.hpp>
+#include <jsoncons/nonstd/compiler_support.hpp>
 #include <jsoncons/config/jsoncons_config.hpp>
 #include <jsoncons/json_exception.hpp>
-#include <jsoncons/utility/more_type_traits.hpp>
+#include <jsoncons/nonstd/type_traits.hpp>
 
 namespace jsoncons { 
 
@@ -70,7 +70,7 @@ constexpr bool is_type(uint8_t d, uint8_t type) {
 }
 
 // Match a sign: '+', '-' 
-constexpr bool is_sign(char d) {
+constexpr bool is_char_sign(char d) {
     return is_type(static_cast<uint8_t>(d), (uint8_t)(digit_type_pos | digit_type_neg));
 }
 
@@ -99,7 +99,7 @@ constexpr bool is_char_float(char d) {
     return is_type(static_cast<uint8_t>(d), (uint8_t)(digit_type_zero | digit_type_nonzero |
                                        digit_type_dot | digit_type_exp));
 }
-constexpr bool is_sign(wchar_t d) {
+constexpr bool is_char_sign(wchar_t d) {
     return d == '+' || d == '-';
 }
 
@@ -127,6 +127,29 @@ constexpr bool is_fp(wchar_t d) {
 constexpr bool is_char_float(wchar_t d) {
     return is_char_digit(d) || is_fp(d);
 }
+
+JSONCONS_INLINE_CONSTEXPR std::array<uint64_t,20> uint64_pow10_table = {
+    1,                     // 0 / 10^0
+    10,                    // 1 / 10^1
+    100,                   // 2 / 10^2
+    1000,                  // 3 / 10^3
+    10000,                 // 4 / 10^4
+    100000,                // 5 / 10^5
+    1000000,               // 6 / 10^6
+    10000000,              // 7 / 10^7
+    100000000,             // 8 / 10^8
+    1000000000,            // 9 / 10^9
+    10000000000UL,          // 10 / 10^10
+    100000000000UL,         // 11 / 10^11
+    1000000000000UL,        // 12 / 10^12
+    10000000000000UL,       // 13 / 10^13
+    100000000000000UL,      // 14 / 10^14
+    1000000000000000UL,     // 15 / 10^15
+    10000000000000000UL,    // 16 / 10^16
+    100000000000000000UL,   // 17 / 10^17
+    1000000000000000000UL,   // 18 / 10^18
+    10000000000000000000UL   // 19 / 10^19
+};
 
 template <typename CharT>
 struct to_number_result
@@ -260,7 +283,7 @@ bool is_base16(const CharT* s, std::size_t length)
 }
     
 template <typename T,typename CharT>
-typename std::enable_if<ext_traits::integer_limits<T>::is_specialized && !ext_traits::integer_limits<T>::is_signed,to_number_result<CharT>>::type
+typename std::enable_if<nonstd::integer_limits<T>::is_specialized && !nonstd::integer_limits<T>::is_signed,to_number_result<CharT>>::type
 dec_to_integer(const CharT* s, std::size_t length, T& value)
 {
     if (JSONCONS_UNLIKELY(length == 0))
@@ -268,13 +291,13 @@ dec_to_integer(const CharT* s, std::size_t length, T& value)
         return to_number_result<CharT>(s, std::errc::invalid_argument);
     }
 
-    static constexpr T max_value = (ext_traits::integer_limits<T>::max)();
+    static constexpr T max_value = (nonstd::integer_limits<T>::max)();
     static constexpr T max_value_div_10 = max_value / 10;
 
     T num = 0;
     const CharT* cur = s;
     const CharT* last = s + length;
-    static constexpr std::size_t digits10 = static_cast<std::size_t>(ext_traits::integer_limits<T>::digits10);
+    static constexpr std::size_t digits10 = static_cast<std::size_t>(nonstd::integer_limits<T>::digits10);
     const std::size_t n = (std::min)(digits10, length);
     const CharT* stop = s + n;
      
@@ -322,7 +345,7 @@ dec_to_integer(const CharT* s, std::size_t length, T& value)
 }
 
 template <typename T,typename CharT>
-typename std::enable_if<ext_traits::integer_limits<T>::is_specialized && ext_traits::integer_limits<T>::is_signed,to_number_result<CharT>>::type
+typename std::enable_if<nonstd::integer_limits<T>::is_specialized && nonstd::integer_limits<T>::is_signed,to_number_result<CharT>>::type
 dec_to_integer(const CharT* s, std::size_t length, T& value)
 {
     if (length == 0)
@@ -334,7 +357,7 @@ dec_to_integer(const CharT* s, std::size_t length, T& value)
     s += sign;
     length -= sign;
 
-    using U = typename ext_traits::make_unsigned<T>::type;
+    using U = typename nonstd::make_unsigned<T>::type;
 
     U num;
     auto ru = dec_to_integer(s, length, num);
@@ -344,7 +367,7 @@ dec_to_integer(const CharT* s, std::size_t length, T& value)
     }
     if (sign)
     {
-        if (num > static_cast<U>(-((ext_traits::integer_limits<T>::lowest)()+T(1))) + U(1))
+        if (num > static_cast<U>(-((nonstd::integer_limits<T>::lowest)()+T(1))) + U(1))
         {
             return to_number_result<CharT>(ru.ptr, std::errc::result_out_of_range);
         }
@@ -356,7 +379,7 @@ dec_to_integer(const CharT* s, std::size_t length, T& value)
     }
     else
     {
-        if (num > static_cast<U>((ext_traits::integer_limits<T>::max)()))
+        if (num > static_cast<U>((nonstd::integer_limits<T>::max)()))
         {
             return to_number_result<CharT>(ru.ptr, std::errc::result_out_of_range);
         }
@@ -369,7 +392,7 @@ dec_to_integer(const CharT* s, std::size_t length, T& value)
 }
 
 template <typename T,typename CharT>
-typename std::enable_if<ext_traits::integer_limits<T>::is_specialized && !ext_traits::integer_limits<T>::is_signed,to_number_result<CharT>>::type
+typename std::enable_if<nonstd::integer_limits<T>::is_specialized && !nonstd::integer_limits<T>::is_signed,to_number_result<CharT>>::type
 to_integer(const CharT* s, std::size_t length, T& n)
 {
     n = 0;
@@ -425,7 +448,7 @@ to_integer(const CharT* s, std::size_t length, T& n)
             }
             case integer_chars_state::binary:
             {
-                static constexpr T max_value = (ext_traits::integer_limits<T>::max)();
+                static constexpr T max_value = (nonstd::integer_limits<T>::max)();
                 static constexpr T max_value_div_2 = max_value / 2;
                 for (; s < end; ++s)
                 {
@@ -453,7 +476,7 @@ to_integer(const CharT* s, std::size_t length, T& n)
             }
             case integer_chars_state::octal:
             {
-                static constexpr T max_value = (ext_traits::integer_limits<T>::max)();
+                static constexpr T max_value = (nonstd::integer_limits<T>::max)();
                 static constexpr T max_value_div_8 = max_value / 8;
                 for (; s < end; ++s)
                 {
@@ -481,7 +504,7 @@ to_integer(const CharT* s, std::size_t length, T& n)
             }
             case integer_chars_state::decimal:
             {
-                static constexpr T max_value = (ext_traits::integer_limits<T>::max)();
+                static constexpr T max_value = (nonstd::integer_limits<T>::max)();
                 static constexpr T max_value_div_10 = max_value / 10;
                 for (; s < end; ++s)
                 {
@@ -509,7 +532,7 @@ to_integer(const CharT* s, std::size_t length, T& n)
             }
             case integer_chars_state::base16:
             {
-                static constexpr T max_value = (ext_traits::integer_limits<T>::max)();
+                static constexpr T max_value = (nonstd::integer_limits<T>::max)();
                 static constexpr T max_value_div_16 = max_value / 16;
                 for (; s < end; ++s)
                 {
@@ -552,7 +575,7 @@ to_integer(const CharT* s, std::size_t length, T& n)
 }
 
 template <typename T,typename CharT>
-typename std::enable_if<ext_traits::integer_limits<T>::is_specialized && ext_traits::integer_limits<T>::is_signed,to_number_result<CharT>>::type
+typename std::enable_if<nonstd::integer_limits<T>::is_specialized && nonstd::integer_limits<T>::is_signed,to_number_result<CharT>>::type
 to_integer(const CharT* s, std::size_t length, T& n)
 {
     n = 0;
@@ -569,7 +592,7 @@ to_integer(const CharT* s, std::size_t length, T& n)
         --length;
     }
 
-    using U = typename ext_traits::make_unsigned<T>::type;
+    using U = typename nonstd::make_unsigned<T>::type;
 
     U u;
     auto ru = to_integer(s, length, u);
@@ -579,7 +602,7 @@ to_integer(const CharT* s, std::size_t length, T& n)
     }
     if (is_negative)
     {
-        if (u > static_cast<U>(-((ext_traits::integer_limits<T>::lowest)()+T(1))) + U(1))
+        if (u > static_cast<U>(-((nonstd::integer_limits<T>::lowest)()+T(1))) + U(1))
         {
             return to_number_result<CharT>(ru.ptr, std::errc::result_out_of_range);
         }
@@ -591,7 +614,7 @@ to_integer(const CharT* s, std::size_t length, T& n)
     }
     else
     {
-        if (u > static_cast<U>((ext_traits::integer_limits<T>::max)()))
+        if (u > static_cast<U>((nonstd::integer_limits<T>::max)()))
         {
             return to_number_result<CharT>(ru.ptr, std::errc::result_out_of_range);
         }
@@ -604,7 +627,7 @@ to_integer(const CharT* s, std::size_t length, T& n)
 }
 
 template <typename T,typename CharT>
-typename std::enable_if<ext_traits::integer_limits<T>::is_specialized,to_number_result<CharT>>::type
+typename std::enable_if<nonstd::integer_limits<T>::is_specialized,to_number_result<CharT>>::type
 to_integer(const CharT* s, T& n)
 {
     return to_integer<T,CharT>(s, std::char_traits<CharT>::length(s), n);
@@ -613,10 +636,10 @@ to_integer(const CharT* s, T& n)
 // hex_to_integer
 
 template <typename T,typename CharT>
-typename std::enable_if<ext_traits::integer_limits<T>::is_specialized && ext_traits::integer_limits<T>::is_signed,to_number_result<CharT>>::type
+typename std::enable_if<nonstd::integer_limits<T>::is_specialized && nonstd::integer_limits<T>::is_signed,to_number_result<CharT>>::type
 hex_to_integer(const CharT* s, std::size_t length, T& n)
 {
-    static_assert(ext_traits::integer_limits<T>::is_specialized, "Integer type not specialized");
+    static_assert(nonstd::integer_limits<T>::is_specialized, "Integer type not specialized");
     JSONCONS_ASSERT(length > 0);
 
     n = 0;
@@ -624,7 +647,7 @@ hex_to_integer(const CharT* s, std::size_t length, T& n)
     const CharT* end = s + length; 
     if (*s == '-')
     {
-        static constexpr T min_value = (ext_traits::integer_limits<T>::lowest)();
+        static constexpr T min_value = (nonstd::integer_limits<T>::lowest)();
         static constexpr T min_value_div_16 = min_value / 16;
         ++s;
         for (; s < end; ++s)
@@ -659,7 +682,7 @@ hex_to_integer(const CharT* s, std::size_t length, T& n)
     }
     else
     {
-        static constexpr T max_value = (ext_traits::integer_limits<T>::max)();
+        static constexpr T max_value = (nonstd::integer_limits<T>::max)();
         static constexpr T max_value_div_16 = max_value / 16;
         for (; s < end; ++s)
         {
@@ -697,16 +720,16 @@ hex_to_integer(const CharT* s, std::size_t length, T& n)
 }
 
 template <typename T,typename CharT>
-typename std::enable_if<ext_traits::integer_limits<T>::is_specialized && !ext_traits::integer_limits<T>::is_signed,to_number_result<CharT>>::type
+typename std::enable_if<nonstd::integer_limits<T>::is_specialized && !nonstd::integer_limits<T>::is_signed,to_number_result<CharT>>::type
 hex_to_integer(const CharT* s, std::size_t length, T& n)
 {
-    static_assert(ext_traits::integer_limits<T>::is_specialized, "Integer type not specialized");
+    static_assert(nonstd::integer_limits<T>::is_specialized, "Integer type not specialized");
     JSONCONS_ASSERT(length > 0);
 
     n = 0;
     const CharT* end = s + length; 
 
-    static constexpr T max_value = (ext_traits::integer_limits<T>::max)();
+    static constexpr T max_value = (nonstd::integer_limits<T>::max)();
     static constexpr T max_value_div_16 = max_value / 16;
     for (; s < end; ++s)
     {

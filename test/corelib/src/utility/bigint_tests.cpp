@@ -6,7 +6,7 @@
 #endif
 #include <jsoncons/utility/bigint.hpp>
 #include <jsoncons/config/jsoncons_config.hpp>
-#include <jsoncons/utility/more_type_traits.hpp>
+#include <jsoncons/nonstd/type_traits.hpp>
 #include <sstream>
 #include <vector>
 #include <utility>
@@ -49,6 +49,19 @@ TEST_CASE("basic_bigint tests")
         num.divide(denom, quot, rem, true);
         CHECK(0 == quot);
         CHECK(num == rem);
+    }
+    SECTION("is_odd, is_even")
+    {
+        bigint b(0);
+        for (std::size_t i = 0; i < 10000; ++i)
+        {
+            CHECK_FALSE(b.is_odd());
+            CHECK(b.is_even());
+            ++b;;
+            CHECK(b.is_odd());
+            CHECK_FALSE(b.is_even());
+            ++b;;
+        }
     }
 }
 
@@ -617,19 +630,19 @@ TEST_CASE("https://github.com/rgroshanrg/bigint SampleTest.cpp")
         CHECK((a != b));
         CHECK_FALSE((a == b));
     }
-    SECTION("babs")
+    SECTION("absb")
     {
-        bigint c = jsoncons::babs(b);
+        bigint c = jsoncons::absb(b);
         CHECK(bigint("60820564691661355463515465564664568") == c);
     }
-    SECTION("bpow")
+    SECTION("powb")
     {
-        bigint c = jsoncons::bpow(a, 2u);
+        bigint c = jsoncons::powb(a, 2u);
         CHECK(bigint("3209704106974854937901411896655926267350648828646359016173511958974807798969") == c);
     }
-    SECTION("bsqrt")
+    SECTION("sqrtb")
     {
-        bigint c = jsoncons::bsqrt(a);
+        bigint c = jsoncons::sqrtb(a);
         CHECK(bigint("7526901790514881921") == c);
     }
 }
@@ -735,6 +748,86 @@ TEST_CASE("bigint operator+= tests")
         //std::cout << expected << "\n";
         //std::cout << c << "\n";
     }    
+}
+
+TEST_CASE("basic_bigint compare_half")
+{
+    SECTION("test half equal")
+    {
+        bigint a(1);
+        bigint b(2);
+
+        for (std::size_t i = 0; i < 10000; ++i)
+        {
+            a *= 2;
+            b *= 2;
+            CHECK(a.compare_half(b) == 0);
+        }
+    }
+    SECTION("test half greater")
+    {
+        bigint a(2);
+        bigint b(3);
+
+        for (std::size_t i = 0; i < 10000; ++i)
+        {
+            a *= 2;
+            b *= 2;
+            CHECK(a.compare_half(b) > 0);
+        }
+    }
+    SECTION("test half less")
+    {
+        bigint a(2);
+        bigint b(5);
+
+        for (std::size_t i = 0; i < 10000; ++i)
+        {
+            a *= 2;
+            b *= 2;
+            CHECK(a.compare_half(b) < 0);
+        }
+    }
+}
+
+TEST_CASE("basic_bigint bit tests")
+{
+    SECTION("bit_width")
+    {
+        bigint b1("0");
+        CHECK(0 == b1.bit_width());
+        bigint b2("100");
+        CHECK(7 == b2.bit_width());
+        bigint b3("1234567890123456789");
+        CHECK(61 == b3.bit_width());
+        bigint b4("1234567890123456789000000");
+        CHECK(81 == b4.bit_width());
+        bigint b5("12345678910111213141516171819202122233425262728290000");
+        CHECK(174 == b5.bit_width());
+    }
+    SECTION("get_lowest_set_bit")
+    {
+        /*bigint b3{"1234567890123456789000"};
+        //CHECK(3 == b3.get_lowest_set_bit());
+        bigint b1;
+        CHECK(bigint::npos == b1.get_lowest_set_bit());
+        bigint b2(0);
+        CHECK(bigint::npos == b2.get_lowest_set_bit());
+        bigint b4{"1"};
+        CHECK(0 == b4.get_lowest_set_bit());
+        bigint b5{"66"};
+        CHECK(1 == b5.get_lowest_set_bit());
+        bigint b6{"2147483647"};
+        CHECK(0 == b6.get_lowest_set_bit());
+        bigint b7{"4294967295"};
+        CHECK(0 == b7.get_lowest_set_bit());
+        bigint b8{"9223372036854775807"};
+        CHECK(0 == b8.get_lowest_set_bit());*/
+        bigint b9{"18446744073709551615"};
+        CHECK(0 == b9.get_lowest_set_bit());
+        bigint b10{"184467440737095516150"};
+        CHECK(1 == b10.get_lowest_set_bit());
+    }
 }
 
 #if defined(JSONCONS_HAS_STATEFUL_ALLOCATOR) && JSONCONS_HAS_STATEFUL_ALLOCATOR == 1
