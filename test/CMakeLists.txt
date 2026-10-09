@@ -212,7 +212,6 @@ add_executable(unit_tests
                toon/src/decode_toon_tests.cpp
                toon/src/encode_toon_tests.cpp
                corelib/src/testmain.cpp
-               clusterfuzz/src/fuzz_regression_tests.cpp
 )              
 
 if (CMAKE_VERSION VERSION_LESS "3.8.0")

@@ -1728,7 +1728,7 @@ public:
         return n;
     }
 
-    int compare_magnitude(const basic_bigint& y) const noexcept
+    int compare_abs(const basic_bigint& y) const noexcept
     {
         auto view = get_storage_view();
         auto y_view = y.get_storage_view();
@@ -1859,37 +1859,6 @@ public:
         }
     }
 
-    word_type get_lowest_set_bit() const
-    {
-        auto view = get_storage_view();
-        size_type len = view.size();
-        if (len == 0)
-        {
-            return npos;
-        }
-
-        // Search for lowest order nonzero int
-        size_type i = len - 1;
-        word_type b;
-        while ((b = view[i]) == 0)
-        {
-            --i;
-        }
-
-        for (std::size_t i = 0; i < len; ++i)
-        {
-            if (i > 0)
-            {
-                std::cout << ", ";
-            }
-            std::cout << view[i];
-        }
-        std::cout << "\n\n";
-        std::cout << "i: " << i << ", b: " << b << ", " << jsoncons::countr_zero(b) << "\n";
-        word_type lsb = ((len-(i+1)) << 6) + jsoncons::countr_zero(b);
-
-        return lsb;
-    }
 private:
 
     void destroy() noexcept
@@ -2113,13 +2082,13 @@ private:
     }
 
     template <typename CharT, typename BAlloc>
-    friend void to_buffer(const basic_bigint& value, std::basic_string<CharT, std::char_traits<CharT>, BAlloc>& buf)
+    friend void append_chars(const basic_bigint& value, std::basic_string<CharT, std::char_traits<CharT>, BAlloc>& buf)
     {
         basic_bigint v(value);
         auto v_view = v.get_storage_view();
 
         size_type len = (v_view.size() * word_bits / 3) + 2;
-        buf.reserve(len);
+        buf.reserve(buf.size()+len);
 
         if (v_view.size() == 0)
         {
