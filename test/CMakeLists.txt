@@ -145,11 +145,12 @@ add_executable(unit_tests
                corelib/src/try_decode_json_tests.cpp
                corelib/src/try_to_json_tests.cpp
                corelib/src/utility/bigint_tests.cpp
+               corelib/src/utility/bigdec_tests.cpp
                corelib/src/utility/byte_string_tests.cpp
                corelib/src/utility/conversion_tests.cpp
                corelib/src/utility/more_type_traits_tests.cpp
                corelib/src/utility/heap_string_tests.cpp
-               corelib/src/utility/read_number_tests.cpp
+               corelib/src/utility/number_readers_tests.cpp
                corelib/src/utility/string_utils_tests.cpp
                corelib/src/utility/unicode_traits_tests.cpp
                corelib/src/utility/uri_tests.cpp
