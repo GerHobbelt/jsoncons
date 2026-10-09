@@ -1,6 +1,9 @@
-master (targeting 1.10.0)
+Release 1.10.0
+--------------
 
 - Fixed bugs:
+
+  - Git Issue #734/PR #739: Constrain and document supported JSON Schema types
 
   - Git PR #738: Fixed analyzer warning about possible uninitialized variable in encode_toon.hpp. 
 
@@ -8,9 +11,23 @@ master (targeting 1.10.0)
 
   - Git Issue #741: Fixed issue with BSON parser not validating that a boolean value must be one or zero. 
 
-  - Git Issue #742: Fixed issue with CBOR parser not validating that the "additional information value" must not have reserved values 30-32. 
+  - Git Issue #742: Fixed issue with CBOR parser not validating that the "additional information value" must not have reserved values 28-30. 
 
   - Git PR #745: Fixed missing <exception> for !defined(JSONCONS_NO_EXCEPTIONS)
+
+  - Git Issue #746/PR #750: JMESPath - Merge function overwrite behaviour
+
+  - Git PR 749: Align cbor_view errors with the parser
+
+  - Git PR #747/#748: Fix CBOR parser issues found by fuzzing
+
+  - Until this version, when parsing CBOR negative integers between -2^64 (inclusive) and -2^63 (exclusive),
+  outside the range of an `int64_t`, jsoncons defaulted to a value of zero. Now,
+  jsoncons outputs a string tagged with `semantic_tag::bigint` for these values.    
+
+  - Until this version, binary parsers (bson, cbor, msgpack, ubjson) terminate
+  when they receive invalid type information in the input. Now, binary parsers 
+  produce an error.
 
 Enhancements:
 
