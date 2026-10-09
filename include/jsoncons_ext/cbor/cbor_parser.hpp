@@ -238,7 +238,7 @@ public:
 
     void restart()
     {
-        more_ = true;
+        more_ = !done_;
     }
 
     void reset()
@@ -364,6 +364,10 @@ public:
                     auto iter = typed_array_stack_.back();
                     if (iter->done())
                     {
+                        if (level() == mark_level_)
+                        {
+                            more_ = false;
+                        }
                         if (!is_multi_dim())
                         {
                             typed_array_stack_.pop_back();
@@ -1010,12 +1014,10 @@ private:
         }
         if (info == jsoncons::cbor::detail::additional_info::indefinite_length)
         {
-            source_.ignore(1);
             state_stack_.emplace_back(parse_mode::indefinite_array, 0, pop_stringref_map_stack);
         }
         else // definite length
         {
-            source_.ignore(1);
             std::size_t len = read_size(info, ec);
             if (JSONCONS_UNLIKELY(ec))
             {
@@ -1156,10 +1158,10 @@ private:
             return;
         }
 
+        source_.ignore(1);
         if (info == jsoncons::cbor::detail::additional_info::indefinite_length)
         {
-            source_.ignore(1);
-            iterate_string_chunks(major_type, str, ec);
+            iterate_string_chunks(jsoncons::cbor::detail::cbor_major_type::text_string, str, ec);
             if (JSONCONS_UNLIKELY(ec))
             {
                 return;
@@ -1167,7 +1169,6 @@ private:
         }
         else
         {
-            source_.ignore(1);
             std::size_t length = read_size(info, ec);
             if (JSONCONS_UNLIKELY(ec))
             {
@@ -1207,9 +1208,9 @@ private:
 
         JSONCONS_ASSERT(major_type == jsoncons::cbor::detail::cbor_major_type::byte_string);
 
+        source_.ignore(1);
         if (info == jsoncons::cbor::detail::additional_info::indefinite_length)
         {
-            source_.ignore(1);
             bytes_buffer_.clear();
             iterate_string_chunks(major_type, bytes_buffer_, ec);
             if (JSONCONS_UNLIKELY(ec))
@@ -1219,7 +1220,6 @@ private:
             return byte_string_view(bytes_buffer_.data(), bytes_buffer_.size());
         }
 
-        source_.ignore(1);
         std::size_t length = read_size(info, ec);
         if (JSONCONS_UNLIKELY(ec))
         {
@@ -1278,9 +1278,9 @@ private:
 
         JSONCONS_ASSERT(major_type == jsoncons::cbor::detail::cbor_major_type::byte_string);
 
+        source_.ignore(1);
         if (info == jsoncons::cbor::detail::additional_info::indefinite_length)
         {
-            source_.ignore(1);
             iterate_string_chunks(major_type, v, ec);
             if (JSONCONS_UNLIKELY(ec))
             {
@@ -1289,7 +1289,6 @@ private:
         }
         else 
         {
-            source_.ignore(1);
             std::size_t length = read_size(info, ec);
             if (JSONCONS_UNLIKELY(ec))
             {
@@ -1602,8 +1601,9 @@ private:
                 break;
             }
             default:
-                JSONCONS_UNREACHABLE();
-                break;
+                ec = info == jsoncons::cbor::detail::additional_info::indefinite_length ? cbor_errc::unknown_type : cbor_errc::reserved_additional_info;
+                more_ = false;
+                return;
         }
     }
 
@@ -1659,7 +1659,8 @@ private:
                 return u;
             }
             default:
-                JSONCONS_UNREACHABLE();
+                ec = info == jsoncons::cbor::detail::additional_info::indefinite_length ? cbor_errc::unknown_type : cbor_errc::reserved_additional_info;
+                return uint64_t{};
         }
     }
 
@@ -1761,6 +1762,12 @@ private:
                 auto u = read_int64(ec);
                 if (JSONCONS_UNLIKELY(ec))
                 {
+                    return;
+                }
+                if (JSONCONS_UNLIKELY(u == (std::numeric_limits<int64_t>::min)()))
+                {
+                    ec = cbor_errc::invalid_bigdecimal;
+                    more_ = false;
                     return;
                 }
                 exponent = u;
@@ -2815,6 +2822,7 @@ private:
 
         if (major_type == jsoncons::cbor::detail::cbor_major_type::array && order_ == mdarray_order::row_major) 
         {
+            source_.ignore(1);
             begin_classical_array_storage(info, ec);
             if (JSONCONS_UNLIKELY(ec))
             {
@@ -2829,6 +2837,7 @@ private:
         }
         else if (major_type == jsoncons::cbor::detail::cbor_major_type::array && order_ == mdarray_order::column_major) 
         {
+            source_.ignore(1);
             begin_classical_array_storage(info, ec);
             if (JSONCONS_UNLIKELY(ec))
             {
@@ -2890,9 +2899,9 @@ private:
             return;
         }
 
+        source_.ignore(1);
         if (info == jsoncons::cbor::detail::additional_info::indefinite_length)
         {
-             source_.ignore(1);
              bool done = false;
              while (!done)
              {
@@ -2923,7 +2932,6 @@ private:
         }
         else 
         {
-            source_.ignore(1);
             std::size_t size = read_size(info, ec);
             if (JSONCONS_UNLIKELY(ec))
             {
