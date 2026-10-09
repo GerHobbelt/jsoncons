@@ -20,6 +20,27 @@
 
 namespace cbor = jsoncons::cbor;
 
+namespace {
+
+std::error_code parse_cbor_error(const std::vector<uint8_t>& v)
+{
+    std::error_code ec;
+    jsoncons::json_decoder<jsoncons::json> decoder;
+    cbor::cbor_bytes_reader reader(v, decoder);
+    reader.read(ec);
+
+    // the stream source must agree with the bytes source
+    std::string s(v.begin(), v.end());
+    std::istringstream is(s);
+    std::error_code stream_ec;
+    jsoncons::json_decoder<jsoncons::json> stream_decoder;
+    cbor::cbor_stream_reader stream_reader(is, stream_decoder);
+    stream_reader.read(stream_ec);
+    CHECK(stream_ec == ec);
+
+    return ec;
+}
+
 void check_parse_cbor(const std::vector<uint8_t>& v, const jsoncons::json& expected)
 {
     JSONCONS_TRY
@@ -62,6 +83,9 @@ void check_parse_cbor(const std::vector<uint8_t>& v, const jsoncons::json& expec
         std::cout << expected.to_string() << '\n';
     }
 }
+
+} // namespace
+
 TEST_CASE("test_cbor_parsing")
 {
     // unsigned integer
@@ -436,7 +460,7 @@ TEST_CASE("Compare CBOR packed item and jsoncons item")
     expected.emplace_back(-1431027667, jsoncons::semantic_tag::epoch_second);
     expected.emplace_back(1431027667.5, jsoncons::semantic_tag::epoch_second);
 
-    jsoncons::json j = cbor::decode_cbor<jsoncons::json>(bytes);
+    auto j = cbor::decode_cbor<jsoncons::json>(bytes);
 
     REQUIRE(expected == j);
     for (std::size_t i = 0; i < j.size(); ++i)
@@ -729,7 +753,7 @@ TEST_CASE("CBOR stringref tag 3")
             0x00           // unsigned(0)
     };
 
-    jsoncons::json j = cbor::decode_cbor<jsoncons::json>(v);
+    auto j = cbor::decode_cbor<jsoncons::json>(v);
 
     jsoncons::json expected = jsoncons::json::parse(R"(
         ["aaa","aaa",["bbb","aaa","aaa"],["ccc","ccc"],"aaa"]
@@ -737,29 +761,6 @@ TEST_CASE("CBOR stringref tag 3")
 
     CHECK(expected == j);
 }
-
-namespace {
-
-    std::error_code parse_cbor_error(const std::vector<uint8_t>& v)
-    {
-        std::error_code ec;
-        jsoncons::json_decoder<jsoncons::json> decoder;
-        cbor::cbor_bytes_reader reader(v, decoder);
-        reader.read(ec);
-
-        // the stream source must agree with the bytes source
-        std::string s(v.begin(), v.end());
-        std::istringstream is(s);
-        std::error_code stream_ec;
-        jsoncons::json_decoder<jsoncons::json> stream_decoder;
-        cbor::cbor_stream_reader stream_reader(is, stream_decoder);
-        stream_reader.read(stream_ec);
-        CHECK(stream_ec == ec);
-
-        return ec;
-    }
-
-} // namespace
 
 TEST_CASE("cbor truncated multibyte heads are rejected")
 {
@@ -804,3 +805,5 @@ TEST_CASE("cbor indefinite length text chunks are validated individually")
         check_parse_cbor({0x5f,0x41,0xc3,0xff}, jsoncons::json(jsoncons::byte_string({0xc3})));
     }
 }
+
+
