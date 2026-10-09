@@ -17,6 +17,8 @@
 
 namespace jsoncons {
 
+enum class rounding_mode {down, up, half_up, half_even};
+
 template <typename Allocator>
 class basic_bigdec;
 
@@ -97,29 +99,14 @@ public:
         return powb(basic_bigint<Allocator>(10), n);
     }
 
-    static uint64_t big_digit_length(const basic_bigint<Allocator>& b) {
-        if (b.signum() == 0)
-            return 1;
-        uint64_t r = ((b.bit_width() + 1) * 646456993u) >> 31;
-        return b.compare_abs(big_ten_to_the(r)) < 0 ? r : r+1;
-    }
-
-    uint64_t precision() const
-    {
-        return big_digit_length(unscaled_);
-    }
-
     friend bool operator==(const basic_bigdec& lhs, const basic_bigdec& rhs)
     {
         if (&lhs == &rhs)
         {
             return true;
         }
-        if (lhs.scale_ != rhs.scale_)
-        {
-            return false;
-        }
-        return lhs.unscaled_ == rhs.unscaled_;
+
+        return lhs.compare(rhs) == 0;
     }
 
     static bool need_increment(const basic_bigint<Allocator>& divisor, 
@@ -141,6 +128,53 @@ public:
             return q.is_odd();
         }       
     }
+
+    bool need_to_round_up(const basic_bigint<Allocator>& quotient, 
+        const basic_bigint<Allocator>& remainder, 
+        const basic_bigint<Allocator>& divisor, rounding_mode rounding) 
+    {
+        // Conceptual rounding logic helper
+        // Compares (remainder * 2) against the divisor to see if we are past the halfway point (0.5)
+        int compare = (absb(remainder) * basic_bigint<Allocator>(2)).compare(absb(divisor));
+
+        switch (rounding) 
+        {
+            case rounding_mode::down: 
+                return false; // Always truncate toward zero
+            case rounding_mode::up: 
+                return true;  // Always round away from zero
+            case rounding_mode::half_up: 
+                return compare >= 0; // Round up if remainder >= 0.5 of divisor
+            case rounding_mode::half_even:
+                if (compare > 0) return true;
+                if (compare < 0) return false;
+                // If exactly 0.5, round up only if the last digit of the quotient is odd
+                //return quotient.testBit(0);
+                return quotient.is_odd();
+            default:
+                JSONCONS_UNREACHABLE();
+        } 
+    }
+
+    int compare_abs(const basic_bigdec& val) const
+    {
+        int64_t sdiff = this->scale() - val.scale();
+        if (sdiff != 0) 
+        {
+            if (sdiff < 0) 
+            {
+                basic_bigint<Allocator> rb = this->unscaled()*big_ten_to_the(std::size_t(-sdiff));
+                return rb.compare_abs(val.unscaled());
+            } 
+            else // sdiff > 0 
+            { 
+                basic_bigint<Allocator> rb = val.unscaled()*val.big_ten_to_the((std::size_t)sdiff);
+                return this->unscaled().compare_abs(rb);
+            }
+        }
+
+        return this->unscaled().compare_abs(val.unscaled());
+    }
 public:
     static basic_bigint<Allocator> divide_and_round(const basic_bigint<Allocator>& dividend, 
         const basic_bigint<Allocator>& divisor) 
@@ -160,6 +194,73 @@ public:
         }
 
         return (dividend.signum() != divisor.signum()) ? -q : q;
+    }
+
+    bignum_result divide(const basic_bigdec<Allocator>& divisor, 
+        basic_bigdec<Allocator>& value,
+        int64_t preferred_scale = 34, 
+        rounding_mode rounding = rounding_mode::half_even)
+    {
+        if (divisor.signum() == 0)
+        {
+            return bignum_result{bignum_errc::divide_by_zero};
+        }
+
+        int64_t scale_difference = preferred_scale + divisor.scale() - scale();
+        basic_bigint<Allocator> scaled_dividend = unscaled();
+        basic_bigint<Allocator> adjusted_divisor = divisor.unscaled();
+        if (scale_difference > 0) 
+        {
+            // Multiply dividend by 10^scale_difference to make room for decimal precision
+            scaled_dividend = scaled_dividend * powb(basic_bigint<Allocator>(10), scale_difference);
+        } 
+        else if (scale_difference < 0) 
+        {
+            // If scale difference is negative, the divisor needs to be scaled up instead
+            adjusted_divisor = adjusted_divisor * powb(basic_bigint<Allocator>(10), scale_difference);
+        }
+
+        // Perform the integer division (yields quotient and remainder)
+        basic_bigint<Allocator> quotient;
+        basic_bigint<Allocator> remainder;
+
+        scaled_dividend.divide(adjusted_divisor, quotient, remainder, true);
+
+        // Handle Rounding if there is a remainder left over
+        if (remainder.signum() != 0)
+        {
+            if (need_to_round_up(quotient, remainder, adjusted_divisor, rounding)) 
+            {
+                quotient += (basic_bigint<Allocator>(quotient.signum() >= 0 ? 1 : -1));
+            }
+        }
+        
+        // Assigns a standard basic_bigdec<Allocator> with the rounded unscaled value and proper scale
+        value = basic_bigdec<Allocator>(std::move(quotient), preferred_scale);
+        
+        return bignum_result{};
+    }
+
+    template <typename CharT>
+    friend std::basic_ostream<CharT>& operator<<(std::basic_ostream<CharT>& os, const basic_bigdec& b)
+    {
+        std::basic_string<CharT> s;
+        append_to_buffer(b, s); 
+        os << s;
+
+        return os;
+    }
+
+    int compare(const basic_bigdec<Allocator>& other) const
+    {
+        int xsign = this->signum();
+        int ysign = other.signum();
+        if (xsign != ysign)
+            return (xsign > ysign) ? 1 : -1;
+        if (xsign == 0)
+            return 0;
+        int cmp = compare_abs(other);
+        return (xsign >= 0) ? cmp : -cmp;
     }
 };
 
@@ -197,12 +298,15 @@ to_number_result<CharT> to_bigdec(const CharT* s, std::size_t length, basic_bigd
     if (*cur == '0')
     {
         cur++;
-        if (JSONCONS_UNLIKELY(cur < end && is_char_digit(*cur)))
+        if (!(cur < end && is_char_dot_or_exp(*cur)))
         {
-            return to_number_result<CharT>{s, std::errc::invalid_argument};
+            if (JSONCONS_UNLIKELY(cur < end && is_char_digit(*cur)))
+            {
+                return to_number_result<CharT>{s, std::errc::invalid_argument};
+            }
+            value = basic_bigdec<Allocator>{};
+            return to_number_result<CharT>(cur);
         }
-        value = basic_bigdec<Allocator>{};
-        return to_number_result<CharT>(cur);
     }
     else
     {
@@ -216,6 +320,7 @@ to_number_result<CharT> to_bigdec(const CharT* s, std::size_t length, basic_bigd
             return to_number_result<CharT>(cur);
         }
     }
+
     const CharT* mark1 = cur;
     const CharT* mark = cur;
     if (cur != end && *cur == '.')
@@ -289,11 +394,11 @@ to_number_result<CharT> to_bigdec(const CharT* s, std::size_t length, basic_bigd
 }
 
 template <typename Alloc,typename CharT,typename BAlloc>
-void append_chars(const basic_bigdec<Alloc>& value, std::basic_string<CharT,std::char_traits<CharT>,BAlloc>& buf)
+void append_to_buffer(const basic_bigdec<Alloc>& value, std::basic_string<CharT,std::char_traits<CharT>,BAlloc>& buf)
 {
     if (value.scale() == 0)
     {
-        append_chars(value.unscaled(), buf);
+        append_to_buffer(value.unscaled(), buf);
         return;
     }
     if (value.unscaled().is_negative())
@@ -301,7 +406,7 @@ void append_chars(const basic_bigdec<Alloc>& value, std::basic_string<CharT,std:
         buf.push_back('-');
     }
     std::basic_string<CharT> coeff;
-    append_chars(value.unscaled().is_negative() ? -value.unscaled() : value.unscaled(), coeff);
+    append_to_buffer(value.unscaled().is_negative() ? -value.unscaled() : value.unscaled(), coeff);
     std::size_t coeffLen = coeff.size();
     if ((value.scale() >= 0) && (value.scale() <= static_cast<int64_t>(coeffLen) + 5)) 
     { 
