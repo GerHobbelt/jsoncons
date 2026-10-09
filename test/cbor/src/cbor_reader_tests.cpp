@@ -806,4 +806,21 @@ TEST_CASE("cbor indefinite length text chunks are validated individually")
     }
 }
 
+TEST_CASE("cbor negative integer values")
+{
+    SECTION("-9223372036854775808")
+    {
+        std::vector<uint8_t> data = {0x3b, 0x7f, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
+        auto r = cbor::try_decode_cbor<jsoncons::json>(data);
+        REQUIRE(r);
+        CHECK((std::numeric_limits<int64_t>::min)() == (*r).as<int64_t>());
+    }
+    SECTION("-9223372036854775808")
+    { 
+        std::vector<uint8_t> data = {0x3b, 0x7f, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
+        auto r = cbor::try_decode_cbor<jsoncons::json>(data);
+        REQUIRE(r);
+        CHECK((std::numeric_limits<int64_t>::min)() == (*r).as<int64_t>());
+    }
+}
 

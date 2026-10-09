@@ -21,8 +21,8 @@ enum class cbor_errc
     success = 0,
     unexpected_eof,
     source_error,
-    reserved_additional_info_value,
-    invalid_decimal_fraction,
+    reserved_additional_info,
+    invalid_bigdecimal,
     invalid_bigfloat,
     invalid_utf8_text_string,
     too_many_items,
@@ -30,6 +30,8 @@ enum class cbor_errc
     number_too_large,
     stringref_too_large,
     max_nesting_depth_exceeded,
+    unmatched_end_array,
+    unmatched_end_object,
     unknown_type,
     illegal_chunked_string,
     bad_mdarray,
@@ -50,14 +52,14 @@ public:
         {
             case cbor_errc::unexpected_eof:
                 return "Unexpected end of file";
-            case cbor_errc::reserved_additional_info_value:
+            case cbor_errc::reserved_additional_info:
                 return "Additional-information values 30-32 are reserved";
             case cbor_errc::source_error:
                 return "Source error";
-            case cbor_errc::invalid_decimal_fraction:
-                return "Invalid decimal fraction";
+            case cbor_errc::invalid_bigdecimal:
+                return "Invalid DigDecimal value";
             case cbor_errc::invalid_bigfloat:
-                return "Invalid bigfloat";
+                return "Invalid BigFloat value";
             case cbor_errc::invalid_utf8_text_string:
                 return "Illegal UTF-8 encoding in text string";
             case cbor_errc::too_many_items:
@@ -70,6 +72,10 @@ public:
                 return "stringref exceeds stringref map size";
             case cbor_errc::max_nesting_depth_exceeded:
                 return "Data item nesting exceeds limit in options";
+            case cbor_errc::unmatched_end_object:
+                return "Unmatched end object";
+            case cbor_errc::unmatched_end_array:
+                return "Unmatched end array";
             case cbor_errc::unknown_type:
                 return "Unknown type in input";
             case cbor_errc::illegal_chunked_string:
