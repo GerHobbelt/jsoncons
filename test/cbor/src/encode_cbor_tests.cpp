@@ -25,10 +25,10 @@ void check_encode_cbor(const std::vector<uint8_t>& expected, const jsoncons::jso
     {
         std::cout << j << "\n";
     }
-    REQUIRE(result.size() == expected.size());
+    REQUIRE(expected.size() == result.size());
     for (std::size_t i = 0; i < expected.size(); ++i)
     {
-        REQUIRE(result[i] == expected[i]);
+        REQUIRE(expected[i] == result[i]);
     }
 }
 
@@ -127,19 +127,20 @@ TEST_CASE("cbor_arrays_and_maps")
     check_encode_cbor({ 0x81,0x65,'H','e','l','l','o' }, jsoncons::json::parse("[\"Hello\"]"));
 
     // big float
-    jsoncons::json j("0x6AB3p-2", jsoncons::semantic_tag::bigfloat);
-    CHECK(j.tag() == jsoncons::semantic_tag::bigfloat);
+    jsoncons::json j("6828.75", jsoncons::semantic_tag::bigdec);
+    CHECK(j.tag() == jsoncons::semantic_tag::bigdec);
     jsoncons::json j2 = j;
-    CHECK(j2.tag() == jsoncons::semantic_tag::bigfloat);
+    CHECK(j2.tag() == jsoncons::semantic_tag::bigdec);
     jsoncons::json j3;
     j3 = j;
-    CHECK(j3.tag() == jsoncons::semantic_tag::bigfloat);
+    CHECK(j3.tag() == jsoncons::semantic_tag::bigdec);
 
-    check_encode_cbor({ 0xc5, // Tag 5 
+    check_encode_cbor({ 0xc4, // Tag 4 
                          0x82, // Array of length 2
                            0x21, // -2 
-                             0x19, 0x6a, 0xb3 // 27315 
-        }, jsoncons::json("0x6AB3p-2", jsoncons::semantic_tag::bigfloat));
+                           0x1a, // A 4 - byte unsigned integer heade
+                             0x00, 0x01, 0x37, 0xd1 // 79825 
+        }, jsoncons::json("798.25", jsoncons::semantic_tag::bigdec));
 
     check_encode_cbor({ 0xa1,0x62,'o','c',0x81,'\0' }, jsoncons::json::parse("{\"oc\": [0]}"));
     check_encode_cbor({ 0xa1,0x62,'o','c',0x84,'\0','\1','\2','\3' }, jsoncons::json::parse("{\"oc\": [0, 1, 2, 3]}"));
