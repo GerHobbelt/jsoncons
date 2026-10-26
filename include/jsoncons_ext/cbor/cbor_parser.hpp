@@ -38,6 +38,121 @@ namespace cbor {
 
 enum class parse_mode {root,accept,array,typed_array,indefinite_array,map_key,map_value,indefinite_map_key,indefinite_map_value,multi_dim};
 
+template <typename Allocator>
+cbor_errc from_cbor_bigfloat(basic_bigint<Allocator> unscaled, 
+    int64_t exponent,
+    basic_bigdec<Allocator>& value,
+    uint64_t max_decimal_places = 34)
+{
+    constexpr uint64_t max_scale =
+        static_cast<uint64_t>(
+            (std::numeric_limits<int64_t>::max)()
+        );
+
+    if (max_decimal_places > max_scale)
+    {
+        return cbor_errc::bigdec_scale_overflow;
+    }
+
+    if (unscaled.is_zero())
+    {
+        value = basic_bigdec<Allocator>{ basic_bigint<Allocator>(0), 0 };
+        return cbor_errc{};
+    }
+
+    // Positive exponent: exact integer.
+    if (exponent >= 0) {
+        unscaled <<= (static_cast<uint64_t>(exponent));
+        value = basic_bigdec<Allocator>{ std::move(unscaled), 0 };
+        return cbor_errc{};
+    }
+
+    const bool negative = unscaled < basic_bigint<Allocator>(0);
+
+    if (negative)
+        unscaled = -unscaled;
+
+    // Absolute exponent, safe for INT64_MIN.
+    uint64_t k =
+        static_cast<uint64_t>(-(exponent + 1)) + 1;
+
+    // Cancel powers of 2.
+    const u128 trailing = unscaled.trailing_zero_bits();
+
+    const uint64_t cancel =
+        trailing >= static_cast<u128>(k)
+            ? k
+            : static_cast<uint64_t>(trailing);
+
+    if (cancel != 0)
+        unscaled >>= (cancel);
+
+    k -= cancel;
+
+    // Exact conversion when the scale fits.
+    if (k <= max_decimal_places) {
+        if (k != 0)
+            unscaled *= jsoncons::powb(basic_bigint<Allocator>(5), k);
+
+        if (negative)
+            unscaled = -unscaled;
+
+        value = basic_bigdec<Allocator>{
+            std::move(unscaled),
+            static_cast<int64_t>(k)
+        };
+        return cbor_errc{};
+    }
+
+    // Round to max_decimal_places.
+    //
+    // m / 2^k * 10^scale
+    // = m * 5^scale / 2^(k-scale)
+
+    const uint64_t scale = max_decimal_places;
+    const uint64_t shift = k - scale;
+
+    // Conservative early-zero bound:
+    // 5^scale < 2^(3*scale).
+    //
+    // If shift >= bit_length(m) + 3*scale,
+    // the rounded result must be zero.
+    const u128 bits = unscaled.bit_length();
+    const u128 bound =
+        bits + static_cast<u128>(3) * scale;
+
+    if (static_cast<u128>(shift) >= bound) {
+        value = basic_bigdec<Allocator>{
+            basic_bigint<Allocator>(0),
+            static_cast<int64_t>(scale)
+        };
+        return cbor_errc{};
+    }
+
+    // Compute scaled positive magnitude.
+    unscaled *= jsoncons::powb(basic_bigint<Allocator>(5), scale);
+
+    // Round unscaled / 2^shift using HALF_EVEN.
+    basic_bigint<Allocator> quotient = unscaled;
+    quotient >>= (shift);
+
+    const bool halfBit = unscaled.test_bit(shift - 1);
+    const bool lowerBits = unscaled.any_low_bits(shift - 1);
+    const bool odd = quotient.test_bit(0);
+
+    if (halfBit && (lowerBits || odd))
+        quotient += basic_bigint<Allocator>(1);
+
+    if (negative && !quotient.is_zero())
+        quotient = -quotient;
+
+    value = basic_bigdec<Allocator> {
+        std::move(quotient),
+        static_cast<int64_t>(scale)
+    };
+    return cbor_errc{};
+}
+
 template <typename Source,typename Allocator>
 class basic_cbor_parser;
 
@@ -156,6 +271,7 @@ class basic_cbor_parser : public ser_context
     allocator_type alloc_;
     Source source_;
     int max_nesting_depth_;
+    uint64_t bigfloat_precision_;
     string_type text_buffer_;
     std::vector<uint8_t,byte_allocator_type> bytes_buffer_;
     std::vector<parse_state,parse_state_allocator_type> state_stack_;
@@ -220,6 +336,7 @@ public:
        : alloc_(alloc),
          source_(std::forward<Sourceable>(source)),
          max_nesting_depth_(options.max_nesting_depth()),
+         bigfloat_precision_(options.bigfloat_precision()),
          text_buffer_(alloc),
          bytes_buffer_(alloc),
          state_stack_(alloc),
@@ -1749,7 +1866,7 @@ private:
                 }
                 if (u > static_cast<uint64_t>((std::numeric_limits<int64_t>::max)()))
                 {
-                    ec = cbor_errc::invalid_bigdecimal;
+                    ec = cbor_errc::bigdec_scale_overflow;
                     more_ = false;
                     return;
                 }
@@ -1790,7 +1907,7 @@ private:
             return;
         }
 
-        bigint significand;
+        bigint unscaled;
         switch (major_type)
         {
             case jsoncons::cbor::detail::cbor_major_type::unsigned_integer:
@@ -1801,7 +1918,7 @@ private:
                 {
                     return;
                 }
-                significand = bigint(u);
+                unscaled = bigint(u);
                 break;
             }
             case jsoncons::cbor::detail::cbor_major_type::negative_integer:
@@ -1814,15 +1931,15 @@ private:
                 }
                 if (u > static_cast<uint64_t>((std::numeric_limits<int64_t>::max)()))
                 {
-                    significand = -1 - bigint(u);
+                    unscaled = -1 - bigint(u);
                 }
                 else if (JSONCONS_UNLIKELY(u == static_cast<uint64_t>((std::numeric_limits<int64_t>::max)())))
                 {
-                    significand = bigint((std::numeric_limits<int64_t>::min)());
+                    unscaled = bigint((std::numeric_limits<int64_t>::min)());
                 }
                 else
                 {
-                    significand = bigint(static_cast<int64_t>(-1) - static_cast<int64_t>(u));
+                    unscaled = bigint(static_cast<int64_t>(-1) - static_cast<int64_t>(u));
                 }
                 break;
             }
@@ -1861,12 +1978,12 @@ private:
                     }
                     if (info == 2)
                     {
-                        significand = bigint::from_bytes_be(1, bytes_buffer_.data(), bytes_buffer_.size());
+                        unscaled = bigint::from_bytes_be(1, bytes_buffer_.data(), bytes_buffer_.size());
                     }
                     else if (info == 3)
                     {
-                        significand = bigint::from_bytes_be(1, bytes_buffer_.data(), bytes_buffer_.size());
-                        significand = -1 - significand;
+                        unscaled = bigint::from_bytes_be(1, bytes_buffer_.data(), bytes_buffer_.size());
+                        unscaled = -1 - unscaled;
                     }
                 }
                 break;
@@ -1879,7 +1996,7 @@ private:
             }
         }
 
-        bigdec dec(std::move(significand), -exponent);
+        bigdec dec(std::move(unscaled), -exponent);
         append_to_buffer(dec, result);
     }
 
@@ -1976,7 +2093,7 @@ private:
             return;
         }
 
-        bigint significand;
+        bigint unscaled;
         switch (major_type)
         {
             case jsoncons::cbor::detail::cbor_major_type::unsigned_integer:
@@ -1987,8 +2104,8 @@ private:
                 {
                     return;
                 }
-                significand = bigint(u);
-                //bigdec dec(std::move(significand), -exponent);
+                unscaled = bigint(u);
+                //bigdec dec(std::move(unscaled), -exponent);
                 //append_to_buffer(dec, str);
                 break;
             }
@@ -2002,17 +2119,17 @@ private:
                 }
                 if (u > static_cast<uint64_t>((std::numeric_limits<int64_t>::max)()))
                 {
-                    significand = -1 - bigint(u);
+                    unscaled = -1 - bigint(u);
                 }
                 else if (JSONCONS_UNLIKELY(u == static_cast<uint64_t>((std::numeric_limits<int64_t>::max)())))
                 {
-                    significand = bigint((std::numeric_limits<int64_t>::min)());
+                    unscaled = bigint((std::numeric_limits<int64_t>::min)());
                 }
                 else
                 {
-                    significand = bigint(static_cast<int64_t>(-1) - static_cast<int64_t>(u));
+                    unscaled = bigint(static_cast<int64_t>(-1) - static_cast<int64_t>(u));
                 }
-                //bigdec dec(std::move(significand), -exponent);
+                //bigdec dec(std::move(unscaled), -exponent);
                 //append_to_buffer(dec, str);
                 break;
             }
@@ -2050,10 +2167,10 @@ private:
                         more_ = false;
                         return;
                     }
-                    significand = bigint::from_bytes_be(1, bytes_buffer_.data(), bytes_buffer_.size());
+                    unscaled = bigint::from_bytes_be(1, bytes_buffer_.data(), bytes_buffer_.size());
                     if (tag == 3)
                     {
-                        significand = -1 - significand;
+                        unscaled = -1 - unscaled;
                     }
                 }
                 break;
@@ -2065,22 +2182,16 @@ private:
                 return;
             }
         }
-        bigdec base{std::move(significand), 0};
-        if (exponent > 0)
+
+        bigdec dec;
+        auto result = from_cbor_bigfloat(std::move(unscaled), exponent, dec, bigfloat_precision_);
+        if (result != cbor_errc{})
         {
-            bigint factor = powb(bigint(2), exponent);
-            bigdec dec; 
-            multiply(base, bigdec(std::move(factor), 0), dec);
-            append_to_buffer(dec, str);
+            ec = result;
+            more_ = false;
+            return;
         }
-        else 
-        {
-            bigint divisor = powb(bigint(2), -exponent);
-            bigdec dec;
-            base.divide(bigdec(std::move(divisor), 0), dec);
-            append_to_buffer(dec, str);
-        }
-        
+        append_to_buffer(dec, str);
     }
 
     static jsoncons::cbor::detail::cbor_major_type get_major_type(uint8_t type)

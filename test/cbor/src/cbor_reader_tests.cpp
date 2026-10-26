@@ -22,6 +22,20 @@ namespace cbor = jsoncons::cbor;
 
 namespace {
 
+void expect_bigdec(
+    const jsoncons::bigdec& actual,
+    const char* expectedMantissa,
+    int64_t expectedScale)
+{
+    CHECK(actual.unscaled().to_string() == expectedMantissa);
+    CHECK(actual.scale() == expectedScale);
+
+    if (actual.scale() != expectedScale)
+    {
+        std::cout << "actual: " << actual << ", expectedMantissa: " << expectedMantissa << ", actualScale: " << actual.scale() << ", expectedScale: " << expectedScale << "\n";
+    }
+}
+
 std::error_code parse_cbor_error(const std::vector<uint8_t>& v)
 {
     std::error_code ec;
@@ -821,6 +835,221 @@ TEST_CASE("cbor negative integer values")
         auto r = cbor::try_decode_cbor<jsoncons::json>(data);
         REQUIRE(r);
         CHECK((std::numeric_limits<int64_t>::min)() == (*r).as<int64_t>());
+    }
+}
+
+TEST_CASE("cbor bigfloat tests")
+{
+    SECTION("trailing-zero cancellation, negative mantissas, zero, and both exponent directions")
+    {
+        jsoncons::bigdec value;
+
+        cbor::from_cbor_bigfloat(jsoncons::bigint(7), -3, value);
+        expect_bigdec(value, "875", 3);
+
+        cbor::from_cbor_bigfloat(jsoncons::bigint(12), -3, value);
+        expect_bigdec(
+            value,
+            "15", 1
+        );
+
+        cbor::from_cbor_bigfloat(jsoncons::bigint(-12), -3, value);
+        expect_bigdec(
+            value,
+            "-15", 1
+        );
+
+        cbor::from_cbor_bigfloat(jsoncons::bigint(1), 0, value);
+        expect_bigdec(
+            value,
+            "1", 0
+        );
+
+        cbor::from_cbor_bigfloat(jsoncons::bigint(125), 3, value);
+        expect_bigdec(
+            value,
+            "1000", 0
+        );
+
+        cbor::from_cbor_bigfloat(jsoncons::bigint(-7), 2, value);
+        expect_bigdec(
+            value,
+            "-28", 0
+        );
+
+        cbor::from_cbor_bigfloat(jsoncons::bigint(8), -3, value);
+        expect_bigdec(
+            value,
+            "1", 0
+        );
+
+        cbor::from_cbor_bigfloat(jsoncons::bigint(16), -2, value);
+        expect_bigdec(
+            value,
+            "4", 0
+        );
+
+        cbor::from_cbor_bigfloat(jsoncons::bigint(0), INT64_MIN, value);
+        expect_bigdec(
+            value,
+            "0", 0
+        );
+
+        cbor::from_cbor_bigfloat(jsoncons::bigint(0), INT64_MAX, value);
+        expect_bigdec(
+            value,
+            "0", 0
+        );
+    }    
+    SECTION("Rounding tests (HALF_EVEN)")
+    {
+        jsoncons::bigdec value;
+
+        // 1.25 -> 1.2 (tie, even)
+        cbor::from_cbor_bigfloat(jsoncons::bigint(5), -2, value, 1);
+        expect_bigdec(
+            value,
+            "12", 1
+        );
+
+        // 1.75 -> 1.8 (tie, odd rounds up)
+        cbor::from_cbor_bigfloat(jsoncons::bigint(7), -2, value, 1);
+        expect_bigdec(
+            value,
+            "18", 1
+        );
+
+        // -1.25 -> -1.2
+        cbor::from_cbor_bigfloat(jsoncons::bigint(-5), -2, value, 1);
+        expect_bigdec(
+            value,
+            "-12", 1
+        );
+
+        // -1.75 -> -1.8
+        cbor::from_cbor_bigfloat(jsoncons::bigint(-7), -2, value, 1);
+        expect_bigdec(
+            value,
+            "-18", 1
+        );
+
+        // 0.5 -> 0 (tie, even)
+        cbor::from_cbor_bigfloat(jsoncons::bigint(1), -1, value, 0);
+        expect_bigdec(
+            value,
+            "0", 0
+        );
+
+        // 1.5 -> 2 (tie, odd rounds up)
+        cbor::from_cbor_bigfloat(jsoncons::bigint(3), -1, value, 0);
+        expect_bigdec(
+            value,
+            "2", 0
+        );
+
+        // 2.5 -> 2 (tie, even)
+        cbor::from_cbor_bigfloat(jsoncons::bigint(5), -1, value, 0);
+        expect_bigdec(value,
+            "2", 0
+        );
+
+        // 3.5 -> 4 (tie, odd rounds up)
+        cbor::from_cbor_bigfloat(jsoncons::bigint(7), -1, value, 0);
+        expect_bigdec(
+            value,
+            "4", 0
+        );
+
+        // -0.5 -> 0
+        cbor::from_cbor_bigfloat(jsoncons::bigint(-1), -1, value, 0);
+        expect_bigdec(
+            value,
+            "0", 0
+        );
+
+        // -1.5 -> -2
+        cbor::from_cbor_bigfloat(jsoncons::bigint(-3), -1, value, 0);
+        expect_bigdec(
+            value,
+            "-2", 0
+        );
+    }
+    SECTION("Very small values and exponent boundaries")
+    {
+        jsoncons::bigdec value;
+
+        constexpr int64_t MIN = INT64_MIN;
+        constexpr int64_t MAX = INT64_MAX;
+
+        // Must round to zero quickly, without computing 5^(2^63).
+        cbor::from_cbor_bigfloat(jsoncons::bigint(MIN), MIN, value, 34);
+        expect_bigdec(
+            value,
+            "0", 34
+        );
+
+        cbor::from_cbor_bigfloat(jsoncons::bigint(1), MIN, value, 34);
+        expect_bigdec(
+            value,
+            "0", 34
+        );
+
+        cbor::from_cbor_bigfloat(jsoncons::bigint(-1), MIN, value, 34);
+        expect_bigdec(
+            value,
+            "0", 34
+        );
+
+        // Zero must short-circuit even for extreme exponents.
+        cbor::from_cbor_bigfloat(jsoncons::bigint(0), MIN, value, 34);
+        expect_bigdec(
+            value,
+            "0", 0
+        );
+
+        cbor::from_cbor_bigfloat(jsoncons::bigint(0), MAX, value, 34);
+        expect_bigdec(
+            value,
+            "0", 0
+        );
+        cbor::from_cbor_bigfloat(jsoncons::bigint(1), MIN, value);
+        expect_bigdec(
+            value,
+            "0", 34
+        );
+    }
+    SECTION("Limb-boundary tests")
+    {
+        jsoncons::bigdec value;
+
+        // 2^64 * 2^-64 = 1
+        cbor::from_cbor_bigfloat(jsoncons::powb(jsoncons::bigint(2), 64), -64, value);
+        expect_bigdec(
+            value,
+            "1", 0
+        );
+
+        // 2^128 * 2^-128 = 1
+        cbor::from_cbor_bigfloat(jsoncons::powb(jsoncons::bigint(2), 128), -128, value);
+        expect_bigdec(
+            value,
+            "1", 0
+        );
+
+        // -(2^128) * 2^-127 = -2
+        cbor::from_cbor_bigfloat(-jsoncons::powb(jsoncons::bigint(2), 128), -127, value);
+        expect_bigdec(
+            value,
+            "-2", 0
+        );
+
+        // (2^64 + 1) * 2^-1
+        // = 9223372036854775808.5
+        cbor::from_cbor_bigfloat(jsoncons::powb(jsoncons::bigint(2), 64) + jsoncons::bigint(1), -1, value);
+        expect_bigdec(
+            value,
+            "92233720368547758085", 1
+        );
     }
 }
 

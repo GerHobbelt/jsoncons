@@ -18,6 +18,7 @@
 #include <string>
 #include <type_traits> // std::enable_if, std::true_type
 #include <utility> // std::declval
+#include <jsoncons/nonstd/u128.hpp>
 
 #include <jsoncons/nonstd/compiler_support.hpp>
 
@@ -66,7 +67,7 @@ namespace nonstd {
     template <typename T,typename Enable=void>
     struct is_int128_type : std::false_type {};
 
-#if defined(JSONCONS_HAS_INT128)
+#if defined(JSONCONS_HAS_NATIVE_INT128)
     template <typename T>
     struct is_int128_type<T,typename std::enable_if<std::is_same<T,int128_type>::value>::type> : std::true_type {};
 #endif
@@ -76,7 +77,7 @@ namespace nonstd {
     template <typename T,typename Enable=void>
     struct is_uint128_type : std::false_type {};
 
-#if defined (JSONCONS_HAS_INT128)
+#if defined (JSONCONS_HAS_NATIVE_INT128)
     template <typename T>
     struct is_uint128_type<T,typename std::enable_if<std::is_same<T,uint128_type>::value>::type> : std::true_type {};
 #endif
@@ -156,6 +157,29 @@ namespace nonstd {
         static constexpr T lowest() noexcept
         {
             return std::numeric_limits<T>::lowest();
+        }
+    };
+
+    template <typename T>
+    class integer_limits<T, typename std::enable_if<std::is_same<T,jsoncons::nonstd::u128>::value>::type>
+    {
+    public:
+        static constexpr bool is_specialized = true;
+        static constexpr bool is_signed = false;
+        static constexpr int digits = sizeof(T) * CHAR_BIT;
+        static constexpr int digits10 = 38;
+
+        static constexpr T(max)() noexcept
+        {
+            return T((std::numeric_limits<uint64_t>::max)(), (std::numeric_limits<uint64_t>::max)());
+        }
+        static constexpr T(min)() noexcept
+        {
+            return 0;
+        }
+        static constexpr T lowest() noexcept
+        {
+            return 0;
         }
     };
 
@@ -378,7 +402,7 @@ namespace nonstd {
     template <typename T>
     struct make_unsigned_impl {using type = typename std::make_unsigned<T>::type;};
 
-    #if defined(JSONCONS_HAS_INT128)
+    #if defined(JSONCONS_HAS_NATIVE_INT128)
     template <> 
     struct make_unsigned_impl<int128_type> {using type = uint128_type;};
     template <> 
